@@ -1,0 +1,116 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+// ---------- MODULE TRANSACTIONS ----------
+
+enum TransactionType {
+  ACHAT
+  VENTE
+}
+
+enum TransactionStatus {
+  PREPARATION
+  EN_ATTENTE_RDV
+  AVANCE_ATTENTE_PAIEMENT
+  LIVRE_PAYE
+  ANNULEE
+}
+
+model Transaction {
+  id          String             @id @default(cuid())
+  guildId     String
+  channelId   String
+  messageId   String?
+  groupe      String
+  type        TransactionType
+  prix        Float
+  statut      TransactionStatus  @default(PREPARATION)
+  createdById String
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+  items       TransactionItem[]
+
+  @@index([guildId, channelId])
+  @@index([messageId])
+}
+
+model TransactionItem {
+  id            String      @id @default(cuid())
+  transactionId String
+  transaction   Transaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  nom           String
+  quantite      Int         @default(1)
+  prixUnitaire  Float?
+  createdAt     DateTime    @default(now())
+
+  @@index([transactionId])
+}
+
+// ---------- MODULE PRESENCES ----------
+
+enum ResponseStatus {
+  PRESENT
+  ABSENT
+  RETARD
+}
+
+model PresenceConfig {
+  guildId           String   @id
+  defaultRoleId     String?
+  exceptionRoleId   String?
+  reminderChannelId String?
+  updatedAt         DateTime @updatedAt
+}
+
+model Presence {
+  id              String             @id @default(cuid())
+  guildId         String
+  channelId       String
+  messageId       String?
+  titre           String
+  description     String?
+  eventDate       DateTime
+  roleId          String
+  exceptionRoleId String?
+  createdById     String
+  createdAt       DateTime           @default(now())
+  closedAt        DateTime?
+  lastReminderAt  DateTime?
+  responses       PresenceResponse[]
+
+  @@index([guildId, channelId])
+  @@index([messageId])
+  @@index([eventDate])
+}
+
+model PresenceResponse {
+  id            String                   @id @default(cuid())
+  presenceId    String
+  presence      Presence                 @relation(fields: [presenceId], references: [id], onDelete: Cascade)
+  userId        String
+  status        ResponseStatus
+  retardMinutes Int?
+  respondedAt   DateTime                 @default(now())
+  updatedAt     DateTime                 @updatedAt
+  changes       PresenceResponseChange[]
+
+  @@unique([presenceId, userId])
+  @@index([presenceId, status])
+}
+
+// historique des changements de réponse (ex: Présent -> Absent), pour /presence stats
+model PresenceResponseChange {
+  id         String            @id @default(cuid())
+  responseId String
+  response   PresenceResponse  @relation(fields: [responseId], references: [id], onDelete: Cascade)
+  fromStatus ResponseStatus?
+  toStatus   ResponseStatus
+  changedAt  DateTime          @default(now())
+
+  @@index([responseId])
+}
