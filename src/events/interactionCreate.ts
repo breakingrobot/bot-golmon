@@ -1,13 +1,17 @@
 import {
   ActionRowBuilder,
+  MessageFlags,
   ModalBuilder,
   TextInputBuilder,
   TextInputStyle,
+  type ButtonInteraction,
   type Interaction,
+  type ModalSubmitInteraction,
 } from "discord.js";
-import { ResponseStatus } from "@prisma/client";
+import { ResponseStatus, TransactionStatus } from "@prisma/client";
 import type { BotEvent } from "../types/event.js";
 import { decodeCustomId, encodeCustomId } from "../lib/customId.js";
+import { chunkMentions } from "../lib/format.js";
 import { logger } from "../lib/logger.js";
 import {
   getNonRespondentIds,
@@ -15,146 +19,195 @@ import {
   registerResponse,
   syncPresenceMessage,
 } from "../modules/presences/service.js";
+import { refreshTransaction, setTransactionStatus } from "../modules/transactions/service.js";
+import { TRANSACTION_STATUS_LABELS } from "../modules/transactions/constants.js";
 
-async function handleChatInputCommand(interaction: Interaction) {
-  if (!interaction.isChatInputCommand()) {
-    return;
-  }
-  const command = interaction.client.commands.get(interaction.commandName);
-  if (!command) {
-    return;
-  }
-  try {
-    await command.execute(interaction);
-  } catch (error) {
-    logger.error(`Erreur lors de l'exécution de /${interaction.commandName}`, error);
-    const payload = { content: "Une erreur est survenue.", ephemeral: true } as const;
-    if (interaction.replied || interaction.deferred) {
-      await interaction.followUp(payload);
-    } else {
-      await interaction.reply(payload);
-    }
-  }
-}
+const BUTTON_STATUS: Record<string, ResponseStatus> = {
+  present: ResponseStatus.PRESENT,
+  absent: ResponseStatus.ABSENT,
+};
 
-async function handleAutocomplete(interaction: Interaction) {
-  if (!interaction.isAutocomplete()) {
-    return;
-  }
-  const command = interaction.client.commands.get(interaction.commandName);
-  if (!command?.autocomplete) {
-    return;
-  }
-  try {
-    await command.autocomplete(interaction);
-  } catch (error) {
-    logger.error(`Erreur d'autocomplete pour /${interaction.commandName}`, error);
-  }
-}
-
-async function handlePresenceButton(interaction: Interaction) {
-  if (!interaction.isButton()) {
-    return;
-  }
-
-  const { namespace, action, id } = decodeCustomId(interaction.customId);
-  if (namespace !== "presence") {
-    return;
-  }
-
+async function handlePresenceButton(interaction: ButtonInteraction, action: string, id: string) {
   const presence = await getPresenceWithResponses(id);
   if (!presence) {
-    await interaction.reply({ content: "Présence introuvable.", ephemeral: true });
+    await interaction.reply({ content: "Présence introuvable.", flags: MessageFlags.Ephemeral });
     return;
   }
   if (presence.closedAt) {
-    await interaction.reply({ content: "Cette présence est clôturée.", ephemeral: true });
+    await interaction.reply({
+      content: "Cette présence est clôturée.",
+      flags: MessageFlags.Ephemeral,
+    });
     return;
   }
 
-  if (action === "present" || action === "absent") {
-    await registerResponse(
-      id,
-      interaction.user.id,
-      action === "present" ? ResponseStatus.PRESENT : ResponseStatus.ABSENT,
-    );
+  const status = BUTTON_STATUS[action];
+  if (status) {
+    const { changed } = await registerResponse(id, interaction.user.id, status);
     await interaction.deferUpdate();
-    await syncPresenceMessage(interaction.client, id);
+    // Rien n'a bougé : inutile de rééditer le message.
+    if (changed) {
+      await syncPresenceMessage(interaction.client, id);
+    }
     return;
   }
 
   if (action === "retard") {
-    const modal = new ModalBuilder()
-      .setCustomId(encodeCustomId("presence", "retard-modal", id))
-      .setTitle("Retard")
-      .addComponents(
-        new ActionRowBuilder<TextInputBuilder>().addComponents(
-          new TextInputBuilder()
-            .setCustomId("minutes")
-            .setLabel("Durée du retard (minutes)")
-            .setStyle(TextInputStyle.Short)
-            .setRequired(true),
+    await interaction.showModal(
+      new ModalBuilder()
+        .setCustomId(encodeCustomId("presence", "retard-modal", id))
+        .setTitle("Retard")
+        .addComponents(
+          new ActionRowBuilder<TextInputBuilder>().addComponents(
+            new TextInputBuilder()
+              .setCustomId("minutes")
+              .setLabel("Durée du retard (minutes)")
+              .setPlaceholder("15")
+              .setStyle(TextInputStyle.Short)
+              .setRequired(true),
+          ),
         ),
-      );
-    await interaction.showModal(modal);
+    );
     return;
   }
 
   if (action === "ping") {
-    await interaction.deferReply({ ephemeral: true });
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
     if (!interaction.guild) {
-      await interaction.editReply("Commande utilisable en serveur uniquement.");
+      await interaction.editReply("Action utilisable en serveur uniquement.");
       return;
     }
+
     const nonRespondentIds = await getNonRespondentIds(interaction.guild, presence);
     if (nonRespondentIds.length === 0) {
       await interaction.editReply("Tout le monde a répondu.");
       return;
     }
+
     if (interaction.channel?.isSendable()) {
-      await interaction.channel.send({
-        content: `Rappel présence : ${nonRespondentIds.map((userId) => `<@${userId}>`).join(" ")}`,
-        allowedMentions: { parse: ["users"] },
-      });
+      for (const content of chunkMentions(nonRespondentIds, `⏰ Rappel — **${presence.titre}**`)) {
+        await interaction.channel.send({ content, allowedMentions: { parse: ["users"] } });
+      }
     }
-    await interaction.editReply(`${nonRespondentIds.length} membre(s) rappelé(s).`);
+    await interaction.editReply(`${nonRespondentIds.length} membre(s) relancé(s).`);
   }
 }
 
-async function handlePresenceModal(interaction: Interaction) {
-  if (!interaction.isModalSubmit()) {
+async function handleTransactionButton(
+  interaction: ButtonInteraction,
+  action: string,
+  id: string,
+  payload: string | undefined,
+) {
+  if (action !== "status" || !payload || !interaction.guildId) {
     return;
   }
 
-  const { namespace, action, id } = decodeCustomId(interaction.customId);
-  if (namespace !== "presence" || action !== "retard-modal") {
+  const statut = payload as TransactionStatus;
+  if (!Object.values(TransactionStatus).includes(statut)) {
     return;
   }
 
-  const minutesRaw = interaction.fields.getTextInputValue("minutes");
-  const minutes = Number.parseInt(minutesRaw, 10);
+  await interaction.deferUpdate();
+  await setTransactionStatus(id, statut);
+  await refreshTransaction(interaction.client, id, interaction.guildId);
+  await interaction.followUp({
+    content: `Statut passé à **${TRANSACTION_STATUS_LABELS[statut]}**.`,
+    flags: MessageFlags.Ephemeral,
+  });
+}
+
+async function handleRetardModal(interaction: ModalSubmitInteraction, id: string) {
+  const minutes = Number.parseInt(interaction.fields.getTextInputValue("minutes"), 10);
   if (Number.isNaN(minutes) || minutes < 0) {
-    await interaction.reply({ content: "Durée invalide.", ephemeral: true });
+    await interaction.reply({
+      content: "Durée invalide, indique un nombre de minutes.",
+      flags: MessageFlags.Ephemeral,
+    });
     return;
   }
 
   const presence = await getPresenceWithResponses(id);
   if (!presence || presence.closedAt) {
-    await interaction.reply({ content: "Présence introuvable ou clôturée.", ephemeral: true });
+    await interaction.reply({
+      content: "Présence introuvable ou clôturée.",
+      flags: MessageFlags.Ephemeral,
+    });
     return;
   }
 
-  await registerResponse(id, interaction.user.id, ResponseStatus.RETARD, minutes);
+  const { changed } = await registerResponse(
+    id,
+    interaction.user.id,
+    ResponseStatus.RETARD,
+    minutes,
+  );
   await interaction.deferUpdate();
-  await syncPresenceMessage(interaction.client, id);
+  if (changed) {
+    await syncPresenceMessage(interaction.client, id);
+  }
+}
+
+async function route(interaction: Interaction) {
+  if (interaction.isChatInputCommand()) {
+    const command = interaction.client.commands.get(interaction.commandName);
+    await command?.execute(interaction);
+    return;
+  }
+
+  if (interaction.isAutocomplete()) {
+    const command = interaction.client.commands.get(interaction.commandName);
+    await command?.autocomplete?.(interaction);
+    return;
+  }
+
+  if (interaction.isButton()) {
+    const parsed = decodeCustomId(interaction.customId);
+    if (!parsed) {
+      return;
+    }
+    if (parsed.namespace === "presence") {
+      await handlePresenceButton(interaction, parsed.action, parsed.id);
+    } else if (parsed.namespace === "transaction") {
+      await handleTransactionButton(interaction, parsed.action, parsed.id, parsed.payload);
+    }
+    return;
+  }
+
+  if (interaction.isModalSubmit()) {
+    const parsed = decodeCustomId(interaction.customId);
+    if (parsed?.namespace === "presence" && parsed.action === "retard-modal") {
+      await handleRetardModal(interaction, parsed.id);
+    }
+  }
 }
 
 export const event: BotEvent<"interactionCreate"> = {
   name: "interactionCreate",
   async execute(interaction) {
-    await handleChatInputCommand(interaction);
-    await handleAutocomplete(interaction);
-    await handlePresenceButton(interaction);
-    await handlePresenceModal(interaction);
+    try {
+      await route(interaction);
+    } catch (error) {
+      logger.error("Erreur lors du traitement d'une interaction", error);
+
+      if (interaction.isAutocomplete() || !interaction.isRepliable()) {
+        return;
+      }
+
+      const payload = {
+        content: "Une erreur est survenue.",
+        flags: MessageFlags.Ephemeral,
+      } as const;
+
+      try {
+        if (interaction.replied || interaction.deferred) {
+          await interaction.followUp(payload);
+        } else {
+          await interaction.reply(payload);
+        }
+      } catch {
+        // L'interaction a expiré ou a déjà reçu une réponse : rien à faire.
+      }
+    }
   },
 };

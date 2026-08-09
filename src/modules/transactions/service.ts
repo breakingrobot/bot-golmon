@@ -1,7 +1,27 @@
-import type { Client, TextChannel } from "discord.js";
-import { TransactionStatus, TransactionType } from "@prisma/client";
+import type { Client } from "discord.js";
+import { TransactionStatus, type TransactionType } from "@prisma/client";
 import { prisma } from "../../lib/prisma.js";
+import { logger } from "../../lib/logger.js";
 import { buildTransactionEmbed } from "../../lib/embeds/transactionEmbed.js";
+import { buildTransactionDashboardEmbed } from "../../lib/embeds/transactionDashboardEmbed.js";
+import { buildTransactionButtons } from "../../lib/components/transactionButtons.js";
+
+export async function getTransactionConfig(guildId: string) {
+  return prisma.transactionConfig.findUnique({ where: { guildId } });
+}
+
+export async function upsertTransactionConfig(params: {
+  guildId: string;
+  dashboardChannelId?: string;
+  dashboardMessageId?: string | null;
+}) {
+  const { guildId, ...data } = params;
+  return prisma.transactionConfig.upsert({
+    where: { guildId },
+    create: { guildId, ...data },
+    update: data,
+  });
+}
 
 export async function createTransaction(params: {
   guildId: string;
@@ -40,12 +60,14 @@ export async function getTransaction(transactionId: string) {
   });
 }
 
-export async function findOpenTransactions(guildId: string, query: string) {
+export async function findTransactions(guildId: string, query: string, openOnly = true) {
   return prisma.transaction.findMany({
     where: {
       guildId,
-      statut: { notIn: [TransactionStatus.LIVRE_PAYE, TransactionStatus.ANNULEE] },
       groupe: { contains: query },
+      ...(openOnly
+        ? { statut: { notIn: [TransactionStatus.LIVRE_PAYE, TransactionStatus.ANNULEE] } }
+        : {}),
     },
     take: 25,
     orderBy: { createdAt: "desc" },
@@ -59,25 +81,70 @@ export async function syncTransactionMessage(client: Client, transactionId: stri
   }
 
   const channel = await client.channels.fetch(transaction.channelId);
-  if (!channel?.isTextBased()) {
+  if (!channel?.isSendable()) {
     return;
   }
 
   const embed = buildTransactionEmbed(transaction);
+  const components = [buildTransactionButtons(transaction.id, transaction.statut)];
 
   if (transaction.messageId) {
     try {
       const message = await channel.messages.fetch(transaction.messageId);
-      await message.edit({ embeds: [embed] });
+      await message.edit({ embeds: [embed], components });
       return;
     } catch {
       // message introuvable (supprimé) -> on en poste un nouveau ci-dessous
     }
   }
 
-  const message = await (channel as TextChannel).send({ embeds: [embed] });
+  const message = await channel.send({ embeds: [embed], components });
   await prisma.transaction.update({
     where: { id: transaction.id },
     data: { messageId: message.id },
   });
+}
+
+/**
+ * Met à jour (ou crée) le message unique du tableau de bord listant toutes les
+ * transactions de la guilde. Sans salon configuré, ne fait rien.
+ */
+export async function syncTransactionDashboard(client: Client, guildId: string) {
+  const config = await getTransactionConfig(guildId);
+  if (!config?.dashboardChannelId) {
+    return;
+  }
+
+  const channel = await client.channels.fetch(config.dashboardChannelId).catch(() => null);
+  if (!channel?.isSendable()) {
+    logger.warn(`Salon de tableau de bord introuvable pour la guilde ${guildId}`);
+    return;
+  }
+
+  const transactions = await prisma.transaction.findMany({
+    where: { guildId },
+    include: { items: true },
+    orderBy: { updatedAt: "desc" },
+  });
+
+  const embed = buildTransactionDashboardEmbed(transactions);
+
+  if (config.dashboardMessageId) {
+    try {
+      const message = await channel.messages.fetch(config.dashboardMessageId);
+      await message.edit({ embeds: [embed] });
+      return;
+    } catch {
+      // message supprimé -> on en repost un nouveau ci-dessous
+    }
+  }
+
+  const message = await channel.send({ embeds: [embed] });
+  await upsertTransactionConfig({ guildId, dashboardMessageId: message.id });
+}
+
+/** Rafraîchit l'embed de la transaction et le tableau de bord de la guilde. */
+export async function refreshTransaction(client: Client, transactionId: string, guildId: string) {
+  await syncTransactionMessage(client, transactionId);
+  await syncTransactionDashboard(client, guildId);
 }

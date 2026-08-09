@@ -1,13 +1,29 @@
 const SEPARATOR = ":";
 
-export function encodeCustomId(namespace: string, action: string, id: string): string {
-  return [namespace, action, id].join(SEPARATOR);
+export interface ParsedCustomId {
+  namespace: string;
+  action: string;
+  id: string;
+  payload?: string;
 }
 
-export function decodeCustomId(customId: string): { namespace: string; action: string; id: string } {
-  const [namespace, action, id] = customId.split(SEPARATOR);
-  if (!namespace || !action || !id) {
-    throw new Error(`customId invalide: ${customId}`);
+export function encodeCustomId(
+  namespace: string,
+  action: string,
+  id: string,
+  payload?: string,
+): string {
+  const parts = [namespace, action, id];
+  if (payload) {
+    parts.push(payload);
   }
-  return { namespace, action, id };
+  return parts.join(SEPARATOR);
+}
+
+export function decodeCustomId(customId: string): ParsedCustomId | null {
+  const [namespace, action, id, payload] = customId.split(SEPARATOR);
+  if (!namespace || !action || !id) {
+    return null;
+  }
+  return { namespace, action, id, payload };
 }

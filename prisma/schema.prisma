@@ -36,7 +36,15 @@ model Transaction {
   items       TransactionItem[]
 
   @@index([guildId, channelId])
+  @@index([guildId, statut])
   @@index([messageId])
+}
+
+model TransactionConfig {
+  guildId            String   @id
+  dashboardChannelId String?
+  dashboardMessageId String?
+  updatedAt          DateTime @updatedAt
 }
 
 model TransactionItem {
@@ -63,6 +71,7 @@ model PresenceConfig {
   guildId           String   @id
   defaultRoleId     String?
   exceptionRoleId   String?
+  presenceChannelId String?
   reminderChannelId String?
   updatedAt         DateTime @updatedAt
 }
@@ -101,6 +110,7 @@ model PresenceResponse {
 
   @@unique([presenceId, userId])
   @@index([presenceId, status])
+  @@index([userId])
 }
 
 // historique des changements de réponse (ex: Présent -> Absent), pour /presence stats

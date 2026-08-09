@@ -1,8 +1,14 @@
-import type { Client, Guild, TextChannel } from "discord.js";
+import type { Client, Guild } from "discord.js";
 import { ResponseStatus } from "@prisma/client";
 import { prisma } from "../../lib/prisma.js";
+import { getRoleMemberIds } from "../../lib/memberCache.js";
 import { buildPresenceEmbed } from "../../lib/embeds/presenceEmbed.js";
 import { buildPresenceButtons } from "../../lib/components/presenceButtons.js";
+
+export interface PresenceRoster {
+  effectifTotal: number;
+  nonRespondentIds: string[];
+}
 
 export async function getPresenceConfig(guildId: string) {
   return prisma.presenceConfig.findUnique({ where: { guildId } });
@@ -12,6 +18,7 @@ export async function upsertPresenceConfig(params: {
   guildId: string;
   defaultRoleId?: string;
   exceptionRoleId?: string;
+  presenceChannelId?: string;
   reminderChannelId?: string;
 }) {
   const { guildId, ...data } = params;
@@ -20,15 +27,6 @@ export async function upsertPresenceConfig(params: {
     create: { guildId, ...data },
     update: data,
   });
-}
-
-async function getRoleMemberIds(guild: Guild, roleId: string): Promise<string[]> {
-  await guild.members.fetch();
-  const role = guild.roles.cache.get(roleId);
-  if (!role) {
-    return [];
-  }
-  return [...role.members.keys()];
 }
 
 export async function createPresence(
@@ -53,13 +51,23 @@ export async function createPresence(
       roleId: params.roleId,
       exceptionRoleId: params.exceptionRoleId,
       createdById: params.createdById,
+      // La création ping déjà tout le monde : le premier rappel tombera 3h après.
+      lastReminderAt: new Date(),
     },
   });
 
   if (params.exceptionRoleId) {
     const exceptionMemberIds = await getRoleMemberIds(guild, params.exceptionRoleId);
-    for (const userId of exceptionMemberIds) {
-      await registerResponse(presence.id, userId, ResponseStatus.ABSENT);
+    if (exceptionMemberIds.length > 0) {
+      // Absences automatiques : pas d'historique de changement, ce ne sont pas
+      // des actions utilisateur.
+      await prisma.presenceResponse.createMany({
+        data: exceptionMemberIds.map((userId) => ({
+          presenceId: presence.id,
+          userId,
+          status: ResponseStatus.ABSENT,
+        })),
+      });
     }
   }
 
@@ -71,15 +79,20 @@ export async function registerResponse(
   userId: string,
   status: ResponseStatus,
   retardMinutes?: number,
-) {
+): Promise<{ changed: boolean }> {
   const existing = await prisma.presenceResponse.findUnique({
     where: { presenceId_userId: { presenceId, userId } },
   });
 
+  const normalizedRetard = retardMinutes ?? null;
+  if (existing && existing.status === status && existing.retardMinutes === normalizedRetard) {
+    return { changed: false };
+  }
+
   const response = await prisma.presenceResponse.upsert({
     where: { presenceId_userId: { presenceId, userId } },
     create: { presenceId, userId, status, retardMinutes },
-    update: { status, retardMinutes, respondedAt: new Date() },
+    update: { status, retardMinutes: normalizedRetard, respondedAt: new Date() },
   });
 
   await prisma.presenceResponseChange.create({
@@ -90,7 +103,7 @@ export async function registerResponse(
     },
   });
 
-  return response;
+  return { changed: true };
 }
 
 export async function getPresenceWithResponses(presenceId: string) {
@@ -100,19 +113,37 @@ export async function getPresenceWithResponses(presenceId: string) {
   });
 }
 
-export async function computeEffectifTotal(guild: Guild, roleId: string): Promise<number> {
+/**
+ * Effectif du rôle ciblé et membres n'ayant pas encore répondu. Les membres du
+ * rôle d'exception sont déjà enregistrés en ABSENT à la création, donc exclus
+ * des non-répondants sans traitement particulier.
+ */
+export async function computeRoster(
+  guild: Guild,
+  roleId: string,
+  respondedUserIds: Set<string>,
+): Promise<PresenceRoster> {
   const memberIds = await getRoleMemberIds(guild, roleId);
-  return memberIds.length;
+  return {
+    effectifTotal: memberIds.length,
+    nonRespondentIds: memberIds.filter((id) => !respondedUserIds.has(id)),
+  };
 }
 
-export async function getNonRespondentIds(guild: Guild, presence: { id: string; roleId: string }) {
-  const memberIds = await getRoleMemberIds(guild, presence.roleId);
+export async function getNonRespondentIds(
+  guild: Guild,
+  presence: { id: string; roleId: string },
+): Promise<string[]> {
   const responses = await prisma.presenceResponse.findMany({
     where: { presenceId: presence.id },
     select: { userId: true },
   });
-  const responded = new Set(responses.map((r) => r.userId));
-  return memberIds.filter((id) => !responded.has(id));
+  const roster = await computeRoster(
+    guild,
+    presence.roleId,
+    new Set(responses.map((r) => r.userId)),
+  );
+  return roster.nonRespondentIds;
 }
 
 export async function closePresence(presenceId: string) {
@@ -128,14 +159,13 @@ export async function findOpenPresences(guildId: string, query: string) {
 }
 
 export async function computeUserStats(guildId: string, userId: string) {
-  const closedPresences = await prisma.presence.findMany({
+  const totalClosed = await prisma.presence.count({
     where: { guildId, closedAt: { not: null } },
-    select: { id: true },
   });
-  const totalClosed = closedPresences.length;
 
   const responses = await prisma.presenceResponse.findMany({
     where: { userId, presence: { guildId, closedAt: { not: null } } },
+    select: { status: true },
   });
 
   const present = responses.filter((r) => r.status === ResponseStatus.PRESENT).length;
@@ -145,8 +175,8 @@ export async function computeUserStats(guildId: string, userId: string) {
   const percentPresence = totalClosed > 0 ? Math.round((present / totalClosed) * 100) : 0;
 
   const recentChanges = await prisma.presenceResponseChange.findMany({
-    where: { response: { userId, presence: { guildId } } },
-    include: { response: { include: { presence: true } } },
+    where: { response: { userId, presence: { guildId } }, fromStatus: { not: null } },
+    include: { response: { include: { presence: { select: { titre: true } } } } },
     orderBy: { changedAt: "desc" },
     take: 5,
   });
@@ -178,7 +208,7 @@ export async function computeGuildLeaderboard(guildId: string) {
       ...counts,
       percentPresence: totalClosed > 0 ? Math.round((counts.present / totalClosed) * 100) : 0,
     }))
-    .sort((a, b) => b.percentPresence - a.percentPresence);
+    .toSorted((a, b) => b.percentPresence - a.percentPresence);
 }
 
 export async function syncPresenceMessage(client: Client, presenceId: string) {
@@ -189,12 +219,17 @@ export async function syncPresenceMessage(client: Client, presenceId: string) {
 
   const guild = await client.guilds.fetch(presence.guildId);
   const channel = await client.channels.fetch(presence.channelId);
-  if (!channel?.isTextBased()) {
+  if (!channel?.isSendable()) {
     return;
   }
 
-  const effectifTotal = await computeEffectifTotal(guild, presence.roleId);
-  const embed = buildPresenceEmbed(presence, guild.iconURL(), effectifTotal);
+  const roster = await computeRoster(
+    guild,
+    presence.roleId,
+    new Set(presence.responses.map((r) => r.userId)),
+  );
+
+  const embed = buildPresenceEmbed(presence, guild.iconURL(), roster);
   const counts = {
     present: presence.responses.filter((r) => r.status === ResponseStatus.PRESENT).length,
     absent: presence.responses.filter((r) => r.status === ResponseStatus.ABSENT).length,
@@ -212,6 +247,6 @@ export async function syncPresenceMessage(client: Client, presenceId: string) {
     }
   }
 
-  const message = await (channel as TextChannel).send({ embeds: [embed], components });
+  const message = await channel.send({ embeds: [embed], components });
   await prisma.presence.update({ where: { id: presence.id }, data: { messageId: message.id } });
 }

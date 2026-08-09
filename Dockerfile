@@ -16,6 +16,7 @@ RUN pnpm exec prisma generate
 RUN pnpm build
 
 ENV NODE_ENV=production
+ENV TZ=Europe/Paris
 
 RUN chmod +x ./docker-entrypoint.sh
 

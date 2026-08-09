@@ -28,7 +28,32 @@ Le bot est multi-guild : chaque `Transaction`/`Presence`/`PresenceConfig` est sc
 
 ## Modules
 
-- **Transactions** (`/transaction-*`) : suivi achats/ventes avec embed de statut par salon.
-- **Présences** (`/presence-*`) : convocations avec boutons Présent/Absent/Retard, rappels automatiques toutes les 3h, clôture auto à l'heure de l'événement, stats par joueur.
+### Présences
 
-Configurer le module présences avec `/presence-config` avant la première utilisation.
+À configurer **une seule fois** ; ensuite plus rien n'est redemandé à la création :
+
+```
+/presence config role:@AOD exception_role:@Amis channel:#présences
+/presence create heure:21:00
+```
+
+- `/presence config` sans option affiche la configuration actuelle. La lecture est ouverte à tous, la modification demande « Gérer le serveur ».
+- `/presence create` : seule `heure` est requise. `date` vaut aujourd'hui par défaut (bascule sur demain si l'heure est déjà passée), `titre` vaut « Présence ». Le rôle ciblé, le rôle d'exception et le salon viennent de la config.
+- Boutons Présent / Absent / Retard (modal pour la durée) / Ping. L'embed affiche aussi les membres **sans réponse**.
+- Rappels automatiques des non-répondants, au plus une fois toutes les 3h par présence ; clôture automatique à l'heure de l'événement (contrôle toutes les 5 min).
+- `/presence stats [joueur]` : fiche individuelle (avec l'historique des changements d'avis) ou classement du serveur.
+
+### Transactions
+
+```
+/transaction config dashboard_channel:#transactions
+/transaction create groupe:X type:Vente prix:1500
+```
+
+- Tableau de bord permanent auto-actualisé dans le salon configuré : toutes les transactions groupées par statut, avec total engagé.
+- L'embed détaillé de chaque transaction est posté dans le salon d'invocation, avec des **boutons de changement de statut** (le statut courant est désactivé).
+- `/transaction add-item`, `status`, `view`, `cancel` avec autocomplétion.
+
+## Fuseau horaire
+
+Les saisies sont interprétées en **Europe/Paris** (`src/lib/datetime.ts`), indépendamment du fuseau du serveur d'hébergement — le conteneur de prod tourne en UTC. L'affichage utilise les timestamps Discord (`<t:…>`), donc chaque utilisateur voit l'heure dans son propre fuseau.
