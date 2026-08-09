@@ -11,6 +11,7 @@ import {
   handlePresenceForceVote,
   handlePresencePing,
   handlePresenceChanges,
+  handlePresenceReset,
 } from "../modules/presences/commands/actions.js";
 
 export const command: Command = {
@@ -96,6 +97,11 @@ export const command: Command = {
     )
     .addSubcommand((sub) =>
       sub
+        .setName("reset")
+        .setDescription("Réinitialise toutes les statistiques de présence (admin)"),
+    )
+    .addSubcommand((sub) =>
+      sub
         .setName("ping")
         .setDescription("Relance les membres n'ayant pas répondu")
         .addStringOption((option) =>
@@ -178,6 +184,8 @@ export const command: Command = {
         return handlePresenceClose(interaction);
       case "changes":
         return handlePresenceChanges(interaction);
+      case "reset":
+        return handlePresenceReset(interaction);
       default:
         return;
     }

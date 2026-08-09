@@ -249,6 +249,10 @@ export async function getCurrentPresence(guildId: string) {
   });
 }
 
+export async function resetGuildPresences(guildId: string) {
+  await prisma.presence.deleteMany({ where: { guildId } });
+}
+
 export async function computeUserStats(guildId: string, userId: string) {
   const totalClosed = await prisma.presence.count({
     where: { guildId, closedAt: { not: null } },

@@ -17,6 +17,7 @@ import {
   getNonRespondentIds,
   getPresenceWithResponses,
   registerResponse,
+  resetGuildPresences,
   syncPresenceMessage,
 } from "../service.js";
 
@@ -189,4 +190,26 @@ export async function handlePresenceChanges(interaction: ChatInputCommandInterac
     .setDescription(truncateField(changesText, 4096));
 
   await interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
+}
+
+export async function handlePresenceReset(interaction: ChatInputCommandInteraction) {
+  if (!interaction.guildId) {
+    await interaction.reply({
+      content: "Commande utilisable en serveur uniquement.",
+      flags: MessageFlags.Ephemeral,
+    });
+    return;
+  }
+
+  if (!interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild)) {
+    await interaction.reply({
+      content: "Seuls les membres avec la permission « Gérer le serveur » peuvent réinitialiser les statistiques.",
+      flags: MessageFlags.Ephemeral,
+    });
+    return;
+  }
+
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+  await resetGuildPresences(interaction.guildId);
+  await interaction.editReply("Toutes les statistiques et historiques de présences ont été réinitialisés avec succès.");
 }
