@@ -6,6 +6,7 @@ export const TRANSACTION_STATUS_LABELS: Record<TransactionStatus, string> = {
   [TransactionStatus.AVANCE_ATTENTE_PAIEMENT]: "Avance (en attente de paiement)",
   [TransactionStatus.LIVRE_PAYE]: "Livré et payé",
   [TransactionStatus.ANNULEE]: "Annulée",
+  [TransactionStatus.CLOTUREE]: "Clôturée",
 };
 
 export const TRANSACTION_STATUS_EMOJIS: Record<TransactionStatus, string> = {
@@ -14,6 +15,7 @@ export const TRANSACTION_STATUS_EMOJIS: Record<TransactionStatus, string> = {
   [TransactionStatus.AVANCE_ATTENTE_PAIEMENT]: "💰",
   [TransactionStatus.LIVRE_PAYE]: "✅",
   [TransactionStatus.ANNULEE]: "❌",
+  [TransactionStatus.CLOTUREE]: "🔒",
 };
 
 export const TRANSACTION_STATUS_COLORS: Record<TransactionStatus, number> = {
@@ -22,6 +24,7 @@ export const TRANSACTION_STATUS_COLORS: Record<TransactionStatus, number> = {
   [TransactionStatus.AVANCE_ATTENTE_PAIEMENT]: 0xe67e22,
   [TransactionStatus.LIVRE_PAYE]: 0x2ecc71,
   [TransactionStatus.ANNULEE]: 0xe74c3c,
+  [TransactionStatus.CLOTUREE]: 0x7f8c8d,
 };
 
 /** Statuts en cours, listés intégralement dans le tableau de bord. */
@@ -35,6 +38,7 @@ export const ACTIVE_STATUSES = [
 export const TERMINAL_STATUSES = [
   TransactionStatus.LIVRE_PAYE,
   TransactionStatus.ANNULEE,
+  TransactionStatus.CLOTUREE,
 ] as const;
 
 export const TRANSACTION_TYPE_LABELS: Record<TransactionType, string> = {

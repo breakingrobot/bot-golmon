@@ -13,6 +13,10 @@ export function buildTransactionButtons(
   transactionId: string,
   currentStatus: TransactionStatus,
 ): ActionRowBuilder<ButtonBuilder>[] {
+  if (currentStatus === TransactionStatus.CLOTUREE) {
+    return [];
+  }
+
   const statusRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
     ...TRANSITIONS.map((transition) =>
       new ButtonBuilder()
@@ -23,6 +27,16 @@ export function buildTransactionButtons(
         .setDisabled(transition.status === currentStatus),
     )
   );
+
+  if (currentStatus === TransactionStatus.LIVRE_PAYE) {
+    statusRow.addComponents(
+      new ButtonBuilder()
+        .setCustomId(encodeCustomId("transaction", "status", transactionId, TransactionStatus.CLOTUREE))
+        .setLabel("Clôturer")
+        .setStyle(ButtonStyle.Secondary)
+        .setEmoji("🔒")
+    );
+  }
 
   const actionsRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder()

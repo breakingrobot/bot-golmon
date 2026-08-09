@@ -28,8 +28,8 @@ export const command: Command = {
         .addStringOption((option) =>
           option.setName("plaque").setDescription("Plaque d'immatriculation").setRequired(true),
         )
-        .addUserOption((option) =>
-          option.setName("proprietaire").setDescription("Propriétaire Discord").setRequired(true),
+        .addMentionableOption((option) =>
+          option.setName("proprietaire").setDescription("Propriétaire Discord (Membre ou Rôle)").setRequired(true),
         )
         .addStringOption((option) =>
           option.setName("modele").setDescription("Modèle (sinon récupéré via l'API)"),
@@ -48,8 +48,8 @@ export const command: Command = {
         .setName("owner")
         .setDescription("Change le propriétaire d'un véhicule enregistré")
         .addStringOption(registeredPlateOption)
-        .addUserOption((option) =>
-          option.setName("proprietaire").setDescription("Nouveau propriétaire").setRequired(true),
+        .addMentionableOption((option) =>
+          option.setName("proprietaire").setDescription("Nouveau propriétaire (Membre ou Rôle)").setRequired(true),
         ),
     )
     .addSubcommand((sub) =>

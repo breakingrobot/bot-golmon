@@ -19,6 +19,7 @@ enum TransactionStatus {
   AVANCE_ATTENTE_PAIEMENT
   LIVRE_PAYE
   ANNULEE
+  CLOTUREE
 }
 
 model Transaction {
@@ -159,9 +160,10 @@ model PresenceResponseChange {
 model Vehicle {
   id        String   @id @default(cuid())
   guildId   String
-  plate     String
-  ownerId   String
-  modele    String?
+  plate       String
+  ownerId     String
+  ownerIsRole Boolean  @default(false)
+  modele      String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

@@ -49,13 +49,15 @@ export async function handleVehicleAdd(interaction: ChatInputCommandInteraction)
     return;
   }
 
-  const owner = interaction.options.getUser("proprietaire", true);
+  const owner = interaction.options.getMentionable("proprietaire", true) as any;
+  const ownerId = owner.id;
+  const ownerIsRole = "color" in owner || "hoist" in owner;
   let modele = interaction.options.getString("modele") ?? undefined;
 
   const existing = await getVehicleByPlate(interaction.guildId, plate);
   if (existing) {
     await interaction.reply({
-      content: `La plaque \`${plate}\` est déjà enregistrée par <@${existing.ownerId}>. Utilise \`/vehicle owner\` pour la transférer.`,
+      content: `La plaque \`${plate}\` est déjà enregistrée. Utilise \`/vehicle owner\` pour la transférer.`,
       flags: MessageFlags.Ephemeral,
     });
     return;
@@ -76,11 +78,12 @@ export async function handleVehicleAdd(interaction: ChatInputCommandInteraction)
     }
   }
 
-  await addVehicle({ guildId: interaction.guildId, plate, ownerId: owner.id, modele });
+  await addVehicle({ guildId: interaction.guildId, plate, ownerId, ownerIsRole, modele });
   await syncVehicleDashboard(interaction.client, interaction.guildId);
 
+  const ownerMention = ownerIsRole ? `<@&${ownerId}>` : `<@${ownerId}>`;
   await interaction.editReply(
-    `\`${plate}\`${modele ? ` — ${modele}` : ""} enregistré pour ${owner}${apiNote}.`,
+    `\`${plate}\`${modele ? ` — ${modele}` : ""} enregistré pour ${ownerMention}${apiNote}.`,
   );
 }
 
@@ -113,7 +116,9 @@ export async function handleVehicleOwner(interaction: ChatInputCommandInteractio
   }
 
   const plate = normalizePlate(interaction.options.getString("plaque", true));
-  const owner = interaction.options.getUser("proprietaire", true);
+  const owner = interaction.options.getMentionable("proprietaire", true) as any;
+  const ownerId = owner.id;
+  const ownerIsRole = "color" in owner || "hoist" in owner;
 
   const existing = await getVehicleByPlate(interaction.guildId, plate);
   if (!existing) {
@@ -125,9 +130,10 @@ export async function handleVehicleOwner(interaction: ChatInputCommandInteractio
   }
 
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-  await setVehicleOwner(interaction.guildId, plate, owner.id);
+  await setVehicleOwner(interaction.guildId, plate, ownerId, ownerIsRole);
   await syncVehicleDashboard(interaction.client, interaction.guildId);
-  await interaction.editReply(`\`${plate}\` appartient désormais à ${owner}.`);
+  const ownerMention = ownerIsRole ? `<@&${ownerId}>` : `<@${ownerId}>`;
+  await interaction.editReply(`\`${plate}\` appartient désormais à ${ownerMention}.`);
 }
 
 export async function handleVehicleLookup(interaction: ChatInputCommandInteraction) {

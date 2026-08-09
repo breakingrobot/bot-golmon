@@ -28,11 +28,15 @@ export function buildVehicleLookupEmbed(
     embed.addFields({ name: "Acheteur", value: apiVehicle.buyer.name, inline: true });
   }
 
+  let registerValue = "Non enregistré · `/vehicle add` pour l'ajouter";
+  if (registered) {
+    const mention = registered.ownerIsRole ? `<@&${registered.ownerId}>` : `<@${registered.ownerId}>`;
+    registerValue = `${mention}${registered.modele ? ` — ${registered.modele}` : ""}`;
+  }
+
   embed.addFields({
     name: "Dans le registre",
-    value: registered
-      ? `<@${registered.ownerId}>${registered.modele ? ` — ${registered.modele}` : ""}`
-      : "Non enregistré · `/vehicle add` pour l'ajouter",
+    value: registerValue,
   });
 
   if (apiVehicle.model) {

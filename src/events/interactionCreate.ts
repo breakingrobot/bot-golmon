@@ -20,7 +20,7 @@ import {
   registerResponse,
   syncPresenceMessage,
 } from "../modules/presences/service.js";
-import { addTransactionItem, refreshTransaction, setTransactionStatus, deleteTransaction, syncTransactionDashboard } from "../modules/transactions/service.js";
+import { addTransactionItem, refreshTransaction, setTransactionStatus, deleteTransaction, syncTransactionDashboard, getTransaction } from "../modules/transactions/service.js";
 import { TRANSACTION_STATUS_LABELS } from "../modules/transactions/constants.js";
 
 const BUTTON_STATUS: Record<string, ResponseStatus> = {
@@ -100,6 +100,16 @@ async function handleTransactionButton(
   id: string,
   payload: string | undefined,
 ) {
+  const transaction = await getTransaction(id);
+  if (!transaction) {
+    await interaction.reply({ content: "Transaction introuvable.", flags: MessageFlags.Ephemeral });
+    return;
+  }
+  if (transaction.statut === TransactionStatus.CLOTUREE) {
+    await interaction.reply({ content: "Cette transaction est clôturée et ne peut plus être modifiée.", flags: MessageFlags.Ephemeral });
+    return;
+  }
+
   if (action === "additem") {
     await interaction.showModal(
       new ModalBuilder()
@@ -224,6 +234,16 @@ async function handleTransactionAddItemModal(interaction: ModalSubmitInteraction
   }
 
   if (!interaction.guildId) return;
+
+  const transaction = await getTransaction(id);
+  if (!transaction) {
+    await interaction.reply({ content: "Transaction introuvable.", flags: MessageFlags.Ephemeral });
+    return;
+  }
+  if (transaction.statut === TransactionStatus.CLOTUREE) {
+    await interaction.reply({ content: "Cette transaction est clôturée et ne peut plus être modifiée.", flags: MessageFlags.Ephemeral });
+    return;
+  }
 
   await interaction.deferUpdate();
   

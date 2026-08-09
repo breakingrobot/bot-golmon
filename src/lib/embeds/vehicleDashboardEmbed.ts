@@ -29,9 +29,11 @@ export function buildVehicleDashboardEmbed(vehicles: Vehicle[]): EmbedBuilder {
   const shown = owners.slice(0, MAX_OWNER_FIELDS);
 
   for (const [ownerId, owned] of shown) {
+    const isRole = owned.length > 0 && owned[0].ownerIsRole;
+    const mention = isRole ? `<@&${ownerId}>` : `<@${ownerId}>`;
     embed.addFields({
       name: `${owned.length} véhicule${owned.length > 1 ? "s" : ""}`,
-      value: truncateField(`<@${ownerId}>\n${owned.map(formatVehicleLine).join("\n")}`),
+      value: truncateField(`${mention}\n${owned.map(formatVehicleLine).join("\n")}`),
       inline: true,
     });
   }

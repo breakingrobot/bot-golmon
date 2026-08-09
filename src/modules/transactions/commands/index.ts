@@ -125,8 +125,7 @@ export async function handleTransactionCreate(interaction: ChatInputCommandInter
 
   await refreshTransaction(interaction.client, transaction.id, interaction.guildId);
   
-  const pingText = config?.pingRoleId ? `<@&${config.pingRoleId}> ` : "";
-  await interaction.editReply(`${pingText}Transaction pour **${transaction.groupe}** créée avec succès.`);
+  await interaction.editReply(`Transaction pour **${transaction.groupe}** créée avec succès.`);
 }
 
 export async function handleTransactionAddItem(interaction: ChatInputCommandInteraction) {
@@ -143,6 +142,11 @@ export async function handleTransactionAddItem(interaction: ChatInputCommandInte
   const transaction = await getTransaction(transactionId);
   if (!transaction) {
     await interaction.editReply("Transaction introuvable. Assure-toi de la sélectionner correctement.");
+    return;
+  }
+
+  if (transaction.statut === TransactionStatus.CLOTUREE) {
+    await interaction.editReply("Cette transaction est clôturée et ne peut plus être modifiée.");
     return;
   }
 
@@ -166,6 +170,17 @@ export async function handleTransactionStatus(interaction: ChatInputCommandInter
   const statut = interaction.options.getString("statut", true) as TransactionStatus;
 
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+
+  const transaction = await getTransaction(transactionId);
+  if (!transaction) {
+    await interaction.editReply("Transaction introuvable.");
+    return;
+  }
+  if (transaction.statut === TransactionStatus.CLOTUREE) {
+    await interaction.editReply("Cette transaction est clôturée et ne peut plus être modifiée.");
+    return;
+  }
+
   await setTransactionStatus(transactionId, statut);
   await refreshTransaction(interaction.client, transactionId, interaction.guildId);
   await interaction.editReply(`Statut passé à **${TRANSACTION_STATUS_LABELS[statut]}**.`);
@@ -183,6 +198,10 @@ export async function handleTransactionCancel(interaction: ChatInputCommandInter
   const transaction = await getTransaction(transactionId);
   if (!transaction) {
     await interaction.editReply("Transaction introuvable.");
+    return;
+  }
+  if (transaction.statut === TransactionStatus.CLOTUREE) {
+    await interaction.editReply("Cette transaction est clôturée et ne peut plus être modifiée.");
     return;
   }
 

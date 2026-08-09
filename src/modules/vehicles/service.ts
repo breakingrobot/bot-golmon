@@ -32,6 +32,7 @@ export async function addVehicle(params: {
   guildId: string;
   plate: string;
   ownerId: string;
+  ownerIsRole: boolean;
   modele?: string;
 }) {
   return prisma.vehicle.create({
@@ -39,10 +40,10 @@ export async function addVehicle(params: {
   });
 }
 
-export async function setVehicleOwner(guildId: string, plate: string, ownerId: string) {
+export async function setVehicleOwner(guildId: string, plate: string, ownerId: string, ownerIsRole: boolean) {
   return prisma.vehicle.update({
     where: { guildId_plate: { guildId, plate: normalizePlate(plate) } },
-    data: { ownerId },
+    data: { ownerId, ownerIsRole },
   });
 }
 

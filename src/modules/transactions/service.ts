@@ -73,7 +73,7 @@ export async function findTransactions(guildId: string, query: string, openOnly 
       guildId,
       groupe: { contains: query },
       ...(openOnly
-        ? { statut: { notIn: [TransactionStatus.LIVRE_PAYE, TransactionStatus.ANNULEE] } }
+        ? { statut: { notIn: [TransactionStatus.LIVRE_PAYE, TransactionStatus.ANNULEE, TransactionStatus.CLOTUREE] } }
         : {}),
     },
     take: 25,
@@ -105,7 +105,10 @@ export async function syncTransactionMessage(client: Client, transactionId: stri
     }
   }
 
-  const message = await channel.send({ embeds: [embed], components });
+  const config = await getTransactionConfig(transaction.guildId);
+  const content = config?.pingRoleId ? `<@&${config.pingRoleId}>` : undefined;
+
+  const message = await channel.send({ content, embeds: [embed], components });
   await prisma.transaction.update({
     where: { id: transaction.id },
     data: { messageId: message.id },
