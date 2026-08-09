@@ -26,19 +26,29 @@ export async function ensureMembersCached(guild: Guild): Promise<void> {
     return pending;
   }
 
-  const request = guild.members
-    .fetch()
-    .then(() => {
-      lastFetchAt.set(guild.id, Date.now());
-      logger.info(`Cache membres rafraîchi pour ${guild.name} (${guild.memberCount} membres)`);
-    })
-    .catch((error: unknown) => {
-      // On ne persiste pas le timestamp : le prochain appel retentera.
-      logger.error(`Échec du fetch des membres pour ${guild.name}`, error);
-    })
-    .finally(() => {
-      inFlight.delete(guild.id);
-    });
+  let request: Promise<void>;
+  try {
+    request = guild.members
+      .fetch()
+      .then(() => {
+        lastFetchAt.set(guild.id, Date.now());
+        logger.info(`Cache membres rafraîchi pour ${guild.name} (${guild.memberCount} membres)`);
+      })
+      .catch((error: unknown) => {
+        // En cas d'erreur (ex: GatewayRateLimitError opcode 8), on attend 1 minute avant de réessayer
+        // pour éviter de spammer l'API de Discord et se faire ban.
+        lastFetchAt.set(guild.id, Date.now() - TTL_MS + 60 * 1000);
+        logger.error(`Échec du fetch des membres pour ${guild.name}`, error);
+      })
+      .finally(() => {
+        inFlight.delete(guild.id);
+      });
+  } catch (error) {
+    // Si l'erreur est jetée de façon synchrone par discord.js
+    lastFetchAt.set(guild.id, Date.now() - TTL_MS + 60 * 1000);
+    logger.error(`Erreur synchrone fetch membres pour ${guild.name}`, error);
+    return;
+  }
 
   inFlight.set(guild.id, request);
   return request;
