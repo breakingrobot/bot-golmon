@@ -59,7 +59,7 @@ export async function createPresence(
     },
   });
 
-  const autoAbsentIds = await getAutoAbsentUserIds(guild, params.absenceRoleId);
+  const autoAbsentIds = await getAutoAbsentUserIds(guild, params.eventDate, params.absenceRoleId);
   if (autoAbsentIds.length > 0) {
     // Absences automatiques : pas d'historique de changement, ce ne sont pas
     // des actions utilisateur.
@@ -81,11 +81,24 @@ export async function createPresence(
  */
 export async function getAutoAbsentUserIds(
   guild: Guild,
+  eventDate: Date,
   absenceRoleId?: string | null,
 ): Promise<string[]> {
   const fromRole = absenceRoleId ? await getRoleMemberIds(guild, absenceRoleId) : [];
   const fromBlocklist = await getBlocklistedUserIds(guild.id);
-  return [...new Set([...fromRole, ...fromBlocklist])];
+
+  const coveringAbsences = await prisma.absence.findMany({
+    where: {
+      guildId: guild.id,
+      endedAt: null,
+      startsAt: { lte: eventDate },
+      endsAt: { gte: eventDate },
+    },
+    select: { userId: true },
+  });
+  const fromAbsences = coveringAbsences.map((a) => a.userId);
+
+  return [...new Set([...fromRole, ...fromBlocklist, ...fromAbsences])];
 }
 
 export async function registerResponse(
@@ -123,7 +136,7 @@ export async function registerResponse(
 export async function getPresenceWithResponses(presenceId: string) {
   return prisma.presence.findUnique({
     where: { id: presenceId },
-    include: { responses: true },
+    include: { responses: { include: { changes: true } } },
   });
 }
 

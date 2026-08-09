@@ -19,7 +19,7 @@ import {
   registerResponse,
   syncPresenceMessage,
 } from "../modules/presences/service.js";
-import { refreshTransaction, setTransactionStatus } from "../modules/transactions/service.js";
+import { addTransactionItem, refreshTransaction, setTransactionStatus } from "../modules/transactions/service.js";
 import { TRANSACTION_STATUS_LABELS } from "../modules/transactions/constants.js";
 
 const BUTTON_STATUS: Record<string, ResponseStatus> = {
@@ -99,6 +99,41 @@ async function handleTransactionButton(
   id: string,
   payload: string | undefined,
 ) {
+  if (action === "additem") {
+    await interaction.showModal(
+      new ModalBuilder()
+        .setCustomId(encodeCustomId("transaction", "additem-modal", id))
+        .setTitle("Ajouter un objet")
+        .addComponents(
+          new ActionRowBuilder<TextInputBuilder>().addComponents(
+            new TextInputBuilder()
+              .setCustomId("nom")
+              .setLabel("Nom de l'objet")
+              .setPlaceholder("Arme, Voiture, etc.")
+              .setStyle(TextInputStyle.Short)
+              .setRequired(true),
+          ),
+          new ActionRowBuilder<TextInputBuilder>().addComponents(
+            new TextInputBuilder()
+              .setCustomId("quantite")
+              .setLabel("Quantité")
+              .setPlaceholder("1")
+              .setStyle(TextInputStyle.Short)
+              .setRequired(false),
+          ),
+          new ActionRowBuilder<TextInputBuilder>().addComponents(
+            new TextInputBuilder()
+              .setCustomId("prix_unitaire")
+              .setLabel("Prix unitaire (optionnel)")
+              .setPlaceholder("150000")
+              .setStyle(TextInputStyle.Short)
+              .setRequired(false),
+          ),
+        ),
+    );
+    return;
+  }
+
   if (action !== "status" || !payload || !interaction.guildId) {
     return;
   }
@@ -148,6 +183,31 @@ async function handleRetardModal(interaction: ModalSubmitInteraction, id: string
   }
 }
 
+async function handleTransactionAddItemModal(interaction: ModalSubmitInteraction, id: string) {
+  const nom = interaction.fields.getTextInputValue("nom");
+  const quantiteStr = interaction.fields.getTextInputValue("quantite");
+  const prixUnitaireStr = interaction.fields.getTextInputValue("prix_unitaire");
+
+  const quantite = quantiteStr ? parseInt(quantiteStr, 10) : 1;
+  const prixUnitaire = prixUnitaireStr ? parseFloat(prixUnitaireStr.replace(",", ".")) : undefined;
+
+  if (isNaN(quantite) || quantite < 1) {
+    await interaction.reply({ content: "Quantité invalide.", flags: MessageFlags.Ephemeral });
+    return;
+  }
+  if (prixUnitaire !== undefined && isNaN(prixUnitaire)) {
+    await interaction.reply({ content: "Prix unitaire invalide.", flags: MessageFlags.Ephemeral });
+    return;
+  }
+
+  if (!interaction.guildId) return;
+
+  await interaction.deferUpdate();
+  await addTransactionItem(id, { nom, quantite, prixUnitaire });
+  await refreshTransaction(interaction.client, id, interaction.guildId);
+  await interaction.followUp({ content: `Objet « ${nom} » ajouté.`, flags: MessageFlags.Ephemeral });
+}
+
 async function route(interaction: Interaction) {
   if (interaction.isChatInputCommand()) {
     const command = interaction.client.commands.get(interaction.commandName);
@@ -178,6 +238,8 @@ async function route(interaction: Interaction) {
     const parsed = decodeCustomId(interaction.customId);
     if (parsed?.namespace === "presence" && parsed.action === "retard-modal") {
       await handleRetardModal(interaction, parsed.id);
+    } else if (parsed?.namespace === "transaction" && parsed.action === "additem-modal") {
+      await handleTransactionAddItemModal(interaction, parsed.id);
     }
   }
 }

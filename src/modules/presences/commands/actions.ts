@@ -1,11 +1,12 @@
 import {
+  EmbedBuilder,
   MessageFlags,
   PermissionFlagsBits,
   type AutocompleteInteraction,
   type ChatInputCommandInteraction,
 } from "discord.js";
 import type { ResponseStatus } from "@prisma/client";
-import { chunkMentions } from "../../../lib/format.js";
+import { chunkMentions, truncateField } from "../../../lib/format.js";
 import { formatDateLabel } from "../../../lib/datetime.js";
 import { RESPONSE_STATUS_EMOJIS, RESPONSE_STATUS_LABELS } from "../constants.js";
 import {
@@ -141,4 +142,51 @@ export async function handlePresenceForceVote(interaction: ChatInputCommandInter
   await interaction.editReply(
     `${target} défini sur **${label}** pour « ${presence.titre} »${suffix}.`,
   );
+}
+
+export async function handlePresenceChanges(interaction: ChatInputCommandInteraction) {
+  const presenceId = interaction.options.getString("presence", true);
+  const presence = await getPresenceWithResponses(presenceId);
+
+  if (!presence) {
+    await interaction.reply({ content: "Présence introuvable.", flags: MessageFlags.Ephemeral });
+    return;
+  }
+
+  const responsesWithChanges = presence.responses.filter((r) =>
+    r.changes.some((c) => c.fromStatus !== null),
+  );
+
+  if (responsesWithChanges.length === 0) {
+    await interaction.reply({
+      content: "Aucun changement d'avis pour cette présence.",
+      flags: MessageFlags.Ephemeral,
+    });
+    return;
+  }
+
+  const changesText = responsesWithChanges
+    .map((r) => {
+      const changes = [...r.changes]
+        .filter((c) => c.fromStatus !== null)
+        .sort((a, b) => b.changedAt.getTime() - a.changedAt.getTime());
+
+      const changesList = changes
+        .map((c) => {
+          const from = `${RESPONSE_STATUS_EMOJIS[c.fromStatus!]} ${RESPONSE_STATUS_LABELS[c.fromStatus!]}`;
+          const to = `${RESPONSE_STATUS_EMOJIS[c.toStatus]} ${RESPONSE_STATUS_LABELS[c.toStatus]}`;
+          return `${from} → ${to} (<t:${Math.floor(c.changedAt.getTime() / 1000)}:R>)`;
+        })
+        .join(", ");
+
+      return `• <@${r.userId}> : ${changesList}`;
+    })
+    .join("\n");
+
+  const embed = new EmbedBuilder()
+    .setTitle(`Changements d'avis - ${presence.titre}`)
+    .setColor(0x5865f2)
+    .setDescription(truncateField(changesText, 4096));
+
+  await interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
 }

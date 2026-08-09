@@ -10,6 +10,7 @@ import {
   handlePresenceClose,
   handlePresenceForceVote,
   handlePresencePing,
+  handlePresenceChanges,
 } from "../modules/presences/commands/actions.js";
 
 export const command: Command = {
@@ -143,6 +144,18 @@ export const command: Command = {
             .setRequired(true)
             .setAutocomplete(true),
         ),
+    )
+    .addSubcommand((sub) =>
+      sub
+        .setName("changes")
+        .setDescription("Affiche l'historique des changements pour une présence")
+        .addStringOption((option) =>
+          option
+            .setName("presence")
+            .setDescription("Présence concernée")
+            .setRequired(true)
+            .setAutocomplete(true),
+        ),
     ),
 
   async execute(interaction) {
@@ -163,6 +176,8 @@ export const command: Command = {
         return handlePresenceForceVote(interaction);
       case "close":
         return handlePresenceClose(interaction);
+      case "changes":
+        return handlePresenceChanges(interaction);
       default:
         return;
     }

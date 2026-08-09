@@ -80,7 +80,7 @@ export async function handlePresenceCreate(interaction: ChatInputCommandInteract
   // Ping initial : membres du rôle, hors absents et blocklistés (déjà en absent).
   const targetIds = await getRoleMemberIds(interaction.guild, config.defaultRoleId);
   const excludedIds = new Set(
-    await getAutoAbsentUserIds(interaction.guild, config.absenceRoleId),
+    await getAutoAbsentUserIds(interaction.guild, resolved.date, config.absenceRoleId),
   );
   const mentionable = targetIds.filter((id) => !excludedIds.has(id));
 

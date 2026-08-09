@@ -3,6 +3,7 @@ import { ResponseStatus } from "@prisma/client";
 import { prisma } from "../../lib/prisma.js";
 import { logger } from "../../lib/logger.js";
 import { getPresenceConfig, registerResponse, syncPresenceMessage } from "./service.js";
+import { ensureMembersCached } from "../../lib/memberCache.js";
 
 export interface RoleUpdateResult {
   ok: boolean;
@@ -26,10 +27,12 @@ async function updateAbsenceRole(
   }
 
   try {
-    const member = await guild.members.fetch(userId);
-    if (action === "add") {
+    await ensureMembersCached(guild);
+    const member = guild.members.cache.get(userId) ?? (await guild.members.fetch(userId));
+
+    if (action === "add" && !member.roles.cache.has(config.absenceRoleId)) {
       await member.roles.add(config.absenceRoleId);
-    } else {
+    } else if (action === "remove" && member.roles.cache.has(config.absenceRoleId)) {
       await member.roles.remove(config.absenceRoleId);
     }
     return { ok: true };
@@ -115,14 +118,28 @@ async function markAbsentOnOpenPresences(
  * autre absence encore active (périodes qui se chevauchent).
  */
 export async function endAbsence(guild: Guild, absenceId: string, userId: string) {
-  await prisma.absence.update({ where: { id: absenceId }, data: { endedAt: new Date() } });
+  const stillAbsent = await prisma.absence.findFirst({
+    where: {
+      guildId: guild.id,
+      userId,
+      endedAt: null,
+      id: { not: absenceId },
+      startsAt: { lte: new Date() },
+      endsAt: { gt: new Date() },
+    },
+  });
 
-  const stillAbsent = await getActiveAbsence(guild.id, userId);
   if (stillAbsent) {
+    await prisma.absence.update({ where: { id: absenceId }, data: { endedAt: new Date() } });
     return { ok: true, roleRemoved: false };
   }
 
   const roleResult = await updateAbsenceRole(guild, userId, "remove");
+
+  if (roleResult.ok) {
+    await prisma.absence.update({ where: { id: absenceId }, data: { endedAt: new Date() } });
+  }
+
   return { ok: roleResult.ok, roleRemoved: roleResult.ok, reason: roleResult.reason };
 }
 

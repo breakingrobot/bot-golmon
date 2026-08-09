@@ -69,6 +69,15 @@ export function chunkMentions(userIds: string[], prefix: string): string[] {
   return chunks;
 }
 
+/** Divise une liste en morceaux de taille maximale `chunkSize`. */
+export function chunkMentionsList(userIds: string[], chunkSize: number): string[][] {
+  const result: string[][] = [];
+  for (let i = 0; i < userIds.length; i += chunkSize) {
+    result.push(userIds.slice(i, i + chunkSize));
+  }
+  return result;
+}
+
 /** Tronque un texte libre pour un champ d'embed. */
 export function truncateField(text: string, limit = FIELD_LIMIT): string {
   return text.length <= limit ? text : `${text.slice(0, limit - 1)}…`;

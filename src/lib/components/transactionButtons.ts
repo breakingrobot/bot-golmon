@@ -14,7 +14,7 @@ export function buildTransactionButtons(
   currentStatus: TransactionStatus,
 ): ActionRowBuilder<ButtonBuilder> {
   return new ActionRowBuilder<ButtonBuilder>().addComponents(
-    TRANSITIONS.map((transition) =>
+    ...TRANSITIONS.map((transition) =>
       new ButtonBuilder()
         .setCustomId(encodeCustomId("transaction", "status", transactionId, transition.status))
         .setLabel(transition.label)
@@ -22,5 +22,10 @@ export function buildTransactionButtons(
         // On désactive le statut courant : le clic serait un no-op.
         .setDisabled(transition.status === currentStatus),
     ),
+    new ButtonBuilder()
+      .setCustomId(encodeCustomId("transaction", "additem", transactionId))
+      .setLabel("Ajouter un objet")
+      .setStyle(ButtonStyle.Secondary)
+      .setEmoji("➕"),
   );
 }

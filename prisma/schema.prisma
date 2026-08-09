@@ -44,6 +44,7 @@ model TransactionConfig {
   guildId            String   @id
   dashboardChannelId String?
   dashboardMessageId String?
+  pingRoleId         String?
   updatedAt          DateTime @updatedAt
 }
 
