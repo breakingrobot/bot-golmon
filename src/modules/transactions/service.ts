@@ -14,6 +14,7 @@ export async function upsertTransactionConfig(params: {
   guildId: string;
   dashboardChannelId?: string;
   dashboardMessageId?: string | null;
+  pingRoleId?: string;
 }) {
   const { guildId, ...data } = params;
   return prisma.transactionConfig.upsert({
@@ -53,6 +54,12 @@ export async function setTransactionStatus(transactionId: string, statut: Transa
   });
 }
 
+export async function deleteTransaction(transactionId: string) {
+  return prisma.transaction.delete({
+    where: { id: transactionId },
+  });
+}
+
 export async function getTransaction(transactionId: string) {
   return prisma.transaction.findUnique({
     where: { id: transactionId },
@@ -86,7 +93,7 @@ export async function syncTransactionMessage(client: Client, transactionId: stri
   }
 
   const embed = buildTransactionEmbed(transaction);
-  const components = [buildTransactionButtons(transaction.id, transaction.statut)];
+  const components = buildTransactionButtons(transaction.id, transaction.statut);
 
   if (transaction.messageId) {
     try {

@@ -4,6 +4,7 @@ import {
   ModalBuilder,
   TextInputBuilder,
   TextInputStyle,
+  PermissionFlagsBits,
   type ButtonInteraction,
   type Interaction,
   type ModalSubmitInteraction,
@@ -19,7 +20,7 @@ import {
   registerResponse,
   syncPresenceMessage,
 } from "../modules/presences/service.js";
-import { addTransactionItem, refreshTransaction, setTransactionStatus } from "../modules/transactions/service.js";
+import { addTransactionItem, refreshTransaction, setTransactionStatus, deleteTransaction, syncTransactionDashboard } from "../modules/transactions/service.js";
 import { TRANSACTION_STATUS_LABELS } from "../modules/transactions/constants.js";
 
 const BUTTON_STATUS: Record<string, ResponseStatus> = {
@@ -131,6 +132,28 @@ async function handleTransactionButton(
           ),
         ),
     );
+    return;
+  }
+
+  if (action === "delete") {
+    if (!interaction.memberPermissions?.has(PermissionFlagsBits.ManageMessages)) {
+      await interaction.reply({
+        content: "Tu dois avoir la permission de gérer les messages pour supprimer une transaction.",
+        flags: MessageFlags.Ephemeral,
+      });
+      return;
+    }
+    
+    await interaction.deferUpdate();
+    
+    if (interaction.message?.deletable) {
+      await interaction.message.delete().catch(() => null);
+    }
+    await deleteTransaction(id).catch(() => null);
+    if (interaction.guildId) {
+      await syncTransactionDashboard(interaction.client, interaction.guildId);
+    }
+    await interaction.followUp({ content: "Transaction supprimée.", flags: MessageFlags.Ephemeral });
     return;
   }
 

@@ -12,6 +12,7 @@ import {
   handleTransactionCreate,
   handleTransactionStatus,
   handleTransactionView,
+  handleTransactionDelete,
 } from "../modules/transactions/commands/index.js";
 
 function transactionOption(option: SlashCommandStringOption) {
@@ -93,7 +94,18 @@ export const command: Command = {
             .setName("dashboard_channel")
             .setDescription("Salon du tableau de bord permanent")
             .addChannelTypes(ChannelType.GuildText),
+        )
+        .addRoleOption((option) =>
+          option
+            .setName("ping_role")
+            .setDescription("Rôle à mentionner lors de la création d'une transaction"),
         ),
+    )
+    .addSubcommand((sub) =>
+      sub
+        .setName("delete")
+        .setDescription("Supprime définitivement une transaction de la base de données")
+        .addStringOption(transactionOption),
     ),
 
   async execute(interaction) {
@@ -108,6 +120,8 @@ export const command: Command = {
         return handleTransactionView(interaction);
       case "cancel":
         return handleTransactionCancel(interaction);
+      case "delete":
+        return handleTransactionDelete(interaction);
       case "config":
         return handleTransactionConfig(interaction);
       default:
