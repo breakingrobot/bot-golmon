@@ -56,23 +56,49 @@ export function buildPresenceEmbed(
     )
     .setColor(presence.closedAt ? PRESENCE_COLOR_CLOSED : PRESENCE_COLOR_ACTIVE);
 
+  let currentLength =
+    (embed.data.author?.name?.length ?? 0) +
+    (embed.data.title?.length ?? 0) +
+    (embed.data.description?.length ?? 0) +
+    150; // padding for footer and fixed fields
+
+  let fieldsCount = 0;
+
   const addChunkedFields = (
     title: string,
     userIds: string[],
     detailByUserId?: Map<string, string>,
+    emptyText = "Aucun",
   ) => {
     if (userIds.length === 0) {
-      embed.addFields({ name: `${title} (0)`, value: "Aucun", inline: true });
+      if (fieldsCount >= 21 || currentLength > 5500) return;
+      embed.addFields({ name: `${title} (0)`, value: emptyText, inline: true });
+      fieldsCount++;
+      currentLength += title.length + 9 + emptyText.length;
       return;
     }
 
     const chunks = chunkMentionsList(userIds, 15);
-    for (let i = 0; i < chunks.length; i++) {
-      embed.addFields({
-        name: i === 0 ? `${title} (${userIds.length})` : "​", // ZWSP
-        value: formatMentionList(chunks[i], { detailByUserId }),
-        inline: true,
-      });
+    let i = 0;
+    for (const chunk of chunks) {
+      if (fieldsCount >= 21 || currentLength > 5000) {
+        const remaining = userIds.length - (i * 15);
+        if (remaining > 0) {
+           const name = i === 0 ? `${title} (${userIds.length})` : "​";
+           const value = `... +${remaining} autre(s)`;
+           embed.addFields({ name, value, inline: true });
+           fieldsCount++;
+           currentLength += name.length + value.length;
+        }
+        break;
+      }
+
+      const name = i === 0 ? `${title} (${userIds.length})` : "​";
+      const value = formatMentionList(chunk, { detailByUserId });
+      embed.addFields({ name, value, inline: true });
+      fieldsCount++;
+      currentLength += name.length + value.length;
+      i++;
     }
   };
 
@@ -80,14 +106,7 @@ export function buildPresenceEmbed(
   addChunkedFields("❌ Absents", absents.map((r) => r.userId), new Map(absents.map((r) => [r.userId, getDetail(r.userId)] as const).filter((x): x is [string, string] => x[1] !== undefined)));
   addChunkedFields("⏳ Retards", retards.map((r) => r.userId), new Map(retards.map((r) => [r.userId, getDetail(r.userId, retardDetails.get(r.userId))] as const).filter((x): x is [string, string] => x[1] !== undefined)));
 
-  if (nonRespondentIds.length === 0) {
-    embed.addFields({
-      name: "🕓 Sans réponse (0)",
-      value: "Tout le monde a répondu",
-    });
-  } else {
-    addChunkedFields("🕓 Sans réponse", nonRespondentIds);
-  }
+  addChunkedFields("🕓 Sans réponse", nonRespondentIds, undefined, "Tout le monde a répondu");
 
   embed.addFields(
       { name: "👥 Effectif", value: `${nbReponses}/${effectifTotal}`, inline: true },
