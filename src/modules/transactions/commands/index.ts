@@ -121,6 +121,12 @@ export async function handleTransactionAddItem(interaction: ChatInputCommandInte
 
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
+  const transaction = await getTransaction(transactionId);
+  if (!transaction) {
+    await interaction.editReply("Transaction introuvable. Assure-toi de la sélectionner correctement.");
+    return;
+  }
+
   await addTransactionItem(transactionId, {
     nom,
     quantite: interaction.options.getInteger("quantite") ?? 1,

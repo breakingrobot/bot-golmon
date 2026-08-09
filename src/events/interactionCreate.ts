@@ -203,9 +203,18 @@ async function handleTransactionAddItemModal(interaction: ModalSubmitInteraction
   if (!interaction.guildId) return;
 
   await interaction.deferUpdate();
-  await addTransactionItem(id, { nom, quantite, prixUnitaire });
-  await refreshTransaction(interaction.client, id, interaction.guildId);
-  await interaction.followUp({ content: `Objet « ${nom} » ajouté.`, flags: MessageFlags.Ephemeral });
+  
+  try {
+    await addTransactionItem(id, { nom, quantite, prixUnitaire });
+    await refreshTransaction(interaction.client, id, interaction.guildId);
+    await interaction.followUp({ content: `Objet « ${nom} » ajouté.`, flags: MessageFlags.Ephemeral });
+  } catch (err: any) {
+    if (err.code === "P2003" || err.code === "P2025") {
+      await interaction.followUp({ content: "Transaction introuvable (elle a peut-être été supprimée).", flags: MessageFlags.Ephemeral });
+    } else {
+      throw err;
+    }
+  }
 }
 
 async function route(interaction: Interaction) {
