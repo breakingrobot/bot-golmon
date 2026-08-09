@@ -40,7 +40,10 @@ async function announceAbsence(
   }
 
   try {
-    const channel = await interaction.client.channels.fetch(config.absenceChannelId);
+    const channel = await interaction.client.channels.fetch(config.absenceChannelId).catch((err) => {
+      logger.warn(`Impossible de récupérer le salon des absences : ${err.message}`);
+      return null;
+    });
     if (channel?.isSendable()) {
       await channel.send({ embeds: [embed] });
     }

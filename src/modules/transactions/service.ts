@@ -87,7 +87,10 @@ export async function syncTransactionMessage(client: Client, transactionId: stri
     return;
   }
 
-  const channel = await client.channels.fetch(transaction.channelId);
+  const channel = await client.channels.fetch(transaction.channelId).catch((err) => {
+    logger.warn(`Impossible de récupérer le salon de la transaction ${transactionId} : ${err.message}`);
+    return null;
+  });
   if (!channel?.isSendable()) {
     return;
   }
@@ -125,7 +128,10 @@ export async function syncTransactionDashboard(client: Client, guildId: string) 
     return;
   }
 
-  const channel = await client.channels.fetch(config.dashboardChannelId).catch(() => null);
+  const channel = await client.channels.fetch(config.dashboardChannelId).catch((err) => {
+    logger.warn(`Impossible de récupérer le salon de tableau de bord des transactions : ${err.message}`);
+    return null;
+  });
   if (!channel?.isSendable()) {
     logger.warn(`Salon de tableau de bord introuvable pour la guilde ${guildId}`);
     return;

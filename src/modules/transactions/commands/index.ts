@@ -7,6 +7,7 @@ import {
 } from "discord.js";
 import { TransactionStatus, type TransactionType } from "@prisma/client";
 import { buildTransactionEmbed } from "../../../lib/embeds/transactionEmbed.js";
+import { logger } from "../../../lib/logger.js";
 import {
   addTransactionItem,
   createTransaction,
@@ -236,7 +237,10 @@ export async function handleTransactionDelete(interaction: ChatInputCommandInter
 
   // Tenter de supprimer le message si possible
   if (transaction.messageId) {
-    const channel = await interaction.client.channels.fetch(transaction.channelId).catch(() => null);
+    const channel = await interaction.client.channels.fetch(transaction.channelId).catch((err) => {
+      logger.warn(`Impossible de récupérer le salon pour la transaction : ${err.message}`);
+      return null;
+    });
     if (channel?.isSendable()) {
       await channel.messages.delete(transaction.messageId).catch(() => null);
     }

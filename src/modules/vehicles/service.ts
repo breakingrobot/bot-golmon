@@ -79,7 +79,10 @@ export async function syncVehicleDashboard(client: Client, guildId: string) {
     return;
   }
 
-  const channel = await client.channels.fetch(config.dashboardChannelId).catch(() => null);
+  const channel = await client.channels.fetch(config.dashboardChannelId).catch((err) => {
+    logger.warn(`Impossible de récupérer le salon de tableau de bord des véhicules : ${err.message}`);
+    return null;
+  });
   if (!channel?.isSendable()) {
     logger.warn(`Salon du tableau de bord véhicules introuvable pour la guilde ${guildId}`);
     return;
