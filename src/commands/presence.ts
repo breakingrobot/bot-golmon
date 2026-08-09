@@ -8,6 +8,7 @@ import { handlePresenceBlocklist } from "../modules/presences/commands/blocklist
 import {
   autocompletePresence,
   handlePresenceClose,
+  handlePresenceCancel,
   handlePresenceForceVote,
   handlePresencePing,
   handlePresenceChanges,
@@ -102,6 +103,18 @@ export const command: Command = {
     )
     .addSubcommand((sub) =>
       sub
+        .setName("cancel")
+        .setDescription("Annule et supprime complètement une présence (admin)")
+        .addStringOption((option) =>
+          option
+            .setName("presence")
+            .setDescription("Présence à annuler")
+            .setRequired(true)
+            .setAutocomplete(true),
+        ),
+    )
+    .addSubcommand((sub) =>
+      sub
         .setName("ping")
         .setDescription("Relance les membres n'ayant pas répondu")
         .addStringOption((option) =>
@@ -184,6 +197,8 @@ export const command: Command = {
         return handlePresenceClose(interaction);
       case "changes":
         return handlePresenceChanges(interaction);
+      case "cancel":
+        return handlePresenceCancel(interaction);
       case "reset":
         return handlePresenceReset(interaction);
       default:

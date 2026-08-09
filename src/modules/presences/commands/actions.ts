@@ -19,6 +19,7 @@ import {
   registerResponse,
   resetGuildPresences,
   syncPresenceMessage,
+  deletePresence,
 } from "../service.js";
 
 export async function autocompletePresence(interaction: AutocompleteInteraction) {
@@ -57,6 +58,39 @@ export async function handlePresenceClose(interaction: ChatInputCommandInteracti
   await closePresence(presenceId);
   await syncPresenceMessage(interaction.client, presenceId);
   await interaction.reply({ content: "Présence clôturée.", flags: MessageFlags.Ephemeral });
+}
+
+export async function handlePresenceCancel(interaction: ChatInputCommandInteraction) {
+  if (!interaction.memberPermissions?.has(PermissionFlagsBits.ManageMessages)) {
+    await interaction.reply({
+      content: "Tu dois avoir la permission de gérer les messages pour annuler une présence.",
+      flags: MessageFlags.Ephemeral,
+    });
+    return;
+  }
+
+  const presenceId = interaction.options.getString("presence", true);
+  const presence = await getPresenceWithResponses(presenceId);
+
+  if (!presence) {
+    await interaction.reply({
+      content: "Présence introuvable.",
+      flags: MessageFlags.Ephemeral,
+    });
+    return;
+  }
+
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+
+  if (presence.messageId) {
+    const channel = await interaction.client.channels.fetch(presence.channelId).catch(() => null);
+    if (channel?.isSendable()) {
+      await channel.messages.delete(presence.messageId).catch(() => null);
+    }
+  }
+
+  await deletePresence(presenceId);
+  await interaction.editReply("Présence annulée et supprimée.");
 }
 
 export async function handlePresencePing(interaction: ChatInputCommandInteraction) {
