@@ -73,7 +73,7 @@ export async function findTransactions(guildId: string, query: string, openOnly 
       guildId,
       groupe: { contains: query },
       ...(openOnly
-        ? { statut: { notIn: [TransactionStatus.LIVRE_PAYE, TransactionStatus.ANNULEE, TransactionStatus.CLOTUREE] } }
+        ? { statut: { notIn: [TransactionStatus.ANNULEE, TransactionStatus.CLOTUREE] } }
         : {}),
     },
     take: 25,
