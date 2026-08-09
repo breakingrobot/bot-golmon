@@ -124,3 +124,25 @@ model PresenceResponseChange {
 
   @@index([responseId])
 }
+
+// ---------- MODULE VEHICULES ----------
+
+model Vehicle {
+  id        String   @id @default(cuid())
+  guildId   String
+  plate     String
+  ownerId   String
+  modele    String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([guildId, plate])
+  @@index([guildId, ownerId])
+}
+
+model VehicleConfig {
+  guildId            String   @id
+  dashboardChannelId String?
+  dashboardMessageId String?
+  updatedAt          DateTime @updatedAt
+}

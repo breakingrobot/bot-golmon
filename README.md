@@ -54,6 +54,24 @@ Le bot est multi-guild : chaque `Transaction`/`Presence`/`PresenceConfig` est sc
 - L'embed détaillé de chaque transaction est posté dans le salon d'invocation, avec des **boutons de changement de statut** (le statut courant est désactivé).
 - `/transaction add-item`, `status`, `view`, `cancel` avec autocomplétion.
 
+### Véhicules
+
+Registre des véhicules du groupe : quelle plaque appartient à quel membre Discord.
+
+```
+/vehicle config dashboard_channel:#véhicules
+/vehicle add plaque:D6CS3P0G proprietaire:@Membre
+/vehicle lookup plaque:D6CS3P0G
+```
+
+- Tableau de bord permanent auto-actualisé, **groupé par propriétaire**, plaques mises en évidence.
+- `/vehicle add` récupère automatiquement le modèle via l'API GLife. Si l'API est injoignable ou ne connaît pas la plaque, l'ajout réussit quand même et le retour le précise.
+- `/vehicle lookup` interroge l'API pour **n'importe quelle plaque**, enregistrée ou non : modèle, propriétaire en jeu, acheteur, statut illégal. Attention, le propriétaire renvoyé par l'API est celui **en jeu** (souvent une organisation) — distinct du propriétaire Discord du registre, affiché séparément.
+- `/vehicle owner` transfère un véhicule, `/vehicle remove` le retire.
+- Les plaques sont normalisées (majuscules, sans espaces ni tirets) : `d6cs 3p0g` et `D6CS3P0G` sont la même plaque, impossible de créer un doublon.
+
+API utilisée : `GET https://api.glife.fr/roleplay/vehicles?plate=…` (publique, sans authentification). Les réponses sont mises en cache 5 minutes, avec un timeout de 8 s pour ne jamais bloquer une interaction Discord.
+
 ## Fuseau horaire
 
 Les saisies sont interprétées en **Europe/Paris** (`src/lib/datetime.ts`), indépendamment du fuseau du serveur d'hébergement — le conteneur de prod tourne en UTC. L'affichage utilise les timestamps Discord (`<t:…>`), donc chaque utilisateur voit l'heure dans son propre fuseau.
