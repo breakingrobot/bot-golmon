@@ -16,6 +16,25 @@ function unix(date: Date): number {
   return Math.floor(date.getTime() / 1000);
 }
 
+const generateChunkedFields = (
+  title: string,
+  userIds: string[],
+  detailByUserId?: Map<string, string>,
+  emptyText = "Aucun",
+) => {
+  if (userIds.length === 0) {
+    return [{ name: `${title} (0)`, value: emptyText, inline: true, count: 0 }];
+  }
+
+  const chunks = chunkMentionsList(userIds, 15);
+  return chunks.map((chunk, index) => ({
+    name: index === 0 ? `${title} (${userIds.length})` : "​",
+    value: formatMentionList(chunk, { detailByUserId }),
+    inline: true,
+    count: userIds.length - index * 15, // remaining at this chunk
+  }));
+};
+
 export function buildPresenceEmbed(
   presence: PresenceWithResponses,
   guildIconUrl: string | null,
@@ -56,57 +75,35 @@ export function buildPresenceEmbed(
     )
     .setColor(presence.closedAt ? PRESENCE_COLOR_CLOSED : PRESENCE_COLOR_ACTIVE);
 
-  let currentLength =
+  const allFields = [
+    ...generateChunkedFields("✅ Présents", presents.map((r) => r.userId), new Map(presents.map((r) => [r.userId, getDetail(r.userId)] as const).filter((x): x is [string, string] => x[1] !== undefined))),
+    ...generateChunkedFields("❌ Absents", absents.map((r) => r.userId), new Map(absents.map((r) => [r.userId, getDetail(r.userId)] as const).filter((x): x is [string, string] => x[1] !== undefined))),
+    ...generateChunkedFields("⏳ Retards", retards.map((r) => r.userId), new Map(retards.map((r) => [r.userId, getDetail(r.userId, retardDetails.get(r.userId))] as const).filter((x): x is [string, string] => x[1] !== undefined))),
+    ...generateChunkedFields("🕓 Sans réponse", nonRespondentIds, undefined, "Tout le monde a répondu"),
+  ];
+
+  const baseLength =
     (embed.data.author?.name?.length ?? 0) +
     (embed.data.title?.length ?? 0) +
     (embed.data.description?.length ?? 0) +
-    150; // padding for footer and fixed fields
+    150;
 
-  let fieldsCount = 0;
-
-  const addChunkedFields = (
-    title: string,
-    userIds: string[],
-    detailByUserId?: Map<string, string>,
-    emptyText = "Aucun",
-  ) => {
-    if (userIds.length === 0) {
-      if (fieldsCount >= 21 || currentLength > 5500) return;
-      embed.addFields({ name: `${title} (0)`, value: emptyText, inline: true });
-      fieldsCount++;
-      currentLength += title.length + 9 + emptyText.length;
-      return;
-    }
-
-    const chunks = chunkMentionsList(userIds, 15);
-    let i = 0;
-    for (const chunk of chunks) {
-      if (fieldsCount >= 21 || currentLength > 5000) {
-        const remaining = userIds.length - (i * 15);
-        if (remaining > 0) {
-           const name = i === 0 ? `${title} (${userIds.length})` : "​";
-           const value = `... +${remaining} autre(s)`;
-           embed.addFields({ name, value, inline: true });
-           fieldsCount++;
-           currentLength += name.length + value.length;
+  allFields.reduce(
+    (acc, field) => {
+      if (acc.count >= 21 || acc.length > 5000) {
+        if (!acc.capped && field.count > 0) {
+          embed.addFields({ name: field.name, value: `... +${field.count} autre(s)`, inline: true });
+          acc.capped = true;
         }
-        break;
+        return acc;
       }
-
-      const name = i === 0 ? `${title} (${userIds.length})` : "​";
-      const value = formatMentionList(chunk, { detailByUserId });
-      embed.addFields({ name, value, inline: true });
-      fieldsCount++;
-      currentLength += name.length + value.length;
-      i++;
-    }
-  };
-
-  addChunkedFields("✅ Présents", presents.map((r) => r.userId), new Map(presents.map((r) => [r.userId, getDetail(r.userId)] as const).filter((x): x is [string, string] => x[1] !== undefined)));
-  addChunkedFields("❌ Absents", absents.map((r) => r.userId), new Map(absents.map((r) => [r.userId, getDetail(r.userId)] as const).filter((x): x is [string, string] => x[1] !== undefined)));
-  addChunkedFields("⏳ Retards", retards.map((r) => r.userId), new Map(retards.map((r) => [r.userId, getDetail(r.userId, retardDetails.get(r.userId))] as const).filter((x): x is [string, string] => x[1] !== undefined)));
-
-  addChunkedFields("🕓 Sans réponse", nonRespondentIds, undefined, "Tout le monde a répondu");
+      embed.addFields({ name: field.name, value: field.value, inline: true });
+      acc.count++;
+      acc.length += field.name.length + field.value.length;
+      return acc;
+    },
+    { count: 0, length: baseLength, capped: false },
+  );
 
   embed.addFields(
       { name: "👥 Effectif", value: `${nbReponses}/${effectifTotal}`, inline: true },

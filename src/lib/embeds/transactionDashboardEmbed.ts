@@ -9,7 +9,6 @@ import {
   TRANSACTION_TYPE_LABELS,
   formatPrice,
 } from "../../modules/transactions/constants.js";
-import { truncateField } from "../format.js";
 
 export function formatLine(transaction: TransactionWithItems): string {
   const itemCount = transaction.items.length;
@@ -76,28 +75,30 @@ export function buildTransactionDashboardEmbeds(
     0,
   );
 
-  const embeds: EmbedBuilder[] = [];
-  let currentEmbed = new EmbedBuilder().setTitle("📊 Transactions").setColor(0x5865f2);
-  let currentLength = currentEmbed.data.title!.length;
-  let currentFieldsCount = 0;
+  const footerText = `${activeCount} transaction(s) en cours · ${formatPrice(activeValue)} engagé(s) · ${transactions.length} au total`;
 
-  for (const field of allFields) {
-    const fieldLength = field.name.length + field.value.length;
-    if (currentFieldsCount >= 25 || currentLength + fieldLength > 5500) {
-      embeds.push(currentEmbed);
-      currentEmbed = new EmbedBuilder().setColor(0x5865f2);
-      currentLength = 0;
-      currentFieldsCount = 0;
-    }
-    currentEmbed.addFields(field);
-    currentLength += fieldLength;
-    currentFieldsCount++;
-  }
+  const embeds = allFields.reduce(
+    (acc, field) => {
+      const current = acc[acc.length - 1];
+      const fieldLength = field.name.length + field.value.length;
+      
+      const currentFieldsLength = current.data.fields?.reduce((sum, f) => sum + f.name.length + f.value.length, 0) ?? 0;
+      const titleLength = current.data.title?.length ?? 0;
+      const totalLength = currentFieldsLength + titleLength + fieldLength + footerText.length + 50;
+      const fieldsCount = current.data.fields?.length ?? 0;
 
-  currentEmbed.setFooter({
-    text: `${activeCount} transaction(s) en cours · ${formatPrice(activeValue)} engagé(s) · ${transactions.length} au total`,
-  }).setTimestamp();
+      if (fieldsCount >= 25 || totalLength > 5500) {
+        acc.push(new EmbedBuilder().setColor(0x5865f2).addFields(field));
+      } else {
+        current.addFields(field);
+      }
+      return acc;
+    },
+    [new EmbedBuilder().setTitle("📊 Transactions").setColor(0x5865f2)],
+  );
 
-  embeds.push(currentEmbed);
+  const lastEmbed = embeds[embeds.length - 1];
+  lastEmbed.setFooter({ text: footerText }).setTimestamp();
+
   return embeds;
 }
