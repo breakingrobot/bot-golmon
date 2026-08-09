@@ -11,30 +11,40 @@ import {
 } from "../../modules/transactions/constants.js";
 import { truncateField } from "../format.js";
 
-const TERMINAL_PREVIEW = 3;
-
-function formatLine(transaction: TransactionWithItems): string {
+export function formatLine(transaction: TransactionWithItems): string {
   const itemCount = transaction.items.length;
   const items = itemCount > 0 ? ` — ${itemCount} objet${itemCount > 1 ? "s" : ""}` : "";
   return `• **${transaction.groupe}** · ${TRANSACTION_TYPE_LABELS[transaction.type]} · ${formatPrice(transaction.prix)}${items}`;
 }
 
-function buildSection(transactions: TransactionWithItems[], limit?: number): string {
-  if (transactions.length === 0) {
-    return "Aucune";
+export function buildChunkedFields(name: string, lines: string[], inline: boolean) {
+  if (lines.length === 0) {
+    return [{ name, value: "Aucune", inline }];
+  }
+  
+  const fields = [];
+  let currentChunk = "";
+  let isFirst = true;
+
+  for (const line of lines) {
+    if (currentChunk.length + line.length + 1 > 1024) {
+      fields.push({ name: isFirst ? name : `${name} (suite)`, value: currentChunk, inline });
+      currentChunk = line;
+      isFirst = false;
+    } else {
+      currentChunk += (currentChunk ? "\n" : "") + line;
+    }
+  }
+  if (currentChunk) {
+    fields.push({ name: isFirst ? name : `${name} (suite)`, value: currentChunk, inline });
   }
 
-  const shown = limit ? transactions.slice(0, limit) : transactions;
-  const lines = shown.map(formatLine);
-  const remaining = transactions.length - shown.length;
-  const text = remaining > 0 ? `${lines.join("\n")}\n… +${remaining} autre${remaining > 1 ? "s" : ""}` : lines.join("\n");
-
-  return truncateField(text);
+  return fields;
 }
 
-export function buildTransactionDashboardEmbed(
+export function buildTransactionDashboardEmbeds(
   transactions: TransactionWithItems[],
-): EmbedBuilder {
+): EmbedBuilder[] {
   const byStatus = new Map<TransactionStatus, TransactionWithItems[]>();
   for (const transaction of transactions) {
     const bucket = byStatus.get(transaction.statut) ?? [];
@@ -42,26 +52,18 @@ export function buildTransactionDashboardEmbed(
     byStatus.set(transaction.statut, bucket);
   }
 
-  const embed = new EmbedBuilder()
-    .setTitle("📊 Transactions")
-    .setColor(0x5865f2)
-    .setTimestamp();
+  const allFields: { name: string; value: string; inline?: boolean }[] = [];
 
   for (const status of ACTIVE_STATUSES) {
     const bucket = byStatus.get(status) ?? [];
-    embed.addFields({
-      name: `${TRANSACTION_STATUS_EMOJIS[status]} ${TRANSACTION_STATUS_LABELS[status]} (${bucket.length})`,
-      value: buildSection(bucket),
-    });
+    const lines = bucket.map(formatLine);
+    allFields.push(...buildChunkedFields(`${TRANSACTION_STATUS_EMOJIS[status]} ${TRANSACTION_STATUS_LABELS[status]} (${bucket.length})`, lines, false));
   }
 
   for (const status of TERMINAL_STATUSES) {
     const bucket = byStatus.get(status) ?? [];
-    embed.addFields({
-      name: `${TRANSACTION_STATUS_EMOJIS[status]} ${TRANSACTION_STATUS_LABELS[status]} (${bucket.length})`,
-      value: buildSection(bucket, TERMINAL_PREVIEW),
-      inline: true,
-    });
+    const lines = bucket.map(formatLine);
+    allFields.push(...buildChunkedFields(`${TRANSACTION_STATUS_EMOJIS[status]} ${TRANSACTION_STATUS_LABELS[status]} (${bucket.length})`, lines, true));
   }
 
   const activeCount = ACTIVE_STATUSES.reduce(
@@ -74,9 +76,28 @@ export function buildTransactionDashboardEmbed(
     0,
   );
 
-  embed.setFooter({
-    text: `${activeCount} transaction(s) en cours · ${formatPrice(activeValue)} engagé(s) · ${transactions.length} au total`,
-  });
+  const embeds: EmbedBuilder[] = [];
+  let currentEmbed = new EmbedBuilder().setTitle("📊 Transactions").setColor(0x5865f2);
+  let currentLength = currentEmbed.data.title!.length;
+  let currentFieldsCount = 0;
 
-  return embed;
+  for (const field of allFields) {
+    const fieldLength = field.name.length + field.value.length;
+    if (currentFieldsCount >= 25 || currentLength + fieldLength > 5500) {
+      embeds.push(currentEmbed);
+      currentEmbed = new EmbedBuilder().setColor(0x5865f2);
+      currentLength = 0;
+      currentFieldsCount = 0;
+    }
+    currentEmbed.addFields(field);
+    currentLength += fieldLength;
+    currentFieldsCount++;
+  }
+
+  currentEmbed.setFooter({
+    text: `${activeCount} transaction(s) en cours · ${formatPrice(activeValue)} engagé(s) · ${transactions.length} au total`,
+  }).setTimestamp();
+
+  embeds.push(currentEmbed);
+  return embeds;
 }

@@ -3,7 +3,7 @@ import { TransactionStatus, type TransactionType } from "@prisma/client";
 import { prisma } from "../../lib/prisma.js";
 import { logger } from "../../lib/logger.js";
 import { buildTransactionEmbed } from "../../lib/embeds/transactionEmbed.js";
-import { buildTransactionDashboardEmbed } from "../../lib/embeds/transactionDashboardEmbed.js";
+import { buildTransactionDashboardEmbeds } from "../../lib/embeds/transactionDashboardEmbed.js";
 import { buildTransactionButtons } from "../../lib/components/transactionButtons.js";
 
 export async function getTransactionConfig(guildId: string) {
@@ -134,19 +134,19 @@ export async function syncTransactionDashboard(client: Client, guildId: string) 
     orderBy: { updatedAt: "desc" },
   });
 
-  const embed = buildTransactionDashboardEmbed(transactions);
+  const embeds = buildTransactionDashboardEmbeds(transactions);
 
   if (config.dashboardMessageId) {
     try {
       const message = await channel.messages.fetch(config.dashboardMessageId);
-      await message.edit({ embeds: [embed] });
+      await message.edit({ embeds });
       return;
     } catch {
       // message supprimé -> on en repost un nouveau ci-dessous
     }
   }
 
-  const message = await channel.send({ embeds: [embed] });
+  const message = await channel.send({ embeds });
   await upsertTransactionConfig({ guildId, dashboardMessageId: message.id });
 }
 
