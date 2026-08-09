@@ -21,6 +21,14 @@ export function todayLabel(): string {
 }
 
 /**
+ * Date lisible en heure de Paris. Utilisé là où les timestamps Discord
+ * (`<t:…>`) ne sont pas rendus, comme les libellés d'autocomplétion.
+ */
+export function formatDateLabel(date: Date): string {
+  return format(toZonedTime(date, TIMEZONE), "dd/MM/yyyy HH:mm");
+}
+
+/**
  * Convertit une saisie JJ/MM/AAAA + HH:MM (heure de Paris) en Date UTC.
  * Renvoie null si le format ou la date sont invalides (ex: 31/02).
  */

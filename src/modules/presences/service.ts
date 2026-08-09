@@ -206,6 +206,23 @@ export async function findOpenPresences(guildId: string, query: string) {
   });
 }
 
+/** Comme `findOpenPresences` mais inclut les présences clôturées (correction a posteriori). */
+export async function findAllPresences(guildId: string, query: string) {
+  return prisma.presence.findMany({
+    where: { guildId, titre: { contains: query } },
+    take: 25,
+    orderBy: { eventDate: "desc" },
+  });
+}
+
+/** Présence ouverte la plus proche, utilisée par défaut quand aucune n'est précisée. */
+export async function getCurrentPresence(guildId: string) {
+  return prisma.presence.findFirst({
+    where: { guildId, closedAt: null },
+    orderBy: { eventDate: "asc" },
+  });
+}
+
 export async function computeUserStats(guildId: string, userId: string) {
   const totalClosed = await prisma.presence.count({
     where: { guildId, closedAt: { not: null } },

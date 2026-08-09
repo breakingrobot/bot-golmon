@@ -12,5 +12,9 @@ export const RESPONSE_STATUS_EMOJIS: Record<ResponseStatus, string> = {
   [ResponseStatus.RETARD]: "⏳",
 };
 
+export const RESPONSE_STATUS_CHOICES = Object.entries(RESPONSE_STATUS_LABELS).map(
+  ([value, name]) => ({ name, value }),
+);
+
 export const PRESENCE_COLOR_ACTIVE = 0x5865f2;
 export const PRESENCE_COLOR_CLOSED = 0x2c2f33;

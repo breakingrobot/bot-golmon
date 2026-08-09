@@ -3,9 +3,11 @@ import type { Command } from "../types/command.js";
 import { handlePresenceConfig } from "../modules/presences/commands/config.js";
 import { handlePresenceCreate } from "../modules/presences/commands/create.js";
 import { handlePresenceStats } from "../modules/presences/commands/stats.js";
+import { RESPONSE_STATUS_CHOICES } from "../modules/presences/constants.js";
 import {
   autocompletePresence,
   handlePresenceClose,
+  handlePresenceForceVote,
   handlePresencePing,
 } from "../modules/presences/commands/actions.js";
 
@@ -71,6 +73,33 @@ export const command: Command = {
     )
     .addSubcommand((sub) =>
       sub
+        .setName("forcevote")
+        .setDescription("Définir manuellement le vote d'un membre (staff)")
+        .addUserOption((option) =>
+          option.setName("utilisateur").setDescription("Membre concerné").setRequired(true),
+        )
+        .addStringOption((option) =>
+          option
+            .setName("statut")
+            .setDescription("Statut à appliquer")
+            .setRequired(true)
+            .addChoices(...RESPONSE_STATUS_CHOICES),
+        )
+        .addStringOption((option) =>
+          option
+            .setName("presence")
+            .setDescription("Présence visée (défaut: la plus proche)")
+            .setAutocomplete(true),
+        )
+        .addIntegerOption((option) =>
+          option
+            .setName("retard")
+            .setDescription("Durée du retard en minutes")
+            .setMinValue(0),
+        ),
+    )
+    .addSubcommand((sub) =>
+      sub
         .setName("close")
         .setDescription("Clôture une présence")
         .addStringOption((option) =>
@@ -92,6 +121,8 @@ export const command: Command = {
         return handlePresenceStats(interaction);
       case "ping":
         return handlePresencePing(interaction);
+      case "forcevote":
+        return handlePresenceForceVote(interaction);
       case "close":
         return handlePresenceClose(interaction);
       default:
