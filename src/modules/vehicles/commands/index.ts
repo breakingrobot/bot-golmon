@@ -164,6 +164,14 @@ export async function handleVehicleConfig(interaction: ChatInputCommandInteracti
     return;
   }
 
+  if (!interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild)) {
+    await interaction.reply({
+      content: "Seuls les membres avec la permission « Gérer le serveur » peuvent modifier la configuration.",
+      flags: MessageFlags.Ephemeral,
+    });
+    return;
+  }
+
   const dashboardChannel = interaction.options.getChannel("dashboard_channel");
 
   if (!dashboardChannel) {

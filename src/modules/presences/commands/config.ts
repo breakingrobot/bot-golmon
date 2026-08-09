@@ -22,6 +22,14 @@ export async function handlePresenceConfig(interaction: ChatInputCommandInteract
     return;
   }
 
+  if (!interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild)) {
+    await interaction.reply({
+      content: "Seuls les membres avec la permission « Gérer le serveur » peuvent modifier la configuration.",
+      flags: MessageFlags.Ephemeral,
+    });
+    return;
+  }
+
   const role = interaction.options.getRole("role");
   const absenceRole = interaction.options.getRole("absence_role");
   const presenceChannel = interaction.options.getChannel("channel");
