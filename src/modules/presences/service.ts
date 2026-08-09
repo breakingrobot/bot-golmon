@@ -1,6 +1,7 @@
 import type { Client, Guild } from "discord.js";
 import { ResponseStatus } from "@prisma/client";
 import { prisma } from "../../lib/prisma.js";
+import { logger } from "../../lib/logger.js";
 import { getRoleMemberIds } from "../../lib/memberCache.js";
 import { buildPresenceEmbed } from "../../lib/embeds/presenceEmbed.js";
 import { buildPresenceButtons } from "../../lib/components/presenceButtons.js";
@@ -150,6 +151,53 @@ export async function closePresence(presenceId: string) {
   return prisma.presence.update({ where: { id: presenceId }, data: { closedAt: new Date() } });
 }
 
+export async function deletePresence(presenceId: string) {
+  return prisma.presence.delete({ where: { id: presenceId } });
+}
+
+/** Délai de grâce avant de considérer qu'une présence sans message a échoué. */
+const ORPHAN_GRACE_MS = 5 * 60 * 1000;
+
+/**
+ * Vérifie qu'une présence est encore exploitable, c'est-à-dire que son message
+ * Discord existe toujours. Sinon plus personne ne peut y répondre : on la
+ * supprime au lieu de relancer les membres dans le vide.
+ *
+ * Deux cas d'orphelin :
+ *  - `messageId` nul : la publication a échoué à la création (ex: rate limit),
+ *    la ligne est restée seule en base.
+ *  - message ou salon supprimé depuis.
+ *
+ * Les statistiques ne comptent que les présences clôturées, et on ne touche
+ * jamais à une présence déjà clôturée : aucun historique n'est perdu.
+ */
+export async function ensurePresenceAlive(
+  client: Client,
+  presence: { id: string; channelId: string; messageId: string | null; createdAt: Date },
+): Promise<boolean> {
+  if (!presence.messageId) {
+    if (Date.now() - presence.createdAt.getTime() < ORPHAN_GRACE_MS) {
+      // Création peut-être encore en cours : on laisse sa chance au prochain passage.
+      return false;
+    }
+    await deletePresence(presence.id);
+    logger.warn(`Présence ${presence.id} supprimée : message jamais publié`);
+    return false;
+  }
+
+  const channel = await client.channels.fetch(presence.channelId).catch(() => null);
+  if (channel?.isSendable()) {
+    const message = await channel.messages.fetch(presence.messageId).catch(() => null);
+    if (message) {
+      return true;
+    }
+  }
+
+  await deletePresence(presence.id);
+  logger.warn(`Présence ${presence.id} supprimée : message introuvable`);
+  return false;
+}
+
 export async function findOpenPresences(guildId: string, query: string) {
   return prisma.presence.findMany({
     where: { guildId, closedAt: null, titre: { contains: query } },
@@ -238,13 +286,19 @@ export async function syncPresenceMessage(client: Client, presenceId: string) {
   const components = [buildPresenceButtons(presence.id, counts, presence.closedAt !== null)];
 
   if (presence.messageId) {
-    try {
-      const message = await channel.messages.fetch(presence.messageId);
+    const message = await channel.messages.fetch(presence.messageId).catch(() => null);
+    if (message) {
       await message.edit({ embeds: [embed], components });
       return;
-    } catch {
-      // message introuvable -> on en poste un nouveau ci-dessous
     }
+    // Message supprimé : on ne republie pas. Une présence encore ouverte est
+    // orpheline et supprimée ; une présence clôturée est conservée, elle ne
+    // génère plus de rappels et ses statistiques comptent.
+    if (!presence.closedAt) {
+      await deletePresence(presence.id);
+      logger.warn(`Présence ${presence.id} supprimée : message introuvable`);
+    }
+    return;
   }
 
   const message = await channel.send({ embeds: [embed], components });

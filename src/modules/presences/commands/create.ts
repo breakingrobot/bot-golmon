@@ -2,7 +2,13 @@ import { MessageFlags, type ChatInputCommandInteraction } from "discord.js";
 import { resolveEventDate } from "../../../lib/datetime.js";
 import { chunkMentions } from "../../../lib/format.js";
 import { getRoleMemberIds } from "../../../lib/memberCache.js";
-import { createPresence, getPresenceConfig, syncPresenceMessage } from "../service.js";
+import { logger } from "../../../lib/logger.js";
+import {
+  createPresence,
+  deletePresence,
+  getPresenceConfig,
+  syncPresenceMessage,
+} from "../service.js";
 
 export async function handlePresenceCreate(interaction: ChatInputCommandInteraction) {
   if (!interaction.guild) {
@@ -57,7 +63,18 @@ export async function handlePresenceCreate(interaction: ChatInputCommandInteract
     createdById: interaction.user.id,
   });
 
-  await syncPresenceMessage(interaction.client, presence.id);
+  try {
+    await syncPresenceMessage(interaction.client, presence.id);
+  } catch (error) {
+    // Sans message publié, la présence serait invisible mais génèrerait des
+    // rappels : on retire la ligne plutôt que de laisser un fantôme en base.
+    logger.error(`Publication de la présence ${presence.id} échouée, suppression`, error);
+    await deletePresence(presence.id).catch(() => null);
+    await interaction.editReply({
+      content: "La présence n'a pas pu être publiée (Discord a refusé la requête). Réessaie dans un instant.",
+    });
+    return;
+  }
 
   // Ping initial : membres du rôle, hors rôle d'exception (déjà en absent).
   const targetIds = await getRoleMemberIds(interaction.guild, config.defaultRoleId);

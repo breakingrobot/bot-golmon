@@ -4,7 +4,12 @@ import { prisma } from "../../lib/prisma.js";
 import { logger } from "../../lib/logger.js";
 import { chunkMentions } from "../../lib/format.js";
 import { TIMEZONE } from "../../lib/datetime.js";
-import { closePresence, getNonRespondentIds, syncPresenceMessage } from "./service.js";
+import {
+  closePresence,
+  ensurePresenceAlive,
+  getNonRespondentIds,
+  syncPresenceMessage,
+} from "./service.js";
 
 const REMINDER_INTERVAL_MS = 3 * 60 * 60 * 1000;
 
@@ -16,6 +21,10 @@ async function runClosureSweep(client: Client) {
 
   for (const presence of toClose) {
     try {
+      // Message disparu ou jamais publié : la présence est supprimée, rien à clôturer.
+      if (!(await ensurePresenceAlive(client, presence))) {
+        continue;
+      }
       await closePresence(presence.id);
       await syncPresenceMessage(client, presence.id);
       logger.info(`Présence ${presence.id} clôturée automatiquement`);
@@ -43,6 +52,12 @@ async function runReminderSweep(client: Client) {
 
   for (const presence of activePresences) {
     try {
+      // Pas de rappel pour une présence dont le message n'existe plus :
+      // personne ne pourrait y répondre. Elle est supprimée à la place.
+      if (!(await ensurePresenceAlive(client, presence))) {
+        continue;
+      }
+
       const guild = await client.guilds.fetch(presence.guildId);
       const nonRespondentIds = await getNonRespondentIds(guild, presence);
       if (nonRespondentIds.length === 0) {
