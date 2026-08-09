@@ -12,8 +12,8 @@ COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 RUN pnpm install --frozen-lockfile
 
 COPY . .
-RUN pnpm build
 RUN pnpm exec prisma generate
+RUN pnpm build
 
 ENV NODE_ENV=production
 
