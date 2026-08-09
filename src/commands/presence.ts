@@ -4,6 +4,7 @@ import { handlePresenceConfig } from "../modules/presences/commands/config.js";
 import { handlePresenceCreate } from "../modules/presences/commands/create.js";
 import { handlePresenceStats } from "../modules/presences/commands/stats.js";
 import { RESPONSE_STATUS_CHOICES } from "../modules/presences/constants.js";
+import { handlePresenceBlocklist } from "../modules/presences/commands/blocklist.js";
 import {
   autocompletePresence,
   handlePresenceClose,
@@ -36,7 +37,9 @@ export const command: Command = {
         .setDescription("Configure le module (sans option: affiche la config actuelle)")
         .addRoleOption((option) => option.setName("role").setDescription("Rôle ciblé par les présences"))
         .addRoleOption((option) =>
-          option.setName("exception_role").setDescription("Rôle d'exception (auto-absent, non ping)"),
+          option
+            .setName("absence_role")
+            .setDescription("Rôle donné pendant une absence (auto-absent, non ping)"),
         )
         .addChannelOption((option) =>
           option
@@ -49,6 +52,37 @@ export const command: Command = {
             .setName("reminder_channel")
             .setDescription("Salon des rappels automatiques")
             .addChannelTypes(ChannelType.GuildText),
+        )
+        .addChannelOption((option) =>
+          option
+            .setName("absence_channel")
+            .setDescription("Salon où annoncer les absences")
+            .addChannelTypes(ChannelType.GuildText),
+        ),
+    )
+    .addSubcommandGroup((group) =>
+      group
+        .setName("blocklist")
+        .setDescription("Membres à ne jamais ping (marqués absents d'office)")
+        .addSubcommand((sub) =>
+          sub
+            .setName("add")
+            .setDescription("Ajoute un membre à la blocklist")
+            .addUserOption((option) =>
+              option.setName("membre").setDescription("Membre concerné").setRequired(true),
+            )
+            .addStringOption((option) => option.setName("raison").setDescription("Raison")),
+        )
+        .addSubcommand((sub) =>
+          sub
+            .setName("remove")
+            .setDescription("Retire un membre de la blocklist")
+            .addUserOption((option) =>
+              option.setName("membre").setDescription("Membre concerné").setRequired(true),
+            ),
+        )
+        .addSubcommand((sub) =>
+          sub.setName("list").setDescription("Affiche la blocklist"),
         ),
     )
     .addSubcommand((sub) =>
@@ -112,6 +146,10 @@ export const command: Command = {
     ),
 
   async execute(interaction) {
+    if (interaction.options.getSubcommandGroup(false) === "blocklist") {
+      return handlePresenceBlocklist(interaction);
+    }
+
     switch (interaction.options.getSubcommand()) {
       case "create":
         return handlePresenceCreate(interaction);

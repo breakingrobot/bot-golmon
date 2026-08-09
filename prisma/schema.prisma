@@ -70,10 +70,38 @@ enum ResponseStatus {
 model PresenceConfig {
   guildId           String   @id
   defaultRoleId     String?
-  exceptionRoleId   String?
+  absenceRoleId     String?
   presenceChannelId String?
   reminderChannelId String?
+  absenceChannelId  String?
   updatedAt         DateTime @updatedAt
+}
+
+model Absence {
+  id          String    @id @default(cuid())
+  guildId     String
+  userId      String
+  motif       String
+  startsAt    DateTime
+  endsAt      DateTime
+  createdById String
+  endedAt     DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@index([guildId, userId])
+  @@index([endedAt])
+}
+
+/// Membres à ne jamais ping pour les présences (auto-absents), indépendamment des absences ponctuelles.
+model PresenceBlocklist {
+  id        String   @id @default(cuid())
+  guildId   String
+  userId    String
+  raison    String?
+  addedById String
+  createdAt DateTime @default(now())
+
+  @@unique([guildId, userId])
 }
 
 model Presence {
@@ -85,7 +113,7 @@ model Presence {
   description     String?
   eventDate       DateTime
   roleId          String
-  exceptionRoleId String?
+  absenceRoleId   String?
   createdById     String
   createdAt       DateTime           @default(now())
   closedAt        DateTime?

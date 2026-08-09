@@ -10,6 +10,12 @@ import {
   getNonRespondentIds,
   syncPresenceMessage,
 } from "./service.js";
+import {
+  applyAbsenceRole,
+  endAbsence,
+  findExpiredAbsences,
+  findStartedAbsences,
+} from "./absences.js";
 
 const REMINDER_INTERVAL_MS = 3 * 60 * 60 * 1000;
 
@@ -89,12 +95,39 @@ async function runReminderSweep(client: Client) {
   }
 }
 
+/**
+ * Applique le rôle aux absences qui viennent de commencer et le retire à celles
+ * qui se terminent. Le retrait ne se fait que si le membre n'a aucune autre
+ * absence active, pour gérer les périodes qui se chevauchent.
+ */
+async function runAbsenceSweep(client: Client) {
+  for (const absence of await findStartedAbsences()) {
+    try {
+      const guild = await client.guilds.fetch(absence.guildId);
+      await applyAbsenceRole(guild, absence.userId);
+    } catch (error) {
+      logger.error(`Application du rôle d'absence ${absence.id} échouée`, error);
+    }
+  }
+
+  for (const absence of await findExpiredAbsences()) {
+    try {
+      const guild = await client.guilds.fetch(absence.guildId);
+      await endAbsence(guild, absence.id, absence.userId);
+      logger.info(`Absence ${absence.id} terminée automatiquement`);
+    } catch (error) {
+      logger.error(`Clôture de l'absence ${absence.id} échouée`, error);
+    }
+  }
+}
+
 export function startPresenceCron(client: Client): void {
   cron.schedule(
     "*/5 * * * *",
     async () => {
       await runClosureSweep(client);
       await runReminderSweep(client);
+      await runAbsenceSweep(client);
     },
     { timezone: TIMEZONE },
   );

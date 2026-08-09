@@ -23,21 +23,23 @@ export async function handlePresenceConfig(interaction: ChatInputCommandInteract
   }
 
   const role = interaction.options.getRole("role");
-  const exceptionRole = interaction.options.getRole("exception_role");
+  const absenceRole = interaction.options.getRole("absence_role");
   const presenceChannel = interaction.options.getChannel("channel");
   const reminderChannel = interaction.options.getChannel("reminder_channel");
+  const absenceChannel = interaction.options.getChannel("absence_channel");
 
   // Sans aucune option, la commande sert à consulter la configuration.
-  if (!role && !exceptionRole && !presenceChannel && !reminderChannel) {
+  if (!role && !absenceRole && !presenceChannel && !reminderChannel && !absenceChannel) {
     const config = await getPresenceConfig(interaction.guildId);
     const embed = new EmbedBuilder()
       .setTitle("Configuration des présences")
       .setColor(0x5865f2)
       .addFields(
         { name: "Rôle ciblé", value: describe(config?.defaultRoleId, "role") },
-        { name: "Rôle d'exception", value: describe(config?.exceptionRoleId, "role") },
+        { name: "Rôle d'absence", value: describe(config?.absenceRoleId, "role") },
         { name: "Salon des présences", value: describe(config?.presenceChannelId, "channel") },
         { name: "Salon des rappels", value: describe(config?.reminderChannelId, "channel") },
+        { name: "Salon des absences", value: describe(config?.absenceChannelId, "channel") },
       );
 
     if (!config?.defaultRoleId) {
@@ -60,9 +62,10 @@ export async function handlePresenceConfig(interaction: ChatInputCommandInteract
   await upsertPresenceConfig({
     guildId: interaction.guildId,
     defaultRoleId: role?.id,
-    exceptionRoleId: exceptionRole?.id,
+    absenceRoleId: absenceRole?.id,
     presenceChannelId: presenceChannel?.id,
     reminderChannelId: reminderChannel?.id,
+    absenceChannelId: absenceChannel?.id,
   });
 
   await interaction.reply({

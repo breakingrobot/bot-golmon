@@ -33,7 +33,7 @@ Le bot est multi-guild : chaque `Transaction`/`Presence`/`PresenceConfig` est sc
 À configurer **une seule fois** ; ensuite plus rien n'est redemandé à la création :
 
 ```
-/presence config role:@AOD exception_role:@Amis channel:#présences
+/presence config role:@AOD absence_role:@Absent channel:#présences absence_channel:#absences
 /presence create heure:21:00
 ```
 
@@ -42,6 +42,30 @@ Le bot est multi-guild : chaque `Transaction`/`Presence`/`PresenceConfig` est sc
 - Boutons Présent / Absent / Retard (modal pour la durée) / Ping. L'embed affiche aussi les membres **sans réponse**.
 - Rappels automatiques des non-répondants, au plus une fois toutes les 3h par présence ; clôture automatique à l'heure de l'événement (contrôle toutes les 5 min).
 - `/presence stats [joueur]` : fiche individuelle (avec l'historique des changements d'avis) ou classement du serveur.
+- `/presence forcevote utilisateur statut [presence] [retard]` : le staff saisit la réponse d'un membre à sa place. L'autocomplétion inclut les présences clôturées (🔒) pour corriger une statistique déjà comptabilisée.
+
+### Absences
+
+```
+/absence declare motif:"Vacances" fin:20/08/2026
+```
+
+- `debut` vaut aujourd'hui par défaut ; une date couvre la journée entière (début 00:00, fin 23:59).
+- Le **rôle d'absence** configuré est appliqué automatiquement, puis retiré à la fin de la période par le cron (contrôle toutes les 5 min). Si le membre a plusieurs absences qui se chevauchent, le rôle n'est retiré qu'à la fin de la dernière.
+- Les présences ouvertes tombant dans la période passent automatiquement en **Absent**.
+- L'absence est annoncée dans le salon configuré via `absence_channel`.
+- `/absence end [membre]` met fin à une absence par anticipation, `/absence list` affiche les absences en cours.
+- Le staff (Gérer les messages) peut déclarer ou clore l'absence d'un autre membre via l'option `membre`.
+
+Si le bot ne peut pas appliquer le rôle (permission `Gérer les rôles` manquante, ou rôle d'absence situé au-dessus du sien dans la hiérarchie), l'absence est **quand même enregistrée** et le problème est signalé dans la réponse.
+
+### Blocklist présences
+
+```
+/presence blocklist add membre:@Membre raison:"Inactif"
+```
+
+Les membres de la blocklist ne sont **jamais pingés** et sont marqués absents d'office à chaque nouvelle présence — indépendamment des absences ponctuelles. `/presence blocklist list` et `remove` complètent le groupe.
 
 ### Transactions
 

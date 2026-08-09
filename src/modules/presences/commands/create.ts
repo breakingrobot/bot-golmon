@@ -6,6 +6,7 @@ import { logger } from "../../../lib/logger.js";
 import {
   createPresence,
   deletePresence,
+  getAutoAbsentUserIds,
   getPresenceConfig,
   syncPresenceMessage,
 } from "../service.js";
@@ -59,7 +60,7 @@ export async function handlePresenceCreate(interaction: ChatInputCommandInteract
     description: interaction.options.getString("description") ?? undefined,
     eventDate: resolved.date,
     roleId: config.defaultRoleId,
-    exceptionRoleId: config.exceptionRoleId ?? undefined,
+    absenceRoleId: config.absenceRoleId ?? undefined,
     createdById: interaction.user.id,
   });
 
@@ -76,11 +77,11 @@ export async function handlePresenceCreate(interaction: ChatInputCommandInteract
     return;
   }
 
-  // Ping initial : membres du rôle, hors rôle d'exception (déjà en absent).
+  // Ping initial : membres du rôle, hors absents et blocklistés (déjà en absent).
   const targetIds = await getRoleMemberIds(interaction.guild, config.defaultRoleId);
-  const excludedIds = config.exceptionRoleId
-    ? new Set(await getRoleMemberIds(interaction.guild, config.exceptionRoleId))
-    : new Set<string>();
+  const excludedIds = new Set(
+    await getAutoAbsentUserIds(interaction.guild, config.absenceRoleId),
+  );
   const mentionable = targetIds.filter((id) => !excludedIds.has(id));
 
   for (const content of chunkMentions(mentionable, "📣")) {

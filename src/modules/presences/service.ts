@@ -3,6 +3,7 @@ import { ResponseStatus } from "@prisma/client";
 import { prisma } from "../../lib/prisma.js";
 import { logger } from "../../lib/logger.js";
 import { getRoleMemberIds } from "../../lib/memberCache.js";
+import { getBlocklistedUserIds } from "./blocklist.js";
 import { buildPresenceEmbed } from "../../lib/embeds/presenceEmbed.js";
 import { buildPresenceButtons } from "../../lib/components/presenceButtons.js";
 
@@ -18,9 +19,10 @@ export async function getPresenceConfig(guildId: string) {
 export async function upsertPresenceConfig(params: {
   guildId: string;
   defaultRoleId?: string;
-  exceptionRoleId?: string;
+  absenceRoleId?: string;
   presenceChannelId?: string;
   reminderChannelId?: string;
+  absenceChannelId?: string;
 }) {
   const { guildId, ...data } = params;
   return prisma.presenceConfig.upsert({
@@ -38,7 +40,7 @@ export async function createPresence(
     description?: string;
     eventDate: Date;
     roleId: string;
-    exceptionRoleId?: string;
+    absenceRoleId?: string;
     createdById: string;
   },
 ) {
@@ -50,29 +52,40 @@ export async function createPresence(
       description: params.description,
       eventDate: params.eventDate,
       roleId: params.roleId,
-      exceptionRoleId: params.exceptionRoleId,
+      absenceRoleId: params.absenceRoleId,
       createdById: params.createdById,
       // La création ping déjà tout le monde : le premier rappel tombera 3h après.
       lastReminderAt: new Date(),
     },
   });
 
-  if (params.exceptionRoleId) {
-    const exceptionMemberIds = await getRoleMemberIds(guild, params.exceptionRoleId);
-    if (exceptionMemberIds.length > 0) {
-      // Absences automatiques : pas d'historique de changement, ce ne sont pas
-      // des actions utilisateur.
-      await prisma.presenceResponse.createMany({
-        data: exceptionMemberIds.map((userId) => ({
-          presenceId: presence.id,
-          userId,
-          status: ResponseStatus.ABSENT,
-        })),
-      });
-    }
+  const autoAbsentIds = await getAutoAbsentUserIds(guild, params.absenceRoleId);
+  if (autoAbsentIds.length > 0) {
+    // Absences automatiques : pas d'historique de changement, ce ne sont pas
+    // des actions utilisateur.
+    await prisma.presenceResponse.createMany({
+      data: autoAbsentIds.map((userId) => ({
+        presenceId: presence.id,
+        userId,
+        status: ResponseStatus.ABSENT,
+      })),
+    });
   }
 
   return presence;
+}
+
+/**
+ * Membres marqués absents d'office et jamais pingés : porteurs du rôle
+ * d'absence (absence déclarée en cours) et membres de la blocklist.
+ */
+export async function getAutoAbsentUserIds(
+  guild: Guild,
+  absenceRoleId?: string | null,
+): Promise<string[]> {
+  const fromRole = absenceRoleId ? await getRoleMemberIds(guild, absenceRoleId) : [];
+  const fromBlocklist = await getBlocklistedUserIds(guild.id);
+  return [...new Set([...fromRole, ...fromBlocklist])];
 }
 
 export async function registerResponse(
