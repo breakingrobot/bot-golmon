@@ -19,7 +19,7 @@ export function formatMentionList(
   userIds: string[],
   options: { max?: number; detailByUserId?: Map<string, string>; empty?: string } = {},
 ): string {
-  const { max = 10, detailByUserId, empty = "Aucun" } = options;
+  const { max = Infinity, detailByUserId, empty = "Aucun" } = options;
 
   if (userIds.length === 0) {
     return empty;

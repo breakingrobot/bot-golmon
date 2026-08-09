@@ -54,42 +54,31 @@ export function buildPresenceEmbed(
     .setDescription(
       truncateField(`${header}${description}\n\n${buildPercentBar(percent)} ${percent}%${closed}`, 4096),
     )
-    .setColor(presence.closedAt ? PRESENCE_COLOR_CLOSED : PRESENCE_COLOR_ACTIVE)
-    .addFields(
-      {
-        name: `✅ Présents (${presents.length})`,
-        value: formatMentionList(presents.map((r) => r.userId), {
-          detailByUserId: new Map(
-            presents
-              .map((r) => [r.userId, getDetail(r.userId)] as const)
-              .filter((x): x is [string, string] => x[1] !== undefined),
-          ),
-        }),
+    .setColor(presence.closedAt ? PRESENCE_COLOR_CLOSED : PRESENCE_COLOR_ACTIVE);
+
+  const addChunkedFields = (
+    title: string,
+    userIds: string[],
+    detailByUserId?: Map<string, string>,
+  ) => {
+    if (userIds.length === 0) {
+      embed.addFields({ name: `${title} (0)`, value: "Aucun", inline: true });
+      return;
+    }
+
+    const chunks = chunkMentionsList(userIds, 15);
+    for (let i = 0; i < chunks.length; i++) {
+      embed.addFields({
+        name: i === 0 ? `${title} (${userIds.length})` : "​", // ZWSP
+        value: formatMentionList(chunks[i], { detailByUserId }),
         inline: true,
-      },
-      {
-        name: `❌ Absents (${absents.length})`,
-        value: formatMentionList(absents.map((r) => r.userId), {
-          detailByUserId: new Map(
-            absents
-              .map((r) => [r.userId, getDetail(r.userId)] as const)
-              .filter((x): x is [string, string] => x[1] !== undefined),
-          ),
-        }),
-        inline: true,
-      },
-      {
-        name: `⏳ Retards (${retards.length})`,
-        value: formatMentionList(retards.map((r) => r.userId), {
-          detailByUserId: new Map(
-            retards
-              .map((r) => [r.userId, getDetail(r.userId, retardDetails.get(r.userId))] as const)
-              .filter((x): x is [string, string] => x[1] !== undefined),
-          ),
-        }),
-        inline: true,
-      },
-    );
+      });
+    }
+  };
+
+  addChunkedFields("✅ Présents", presents.map((r) => r.userId), new Map(presents.map((r) => [r.userId, getDetail(r.userId)] as const).filter((x): x is [string, string] => x[1] !== undefined)));
+  addChunkedFields("❌ Absents", absents.map((r) => r.userId), new Map(absents.map((r) => [r.userId, getDetail(r.userId)] as const).filter((x): x is [string, string] => x[1] !== undefined)));
+  addChunkedFields("⏳ Retards", retards.map((r) => r.userId), new Map(retards.map((r) => [r.userId, getDetail(r.userId, retardDetails.get(r.userId))] as const).filter((x): x is [string, string] => x[1] !== undefined)));
 
   if (nonRespondentIds.length === 0) {
     embed.addFields({
@@ -97,15 +86,7 @@ export function buildPresenceEmbed(
       value: "Tout le monde a répondu",
     });
   } else {
-    // Diviser les "sans réponse" en plusieurs colonnes (max 15 par colonne)
-    const chunks = chunkMentionsList(nonRespondentIds, 15);
-    for (let i = 0; i < chunks.length; i++) {
-      embed.addFields({
-        name: i === 0 ? `🕓 Sans réponse (${nonRespondentIds.length})` : "​", // caractère invisible ZWSP
-        value: formatMentionList(chunks[i]),
-        inline: true,
-      });
-    }
+    addChunkedFields("🕓 Sans réponse", nonRespondentIds);
   }
 
   embed.addFields(
