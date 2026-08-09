@@ -5,6 +5,7 @@ import "dotenv/config";
 import { REST, Routes } from "discord.js";
 import type { Command } from "./types/command.js";
 import { logger } from "./lib/logger.js";
+import { getWhitelistedGuildIds } from "./lib/guildWhitelist.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -26,7 +27,7 @@ function findCommandFiles(dir: string): string[] {
 
 const token = process.env.DISCORD_TOKEN;
 const clientId = process.env.DISCORD_CLIENT_ID;
-const guildId = process.env.DISCORD_GUILD_ID;
+const guildIds = getWhitelistedGuildIds();
 
 if (!token || !clientId) {
   throw new Error("DISCORD_TOKEN et DISCORD_CLIENT_ID sont requis");
@@ -46,10 +47,12 @@ for (const file of files) {
 
 const rest = new REST().setToken(token);
 
-if (guildId) {
-  await rest.put(Routes.applicationGuildCommands(clientId, guildId), { body });
-  logger.info(`${body.length} commande(s) déployée(s) sur la guilde ${guildId}`);
+if (guildIds.length > 0) {
+  for (const guildId of guildIds) {
+    await rest.put(Routes.applicationGuildCommands(clientId, guildId), { body });
+    logger.info(`${body.length} commande(s) déployée(s) sur la guilde ${guildId}`);
+  }
 } else {
   await rest.put(Routes.applicationCommands(clientId), { body });
-  logger.info(`${body.length} commande(s) déployée(s) globalement`);
+  logger.info(`${body.length} commande(s) déployée(s) globalement (aucune whitelist configurée)`);
 }

@@ -4,11 +4,19 @@
 
 ```bash
 pnpm install
-cp .env.example .env   # renseigner DISCORD_TOKEN, DISCORD_CLIENT_ID, DISCORD_GUILD_ID
+cp .env.example .env   # renseigner DISCORD_TOKEN, DISCORD_CLIENT_ID, DISCORD_GUILD_IDS
 pnpm db:migrate
-pnpm deploy-commands    # enregistre les slash commands sur la guilde configurée
+pnpm deploy-commands    # enregistre les slash commands sur chaque guilde whitelistée
 pnpm dev
 ```
+
+## Multi-serveur (whitelist)
+
+Le bot est multi-guild : chaque `Transaction`/`Presence`/`PresenceConfig` est scopée par `guildId`, aucune donnée n'est partagée entre serveurs.
+
+`DISCORD_GUILD_IDS` (liste d'IDs séparés par des virgules) contrôle les serveurs autorisés :
+- si renseigné : les commandes sont déployées uniquement sur ces guildes, et le bot **quitte automatiquement** tout serveur non listé (à l'ajout via `guildCreate`, et au démarrage via un balayage dans `ready`).
+- si vide : aucune restriction (pratique en dev), déploiement global des commandes.
 
 ## Scripts
 
