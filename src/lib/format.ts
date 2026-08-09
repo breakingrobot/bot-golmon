@@ -31,17 +31,19 @@ export function formatMentionList(
     return detail ? `${mention(id)} (${detail})` : mention(id);
   });
 
-  let remaining = userIds.length - shown.length;
-  let text = lines.join("\n");
+  const validLines = lines.reduce(
+    (acc, line) => {
+      if (acc.text.length + line.length + 1 <= FIELD_LIMIT - 20) {
+        acc.lines.push(line);
+        acc.text += (acc.text ? "\n" : "") + line;
+      }
+      return acc;
+    },
+    { lines: [] as string[], text: "" },
+  );
 
-  // Retire des entrées tant qu'on dépasse la limite du champ.
-  while (text.length > FIELD_LIMIT - 20 && lines.length > 0) {
-    lines.pop();
-    remaining += 1;
-    text = lines.join("\n");
-  }
-
-  return remaining > 0 ? `${text}\n… +${remaining} autre${remaining > 1 ? "s" : ""}` : text;
+  const remaining = userIds.length - validLines.lines.length;
+  return remaining > 0 ? `${validLines.text}\n… +${remaining} autre${remaining > 1 ? "s" : ""}` : validLines.text;
 }
 
 /**
@@ -49,33 +51,32 @@ export function formatMentionList(
  * caractères, chacun préfixé par `prefix`.
  */
 export function chunkMentions(userIds: string[], prefix: string): string[] {
-  const chunks: string[] = [];
-  let current = "";
+  const result = userIds.reduce(
+    (acc, userId) => {
+      const candidate = acc.current ? `${acc.current} ${mention(userId)}` : `${prefix} ${mention(userId)}`;
+      if (candidate.length > MESSAGE_LIMIT) {
+        acc.chunks.push(acc.current);
+        acc.current = `${prefix} ${mention(userId)}`;
+      } else {
+        acc.current = candidate;
+      }
+      return acc;
+    },
+    { chunks: [] as string[], current: "" },
+  );
 
-  for (const userId of userIds) {
-    const candidate = current ? `${current} ${mention(userId)}` : `${prefix} ${mention(userId)}`;
-    if (candidate.length > MESSAGE_LIMIT) {
-      chunks.push(current);
-      current = `${prefix} ${mention(userId)}`;
-    } else {
-      current = candidate;
-    }
+  if (result.current) {
+    result.chunks.push(result.current);
   }
 
-  if (current) {
-    chunks.push(current);
-  }
-
-  return chunks;
+  return result.chunks;
 }
 
 /** Divise une liste en morceaux de taille maximale `chunkSize`. */
 export function chunkMentionsList(userIds: string[], chunkSize: number): string[][] {
-  const result: string[][] = [];
-  for (let i = 0; i < userIds.length; i += chunkSize) {
-    result.push(userIds.slice(i, i + chunkSize));
-  }
-  return result;
+  return Array.from({ length: Math.ceil(userIds.length / chunkSize) }, (_, i) =>
+    userIds.slice(i * chunkSize, (i + 1) * chunkSize),
+  );
 }
 
 /** Tronque un texte libre pour un champ d'embed. */

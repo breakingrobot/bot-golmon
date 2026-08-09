@@ -20,25 +20,23 @@ export function buildChunkedFields(name: string, lines: string[], inline: boolea
   if (lines.length === 0) {
     return [{ name, value: "Aucune", inline }];
   }
-  
-  const fields = [];
-  let currentChunk = "";
-  let isFirst = true;
 
-  for (const line of lines) {
-    if (currentChunk.length + line.length + 1 > 1024) {
-      fields.push({ name: isFirst ? name : `${name} (suite)`, value: currentChunk, inline });
-      currentChunk = line;
-      isFirst = false;
-    } else {
-      currentChunk += (currentChunk ? "\n" : "") + line;
-    }
-  }
-  if (currentChunk) {
-    fields.push({ name: isFirst ? name : `${name} (suite)`, value: currentChunk, inline });
-  }
+  const result = lines.reduce(
+    (acc, line) => {
+      const current = acc.chunks[acc.chunks.length - 1];
+      if (!current) {
+        acc.chunks.push({ name, value: line, inline });
+      } else if (current.value.length + line.length + 1 > 1024) {
+        acc.chunks.push({ name: `${name} (suite)`, value: line, inline });
+      } else {
+        current.value += `\n${line}`;
+      }
+      return acc;
+    },
+    { chunks: [] as { name: string; value: string; inline: boolean }[] }
+  );
 
-  return fields;
+  return result.chunks;
 }
 
 export function buildTransactionDashboardEmbeds(
