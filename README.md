@@ -141,6 +141,8 @@ Annuaire des numéros de téléphone RP.
   normalisée, donc `555-1234` et `5551234` sont équivalents.
 - **Un numéro par membre** (en ajouter un nouveau remplace l'ancien) et un numéro ne peut pas être
   attribué à deux membres. Chacun gère le sien ; retirer celui d'un autre demande « Gérer les messages ».
+- `/numero ajouter numero:5551234 membre:@Membre` inscrit **de force** le numéro d'un autre membre,
+  en écrasant le sien sans confirmation. Réservé à « Gérer le serveur ».
 
 ## Fuseau horaire
 

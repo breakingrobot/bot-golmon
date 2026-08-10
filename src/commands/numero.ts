@@ -30,6 +30,11 @@ export const command: Command = {
         .addStringOption((option) =>
           option.setName("numero").setDescription("Ton numéro (ex: 5551234)").setRequired(true)
         )
+        .addUserOption((option) =>
+          option
+            .setName("membre")
+            .setDescription("Inscrire le numéro d'un autre membre (« Gérer le serveur » requis)")
+        )
     )
     .addSubcommand((subcommand) =>
       subcommand

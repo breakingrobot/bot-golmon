@@ -70,16 +70,34 @@ export async function handlePhoneAjouter(interaction: ChatInputCommandInteractio
     return;
   }
 
+  // Inscrire le numéro de quelqu'un d'autre est une action d'administration :
+  // elle écrase sans confirmation le numéro que le membre avait choisi.
+  const membre = interaction.options.getUser("membre");
+  const forced = membre && membre.id !== interaction.user.id ? membre : null;
+  if (forced && !interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild)) {
+    await interaction.reply({
+      content:
+        "Seuls les membres avec la permission « Gérer le serveur » peuvent enregistrer le numéro d'un autre membre.",
+      flags: MessageFlags.Ephemeral,
+    });
+    return;
+  }
+
+  const targetId = membre?.id ?? interaction.user.id;
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
-  const result = await setPhoneNumber(interaction.guildId, interaction.user.id, numero);
+  const result = await setPhoneNumber(interaction.guildId, targetId, numero);
   if (result.status === "taken") {
     await interaction.editReply(NUMBER_TAKEN);
     return;
   }
 
   await syncPhoneDashboard(interaction.client, interaction.guildId);
-  await interaction.editReply(`Numéro enregistré : \`${formatPhone(numero)}\``);
+  await interaction.editReply(
+    forced
+      ? `Numéro \`${formatPhone(numero)}\` enregistré pour ${forced.username}.`
+      : `Numéro enregistré : \`${formatPhone(numero)}\``,
+  );
 }
 
 export async function handlePhoneVoir(interaction: ChatInputCommandInteraction) {
