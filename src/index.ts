@@ -6,6 +6,7 @@ import { loadCommands } from "./lib/commandLoader.js";
 import { loadEvents } from "./lib/eventLoader.js";
 import { logger } from "./lib/logger.js";
 import { startPresenceCron } from "./modules/presences/cron.js";
+import { startProspectCron } from "./modules/prospects/cron.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -20,6 +21,7 @@ await loadCommands(client, path.join(__dirname, "commands"));
 await loadEvents(client, path.join(__dirname, "events"));
 
 startPresenceCron(client);
+startProspectCron(client);
 
 client.on("error", (error) => {
   logger.error("Erreur client Discord", error);

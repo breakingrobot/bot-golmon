@@ -1,4 +1,4 @@
-# Bot Discord — Transactions & Présences
+# Bot Discord — Transactions, Présences & Prospects
 
 ## Setup
 
@@ -95,6 +95,52 @@ Registre des véhicules du groupe : quelle plaque appartient à quel membre Disc
 - Les plaques sont normalisées (majuscules, sans espaces ni tirets) : `d6cs 3p0g` et `D6CS3P0G` sont la même plaque, impossible de créer un doublon.
 
 API utilisée : `GET https://api.glife.fr/roleplay/vehicles?plate=…` (publique, sans authentification). Les réponses sont mises en cache 5 minutes, avec un timeout de 8 s pour ne jamais bloquer une interaction Discord.
+
+### Prospects
+
+Avis hebdomadaires des gradés sur les membres en période d'essai, avec droit de véto des leads.
+
+```
+/prospect config role_prospect:@Prospect role_grade:@Gradé role_lead:@Lead categorie:#Essais salon:#avis
+/prospect liste
+/prospect avis membre:@Membre
+/prospect veto poser membre:@Membre motif:Comportement inadapté
+```
+
+- **Un embed par semaine** dans le salon configuré, listant chaque prospect avec le décompte
+  `✅ / ❌ / ⬜` et les motifs. Trois menus déroulants : donner son avis, poser un véto, consulter le détail.
+- Le vote passe par une **modal** demandant le vote (Pour / Contre / Blanc) **et un motif obligatoire**.
+  Un gradé n'a qu'un seul avis par prospect : revoter remplace le précédent.
+- **Reset chaque lundi 00:00** (Europe/Paris) : la semaine écoulée est archivée en base et son embed
+  reste visible dans le salon, un nouveau message est publié pour la semaine qui commence. Un
+  rattrapage quotidien couvre le cas d'un bot hors ligne au moment de la bascule.
+  `/prospect historique membre:@Membre` consulte les semaines passées.
+- **Salon privé automatique** : dès qu'un membre reçoit le rôle prospect, un salon `essai-<pseudo>` est
+  créé dans la catégorie configurée, visible uniquement par lui, les gradés et les leads.
+  `/prospect salon membre:@Membre` fait la même chose manuellement. Perdre le rôle retire le membre de
+  la liste de la semaine mais **conserve son salon**.
+- **Véto** : réservé au rôle lead, motif obligatoire, affiché en rouge et bloquant.
+  `/prospect veto lever` le retire. « Gérer le serveur » ne donne **pas** le droit de véto — seul le
+  rôle lead configuré le donne ; cette permission ne sert qu'à `/prospect config` et `/prospect reset`.
+
+Le bot doit disposer de la permission **Gérer les salons** pour créer les salons d'essai.
+
+### Numéros
+
+Annuaire des numéros de téléphone RP.
+
+```
+/numero config salon:#annuaire
+/numero ajouter numero:5551234
+/numero voir membre:@Membre
+```
+
+- Embed permanent auto-actualisé avec un bouton **« Ajouter / modifier mon numéro »** (ouvre une modal)
+  et un bouton pour retirer le sien.
+- Format imposé : `555` suivi de **4 à 6 chiffres** (`5551234`, `55512345`, `555123456`). La saisie est
+  normalisée, donc `555-1234` et `5551234` sont équivalents.
+- **Un numéro par membre** (en ajouter un nouveau remplace l'ancien) et un numéro ne peut pas être
+  attribué à deux membres. Chacun gère le sien ; retirer celui d'un autre demande « Gérer les messages ».
 
 ## Fuseau horaire
 

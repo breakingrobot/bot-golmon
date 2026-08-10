@@ -23,6 +23,8 @@ import {
 } from "../modules/presences/service.js";
 import { addTransactionItem, refreshTransaction, setTransactionStatus, deleteTransaction, syncTransactionDashboard, getTransaction } from "../modules/transactions/service.js";
 import { TRANSACTION_STATUS_LABELS } from "../modules/transactions/constants.js";
+import { handleProspectSelect, handleProspectModal } from "../modules/prospects/interactions.js";
+import { handlePhoneButton, handlePhoneModal } from "../modules/phones/interactions.js";
 
 const BUTTON_STATUS: Record<string, ResponseStatus> = {
   present: ResponseStatus.PRESENT,
@@ -296,6 +298,14 @@ async function route(interaction: Interaction) {
     return;
   }
 
+  if (interaction.isStringSelectMenu()) {
+    const parsed = decodeCustomId(interaction.customId);
+    if (parsed?.namespace === "prospect") {
+      await handleProspectSelect(interaction, parsed.action);
+    }
+    return;
+  }
+
   if (interaction.isButton()) {
     const parsed = decodeCustomId(interaction.customId);
     if (!parsed) {
@@ -305,16 +315,23 @@ async function route(interaction: Interaction) {
       await handlePresenceButton(interaction, parsed.action, parsed.id);
     } else if (parsed.namespace === "transaction") {
       await handleTransactionButton(interaction, parsed.action, parsed.id, parsed.payload);
+    } else if (parsed.namespace === "numero") {
+      await handlePhoneButton(interaction, parsed.action, parsed.id);
     }
     return;
   }
 
   if (interaction.isModalSubmit()) {
     const parsed = decodeCustomId(interaction.customId);
-    if (parsed?.namespace === "presence" && parsed.action === "retard-modal") {
+    if (!parsed) return;
+    if (parsed.namespace === "presence" && parsed.action === "retard-modal") {
       await handleRetardModal(interaction, parsed.id);
-    } else if (parsed?.namespace === "transaction" && parsed.action === "additem-modal") {
+    } else if (parsed.namespace === "transaction" && parsed.action === "additem-modal") {
       await handleTransactionAddItemModal(interaction, parsed.id);
+    } else if (parsed.namespace === "prospect" && (parsed.action === "vote-modal" || parsed.action === "veto-modal")) {
+      await handleProspectModal(interaction, parsed.action, parsed.id);
+    } else if (parsed.namespace === "numero" && parsed.action === "add-modal") {
+      await handlePhoneModal(interaction);
     }
   }
 }

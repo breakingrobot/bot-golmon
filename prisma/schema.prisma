@@ -177,3 +177,99 @@ model VehicleConfig {
   dashboardMessageId String?
   updatedAt          DateTime @updatedAt
 }
+
+// ---------- MODULE PROSPECTS ----------
+
+enum ProspectVoteChoice {
+  POUR
+  CONTRE
+  BLANC
+}
+
+model ProspectConfig {
+  guildId            String   @id
+  prospectRoleId     String?
+  gradeRoleId        String?
+  leadRoleId         String?
+  categoryId         String?  // catégorie des salons privés prospects
+  dashboardChannelId String?
+  updatedAt          DateTime @updatedAt
+}
+
+/// Une semaine de vote. Une seule session ouverte par guilde à la fois.
+model ProspectSession {
+  id        String          @id @default(cuid())
+  guildId   String
+  weekStart DateTime        // lundi 00:00 Europe/Paris
+  closedAt  DateTime?
+  messageId String?         // message dashboard propre à la semaine
+  createdAt DateTime        @default(now())
+  entries   ProspectEntry[]
+
+  @@unique([guildId, weekStart])
+  @@index([guildId, closedAt])
+}
+
+/// Un prospect suivi pendant une session hebdomadaire.
+model ProspectEntry {
+  id        String          @id @default(cuid())
+  sessionId String
+  session   ProspectSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  guildId   String
+  userId    String
+  vetoById  String?
+  vetoMotif String?
+  vetoAt    DateTime?
+  createdAt DateTime        @default(now())
+  votes     ProspectVote[]
+
+  @@unique([sessionId, userId])
+  @@index([guildId, userId])
+}
+
+model ProspectVote {
+  id        String             @id @default(cuid())
+  entryId   String
+  entry     ProspectEntry      @relation(fields: [entryId], references: [id], onDelete: Cascade)
+  voterId   String
+  choix     ProspectVoteChoice
+  motif     String
+  createdAt DateTime           @default(now())
+  updatedAt DateTime           @updatedAt
+
+  @@unique([entryId, voterId])   // un avis par gradé, modifiable
+  @@index([entryId, choix])
+}
+
+/// Salon privé d'un prospect — persiste au-delà des sessions hebdomadaires.
+model ProspectChannel {
+  id        String   @id @default(cuid())
+  guildId   String
+  userId    String
+  channelId String
+  createdAt DateTime @default(now())
+
+  @@unique([guildId, userId])
+}
+
+// ---------- MODULE NUMEROS ----------
+
+model PhoneNumber {
+  id        String   @id @default(cuid())
+  guildId   String
+  userId    String
+  numero    String   // normalisé : chiffres uniquement, 555XXXX à 555XXXXXX
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([guildId, userId])
+  @@unique([guildId, numero])
+  @@index([guildId, numero])
+}
+
+model PhoneConfig {
+  guildId            String   @id
+  dashboardChannelId String?
+  dashboardMessageId String?
+  updatedAt          DateTime @updatedAt
+}
