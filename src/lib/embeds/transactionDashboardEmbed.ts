@@ -1,6 +1,7 @@
 import { EmbedBuilder } from "discord.js";
 import { TransactionStatus } from "@prisma/client";
 import type { TransactionWithItems } from "./transactionEmbed.js";
+import { packFields, type EmbedField } from "../format.js";
 import {
   ACTIVE_STATUSES,
   TERMINAL_STATUSES,
@@ -10,13 +11,18 @@ import {
   formatPrice,
 } from "../../modules/transactions/constants.js";
 
+/** Titre, pied de page et marges de l'API : on ne remplit pas les 6000 caractères. */
+const FIELD_BUDGET = 5200;
+/** Un champ est réservé au résumé « … +N » en cas de débordement. */
+const MAX_FIELDS = 24;
+
 export function formatLine(transaction: TransactionWithItems): string {
   const itemCount = transaction.items.length;
   const items = itemCount > 0 ? ` — ${itemCount} objet${itemCount > 1 ? "s" : ""}` : "";
   return `• **${transaction.groupe}** · ${TRANSACTION_TYPE_LABELS[transaction.type]} · ${formatPrice(transaction.prix)}${items}`;
 }
 
-export function buildChunkedFields(name: string, lines: string[], inline: boolean) {
+export function buildChunkedFields(name: string, lines: string[], inline: boolean): EmbedField[] {
   if (lines.length === 0) {
     return [{ name, value: "Aucune", inline }];
   }
@@ -33,15 +39,34 @@ export function buildChunkedFields(name: string, lines: string[], inline: boolea
       }
       return acc;
     },
-    { chunks: [] as { name: string; value: string; inline: boolean }[] }
+    { chunks: [] as EmbedField[] },
   );
 
   return result.chunks;
 }
 
-export function buildTransactionDashboardEmbeds(
+function statusFields(
+  byStatus: Map<TransactionStatus, TransactionWithItems[]>,
+  statuses: readonly TransactionStatus[],
+  inline: boolean,
+): EmbedField[] {
+  return statuses.flatMap((status) => {
+    const bucket = byStatus.get(status) ?? [];
+    const name = `${TRANSACTION_STATUS_EMOJIS[status]} ${TRANSACTION_STATUS_LABELS[status]} (${bucket.length})`;
+    return buildChunkedFields(name, bucket.map(formatLine), inline);
+  });
+}
+
+/**
+ * Tableau de bord des transactions, en un seul embed borné. Discord plafonne à
+ * 6000 caractères pour l'ensemble des embeds d'un message : au-delà, l'édition
+ * échoue et le tableau de bord se fige. `totalCount` compte toutes les
+ * transactions de la guilde, y compris celles écartées de la liste.
+ */
+export function buildTransactionDashboardEmbed(
   transactions: TransactionWithItems[],
-): EmbedBuilder[] {
+  totalCount: number,
+): EmbedBuilder {
   const byStatus = new Map<TransactionStatus, TransactionWithItems[]>();
   for (const transaction of transactions) {
     const bucket = byStatus.get(transaction.statut) ?? [];
@@ -49,19 +74,13 @@ export function buildTransactionDashboardEmbeds(
     byStatus.set(transaction.statut, bucket);
   }
 
-  const allFields: { name: string; value: string; inline?: boolean }[] = [];
-
-  for (const status of ACTIVE_STATUSES) {
-    const bucket = byStatus.get(status) ?? [];
-    const lines = bucket.map(formatLine);
-    allFields.push(...buildChunkedFields(`${TRANSACTION_STATUS_EMOJIS[status]} ${TRANSACTION_STATUS_LABELS[status]} (${bucket.length})`, lines, false));
-  }
-
-  for (const status of TERMINAL_STATUSES) {
-    const bucket = byStatus.get(status) ?? [];
-    const lines = bucket.map(formatLine);
-    allFields.push(...buildChunkedFields(`${TRANSACTION_STATUS_EMOJIS[status]} ${TRANSACTION_STATUS_LABELS[status]} (${bucket.length})`, lines, true));
-  }
+  const { kept, dropped } = packFields(
+    [
+      ...statusFields(byStatus, ACTIVE_STATUSES, false),
+      ...statusFields(byStatus, TERMINAL_STATUSES, true),
+    ],
+    { budget: FIELD_BUDGET, maxFields: MAX_FIELDS },
+  );
 
   const activeCount = ACTIVE_STATUSES.reduce(
     (total, status) => total + (byStatus.get(status)?.length ?? 0),
@@ -73,30 +92,21 @@ export function buildTransactionDashboardEmbeds(
     0,
   );
 
-  const footerText = `${activeCount} transaction(s) en cours · ${formatPrice(activeValue)} engagé(s) · ${transactions.length} au total`;
+  const embed = new EmbedBuilder()
+    .setTitle("📊 Transactions")
+    .setColor(0x5865f2)
+    .addFields(kept);
 
-  const embeds = allFields.reduce(
-    (acc, field) => {
-      const current = acc[acc.length - 1];
-      const fieldLength = field.name.length + field.value.length;
-      
-      const currentFieldsLength = current.data.fields?.reduce((sum, f) => sum + f.name.length + f.value.length, 0) ?? 0;
-      const titleLength = current.data.title?.length ?? 0;
-      const totalLength = currentFieldsLength + titleLength + fieldLength + footerText.length + 50;
-      const fieldsCount = current.data.fields?.length ?? 0;
+  if (dropped.length > 0) {
+    embed.addFields({
+      name: "…",
+      value: `${dropped.length} bloc(s) non affiché(s), faute de place. Utilise \`/transaction view\`.`,
+    });
+  }
 
-      if (fieldsCount >= 25 || totalLength > 5500) {
-        acc.push(new EmbedBuilder().setColor(0x5865f2).addFields(field));
-      } else {
-        current.addFields(field);
-      }
-      return acc;
-    },
-    [new EmbedBuilder().setTitle("📊 Transactions").setColor(0x5865f2)],
-  );
-
-  const lastEmbed = embeds[embeds.length - 1];
-  lastEmbed.setFooter({ text: footerText }).setTimestamp();
-
-  return embeds;
+  return embed
+    .setFooter({
+      text: `${activeCount} transaction(s) en cours · ${formatPrice(activeValue)} engagé(s) · ${totalCount} au total`,
+    })
+    .setTimestamp();
 }

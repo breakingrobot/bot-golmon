@@ -2,6 +2,7 @@ import type { Client } from "discord.js";
 import type { Vehicle } from "@prisma/client";
 import { prisma } from "../../lib/prisma.js";
 import { logger } from "../../lib/logger.js";
+import { fetchChannelSafe } from "../../lib/discordClient.js";
 import { buildVehicleDashboardEmbed } from "../../lib/embeds/vehicleDashboardEmbed.js";
 import { normalizePlate } from "./api.js";
 
@@ -79,10 +80,11 @@ export async function syncVehicleDashboard(client: Client, guildId: string) {
     return;
   }
 
-  const channel = await client.channels.fetch(config.dashboardChannelId).catch((err) => {
-    logger.warn(`Impossible de récupérer le salon de tableau de bord des véhicules : ${err.message}`);
-    return null;
-  });
+  const channel = await fetchChannelSafe(
+    client,
+    config.dashboardChannelId,
+    `le salon de tableau de bord des véhicules de la guilde ${guildId}`,
+  );
   if (!channel?.isSendable()) {
     logger.warn(`Salon du tableau de bord véhicules introuvable pour la guilde ${guildId}`);
     return;

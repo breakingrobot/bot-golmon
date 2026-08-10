@@ -5,7 +5,10 @@ import {
   type AutocompleteInteraction,
   type ChatInputCommandInteraction,
 } from "discord.js";
+import { Prisma } from "@prisma/client";
 import { buildVehicleLookupEmbed } from "../../../lib/embeds/vehicleLookupEmbed.js";
+import { ownerMention } from "../../../lib/format.js";
+import { GUILD_ONLY } from "../../../lib/replies.js";
 import { lookupPlate, normalizePlate } from "../api.js";
 import {
   addVehicle,
@@ -18,10 +21,24 @@ import {
   upsertVehicleConfig,
 } from "../service.js";
 
-const GUILD_ONLY = {
-  content: "Commande utilisable en serveur uniquement.",
-  flags: MessageFlags.Ephemeral,
-} as const;
+/**
+ * L'option est de type `Mentionable` : discord.js renseigne `role` ou `user`
+ * selon ce qui a été mentionné. On lit ces champs plutôt que de deviner le type
+ * de l'objet renvoyé par `getMentionable`, dont l'union n'est pas discriminée.
+ */
+function resolveOwner(interaction: ChatInputCommandInteraction): {
+  ownerId: string;
+  ownerIsRole: boolean;
+} {
+  const option = interaction.options.get("proprietaire", true);
+  if (option.role) {
+    return { ownerId: option.role.id, ownerIsRole: true };
+  }
+  if (option.user) {
+    return { ownerId: option.user.id, ownerIsRole: false };
+  }
+  throw new Error("L'option « proprietaire » n'est ni un membre ni un rôle");
+}
 
 export async function autocompleteVehicle(interaction: AutocompleteInteraction) {
   if (!interaction.guildId) {
@@ -49,9 +66,7 @@ export async function handleVehicleAdd(interaction: ChatInputCommandInteraction)
     return;
   }
 
-  const owner = interaction.options.getMentionable("proprietaire", true) as any;
-  const ownerId = owner.id;
-  const ownerIsRole = "color" in owner || "hoist" in owner;
+  const { ownerId, ownerIsRole } = resolveOwner(interaction);
   let modele = interaction.options.getString("modele") ?? undefined;
 
   const existing = await getVehicleByPlate(interaction.guildId, plate);
@@ -78,12 +93,27 @@ export async function handleVehicleAdd(interaction: ChatInputCommandInteraction)
     }
   }
 
-  await addVehicle({ guildId: interaction.guildId, plate, ownerId, ownerIsRole, modele });
+  try {
+    await addVehicle({ guildId: interaction.guildId, plate, ownerId, ownerIsRole, modele });
+  } catch (error) {
+    // La consultation de l'API laisse une fenêtre pendant laquelle la plaque a
+    // pu être enregistrée par quelqu'un d'autre.
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === "P2002"
+    ) {
+      await interaction.editReply(
+        `La plaque \`${plate}\` est déjà enregistrée. Utilise \`/vehicle owner\` pour la transférer.`,
+      );
+      return;
+    }
+    throw error;
+  }
+
   await syncVehicleDashboard(interaction.client, interaction.guildId);
 
-  const ownerMention = ownerIsRole ? `<@&${ownerId}>` : `<@${ownerId}>`;
   await interaction.editReply(
-    `\`${plate}\`${modele ? ` — ${modele}` : ""} enregistré pour ${ownerMention}${apiNote}.`,
+    `\`${plate}\`${modele ? ` — ${modele}` : ""} enregistré pour ${ownerMention(ownerId, ownerIsRole)}${apiNote}.`,
   );
 }
 
@@ -116,9 +146,7 @@ export async function handleVehicleOwner(interaction: ChatInputCommandInteractio
   }
 
   const plate = normalizePlate(interaction.options.getString("plaque", true));
-  const owner = interaction.options.getMentionable("proprietaire", true) as any;
-  const ownerId = owner.id;
-  const ownerIsRole = "color" in owner || "hoist" in owner;
+  const { ownerId, ownerIsRole } = resolveOwner(interaction);
 
   const existing = await getVehicleByPlate(interaction.guildId, plate);
   if (!existing) {
@@ -132,8 +160,9 @@ export async function handleVehicleOwner(interaction: ChatInputCommandInteractio
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
   await setVehicleOwner(interaction.guildId, plate, ownerId, ownerIsRole);
   await syncVehicleDashboard(interaction.client, interaction.guildId);
-  const ownerMention = ownerIsRole ? `<@&${ownerId}>` : `<@${ownerId}>`;
-  await interaction.editReply(`\`${plate}\` appartient désormais à ${ownerMention}.`);
+  await interaction.editReply(
+    `\`${plate}\` appartient désormais à ${ownerMention(ownerId, ownerIsRole)}.`,
+  );
 }
 
 export async function handleVehicleLookup(interaction: ChatInputCommandInteraction) {
@@ -190,14 +219,6 @@ export async function handleVehicleConfig(interaction: ChatInputCommandInteracti
         value: config?.dashboardChannelId ? `<#${config.dashboardChannelId}>` : "*non configuré*",
       });
     await interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
-    return;
-  }
-
-  if (!interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild)) {
-    await interaction.reply({
-      content: "Seuls les membres avec la permission « Gérer le serveur » peuvent modifier la configuration.",
-      flags: MessageFlags.Ephemeral,
-    });
     return;
   }
 

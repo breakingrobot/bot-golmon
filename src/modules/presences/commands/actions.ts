@@ -9,7 +9,7 @@ import type { ResponseStatus } from "@prisma/client";
 import { chunkMentions, truncateField } from "../../../lib/format.js";
 import { formatDateLabel } from "../../../lib/datetime.js";
 import { RESPONSE_STATUS_EMOJIS, RESPONSE_STATUS_LABELS } from "../constants.js";
-import { logger } from "../../../lib/logger.js";
+import { fetchChannelSafe } from "../../../lib/discordClient.js";
 import {
   closePresence,
   findAllPresences,
@@ -118,10 +118,11 @@ export async function handlePresencePing(interaction: ChatInputCommandInteractio
     return;
   }
 
-  const channel = await interaction.client.channels.fetch(presence.channelId).catch((err) => {
-    logger.warn(`Impossible de récupérer le salon de la présence : ${err.message}`);
-    return null;
-  });
+  const channel = await fetchChannelSafe(
+    interaction.client,
+    presence.channelId,
+    `le salon de la présence ${presence.id}`,
+  );
   if (!channel?.isSendable()) {
     await interaction.editReply("Salon de la présence inaccessible.");
     return;

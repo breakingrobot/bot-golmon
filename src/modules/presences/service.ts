@@ -2,6 +2,7 @@ import type { Client, Guild } from "discord.js";
 import { ResponseStatus } from "@prisma/client";
 import { prisma } from "../../lib/prisma.js";
 import { logger } from "../../lib/logger.js";
+import { fetchChannelSafe, fetchGuildSafe } from "../../lib/discordClient.js";
 import { getRoleMemberIds } from "../../lib/memberCache.js";
 import { getBlocklistedUserIds } from "./blocklist.js";
 import { buildPresenceEmbed } from "../../lib/embeds/presenceEmbed.js";
@@ -211,10 +212,11 @@ export async function ensurePresenceAlive(
     return false;
   }
 
-  const channel = await client.channels.fetch(presence.channelId).catch((err) => {
-    logger.warn(`Impossible de récupérer le salon de la présence ${presence.id} : ${err.message}`);
-    return null;
-  });
+  const channel = await fetchChannelSafe(
+    client,
+    presence.channelId,
+    `le salon de la présence ${presence.id}`,
+  );
   if (channel?.isSendable()) {
     const message = await channel.messages.fetch(presence.messageId).catch(() => null);
     if (message) {
@@ -315,15 +317,16 @@ export async function syncPresenceMessage(client: Client, presenceId: string) {
     return;
   }
 
-  const guild = await client.guilds.fetch(presence.guildId).catch((err) => {
-    logger.warn(`Impossible de récupérer la guilde ${presence.guildId} : ${err.message}`);
-    return null;
-  });
-  if (!guild) return;
-  const channel = await client.channels.fetch(presence.channelId).catch((err) => {
-    logger.warn(`Impossible de récupérer le salon de la présence ${presence.id} : ${err.message}`);
-    return null;
-  });
+  const guild = await fetchGuildSafe(client, presence.guildId, `la guilde ${presence.guildId}`);
+  if (!guild) {
+    return;
+  }
+
+  const channel = await fetchChannelSafe(
+    client,
+    presence.channelId,
+    `le salon de la présence ${presence.id}`,
+  );
   if (!channel?.isSendable()) {
     return;
   }

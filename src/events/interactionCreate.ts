@@ -9,11 +9,12 @@ import {
   type Interaction,
   type ModalSubmitInteraction,
 } from "discord.js";
-import { ResponseStatus, TransactionStatus } from "@prisma/client";
+import { Prisma, ResponseStatus, TransactionStatus } from "@prisma/client";
 import type { BotEvent } from "../types/event.js";
 import { decodeCustomId, encodeCustomId } from "../lib/customId.js";
 import { chunkMentions } from "../lib/format.js";
 import { logger } from "../lib/logger.js";
+import { GUILD_ONLY } from "../lib/replies.js";
 import {
   getNonRespondentIds,
   getPresenceWithResponses,
@@ -27,6 +28,13 @@ const BUTTON_STATUS: Record<string, ResponseStatus> = {
   present: ResponseStatus.PRESENT,
   absent: ResponseStatus.ABSENT,
 };
+
+const CLOSED = "Cette transaction est clôturée et ne peut plus être modifiée.";
+
+/** Le `customId` d'un bouton est fourni par le client : rien n'en garantit le contenu. */
+function isKnownStatus(value: string): value is TransactionStatus {
+  return (Object.values(TransactionStatus) as string[]).includes(value);
+}
 
 async function handlePresenceButton(interaction: ButtonInteraction, action: string, id: string) {
   const presence = await getPresenceWithResponses(id);
@@ -100,13 +108,18 @@ async function handleTransactionButton(
   id: string,
   payload: string | undefined,
 ) {
-  const transaction = await getTransaction(id);
+  if (!interaction.guildId) {
+    await interaction.reply(GUILD_ONLY);
+    return;
+  }
+
+  const transaction = await getTransaction(interaction.guildId, id);
   if (!transaction) {
     await interaction.reply({ content: "Transaction introuvable.", flags: MessageFlags.Ephemeral });
     return;
   }
   if (transaction.statut === TransactionStatus.CLOTUREE) {
-    await interaction.reply({ content: "Cette transaction est clôturée et ne peut plus être modifiée.", flags: MessageFlags.Ephemeral });
+    await interaction.reply({ content: CLOSED, flags: MessageFlags.Ephemeral });
     return;
   }
 
@@ -153,34 +166,33 @@ async function handleTransactionButton(
       });
       return;
     }
-    
+
     await interaction.deferUpdate();
-    
+
     if (interaction.message?.deletable) {
       await interaction.message.delete().catch(() => null);
     }
-    await deleteTransaction(id).catch(() => null);
-    if (interaction.guildId) {
-      await syncTransactionDashboard(interaction.client, interaction.guildId);
-    }
+    await deleteTransaction(interaction.guildId, id).catch(() => null);
+    await syncTransactionDashboard(interaction.client, interaction.guildId);
     await interaction.followUp({ content: "Transaction supprimée.", flags: MessageFlags.Ephemeral });
     return;
   }
 
-  if (action !== "status" || !payload || !interaction.guildId) {
+  if (action !== "status") {
+    await interaction.reply({ content: "Action non reconnue.", flags: MessageFlags.Ephemeral });
     return;
   }
 
-  const statut = payload as TransactionStatus;
-  if (!Object.values(TransactionStatus).includes(statut)) {
+  if (!payload || !isKnownStatus(payload)) {
+    await interaction.reply({ content: "Statut inconnu.", flags: MessageFlags.Ephemeral });
     return;
   }
 
   await interaction.deferUpdate();
-  await setTransactionStatus(id, statut);
-  await refreshTransaction(interaction.client, id, interaction.guildId);
+  await setTransactionStatus(interaction.guildId, id, payload);
+  await refreshTransaction(interaction.client, interaction.guildId, id);
   await interaction.followUp({
-    content: `Statut passé à **${TRANSACTION_STATUS_LABELS[statut]}**.`,
+    content: `Statut passé à **${TRANSACTION_STATUS_LABELS[payload]}**.`,
     flags: MessageFlags.Ephemeral,
   });
 }
@@ -221,42 +233,53 @@ async function handleTransactionAddItemModal(interaction: ModalSubmitInteraction
   const quantiteStr = interaction.fields.getTextInputValue("quantite");
   const prixUnitaireStr = interaction.fields.getTextInputValue("prix_unitaire");
 
-  const quantite = quantiteStr ? parseInt(quantiteStr, 10) : 1;
-  const prixUnitaire = prixUnitaireStr ? parseFloat(prixUnitaireStr.replace(",", ".")) : undefined;
+  const quantite = quantiteStr ? Number.parseInt(quantiteStr, 10) : 1;
+  const prixUnitaire = prixUnitaireStr
+    ? Number.parseFloat(prixUnitaireStr.replace(",", "."))
+    : undefined;
 
-  if (isNaN(quantite) || quantite < 1) {
+  if (Number.isNaN(quantite) || quantite < 1) {
     await interaction.reply({ content: "Quantité invalide.", flags: MessageFlags.Ephemeral });
     return;
   }
-  if (prixUnitaire !== undefined && isNaN(prixUnitaire)) {
+  if (prixUnitaire !== undefined && Number.isNaN(prixUnitaire)) {
     await interaction.reply({ content: "Prix unitaire invalide.", flags: MessageFlags.Ephemeral });
     return;
   }
 
-  if (!interaction.guildId) return;
+  if (!interaction.guildId) {
+    await interaction.reply(GUILD_ONLY);
+    return;
+  }
 
-  const transaction = await getTransaction(id);
+  const transaction = await getTransaction(interaction.guildId, id);
   if (!transaction) {
     await interaction.reply({ content: "Transaction introuvable.", flags: MessageFlags.Ephemeral });
     return;
   }
   if (transaction.statut === TransactionStatus.CLOTUREE) {
-    await interaction.reply({ content: "Cette transaction est clôturée et ne peut plus être modifiée.", flags: MessageFlags.Ephemeral });
+    await interaction.reply({ content: CLOSED, flags: MessageFlags.Ephemeral });
     return;
   }
 
   await interaction.deferUpdate();
-  
+
   try {
     await addTransactionItem(id, { nom, quantite, prixUnitaire });
-    await refreshTransaction(interaction.client, id, interaction.guildId);
+    await refreshTransaction(interaction.client, interaction.guildId, id);
     await interaction.followUp({ content: `Objet « ${nom} » ajouté.`, flags: MessageFlags.Ephemeral });
-  } catch (err: any) {
-    if (err.code === "P2003" || err.code === "P2025") {
-      await interaction.followUp({ content: "Transaction introuvable (elle a peut-être été supprimée).", flags: MessageFlags.Ephemeral });
-    } else {
-      throw err;
+  } catch (error) {
+    // La transaction a pu être supprimée entre l'ouverture du modal et sa validation.
+    const vanished =
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      (error.code === "P2003" || error.code === "P2025");
+    if (!vanished) {
+      throw error;
     }
+    await interaction.followUp({
+      content: "Transaction introuvable (elle a peut-être été supprimée).",
+      flags: MessageFlags.Ephemeral,
+    });
   }
 }
 

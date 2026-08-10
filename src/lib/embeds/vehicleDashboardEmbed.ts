@@ -1,8 +1,10 @@
 import { EmbedBuilder } from "discord.js";
 import type { Vehicle } from "@prisma/client";
-import { truncateField } from "../format.js";
+import { ownerMention, packFields, truncateField, type EmbedField } from "../format.js";
 
-/** Discord plafonne à 25 champs par embed : on en garde un pour le résumé. */
+/** Titre, pied de page et marges de l'API : on ne remplit pas les 6000 caractères. */
+const FIELD_BUDGET = 5200;
+/** Discord plafonne à 25 champs : on en garde un pour le résumé « … ». */
 const MAX_OWNER_FIELDS = 24;
 
 function formatVehicleLine(vehicle: Vehicle): string {
@@ -26,24 +28,30 @@ export function buildVehicleDashboardEmbed(vehicles: Vehicle[]): EmbedBuilder {
 
   // Propriétaires les mieux fournis en premier.
   const owners = [...byOwner.entries()].toSorted((a, b) => b[1].length - a[1].length);
-  const shown = owners.slice(0, MAX_OWNER_FIELDS);
 
-  for (const [ownerId, owned] of shown) {
-    const isRole = owned.length > 0 && owned[0].ownerIsRole;
-    const mention = isRole ? `<@&${ownerId}>` : `<@${ownerId}>`;
-    embed.addFields({
-      name: `${owned.length} véhicule${owned.length > 1 ? "s" : ""}`,
-      value: truncateField(`${mention}\n${owned.map(formatVehicleLine).join("\n")}`),
-      inline: true,
-    });
-  }
+  const fields: EmbedField[] = owners.map(([ownerId, owned]) => ({
+    name: `${owned.length} véhicule${owned.length > 1 ? "s" : ""}`,
+    value: truncateField(
+      `${ownerMention(ownerId, owned[0].ownerIsRole)}\n${owned.map(formatVehicleLine).join("\n")}`,
+    ),
+    inline: true,
+  }));
 
-  const hiddenOwners = owners.slice(MAX_OWNER_FIELDS);
-  if (hiddenOwners.length > 0) {
-    const hiddenVehicles = hiddenOwners.reduce((total, [, owned]) => total + owned.length, 0);
+  // Borner le nombre de champs ne suffit pas : 24 champs pleins font quatre fois
+  // la limite de 6000 caractères d'un embed, et l'edit échouerait.
+  const { kept, dropped } = packFields(fields, {
+    budget: FIELD_BUDGET,
+    maxFields: MAX_OWNER_FIELDS,
+  });
+  embed.addFields(kept);
+
+  if (dropped.length > 0) {
+    const hiddenVehicles = owners
+      .slice(kept.length)
+      .reduce((total, [, owned]) => total + owned.length, 0);
     embed.addFields({
       name: "…",
-      value: `+${hiddenOwners.length} autre(s) propriétaire(s), ${hiddenVehicles} véhicule(s)`,
+      value: `+${dropped.length} autre(s) propriétaire(s), ${hiddenVehicles} véhicule(s)`,
     });
   }
 

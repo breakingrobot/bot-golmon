@@ -1,6 +1,7 @@
 import { EmbedBuilder } from "discord.js";
 import type { Vehicle } from "@prisma/client";
 import type { ApiVehicle } from "../../modules/vehicles/api.js";
+import { ownerMention } from "../format.js";
 
 export function buildVehicleLookupEmbed(
   apiVehicle: ApiVehicle,
@@ -28,15 +29,11 @@ export function buildVehicleLookupEmbed(
     embed.addFields({ name: "Acheteur", value: apiVehicle.buyer.name, inline: true });
   }
 
-  let registerValue = "Non enregistré · `/vehicle add` pour l'ajouter";
-  if (registered) {
-    const mention = registered.ownerIsRole ? `<@&${registered.ownerId}>` : `<@${registered.ownerId}>`;
-    registerValue = `${mention}${registered.modele ? ` — ${registered.modele}` : ""}`;
-  }
-
   embed.addFields({
     name: "Dans le registre",
-    value: registerValue,
+    value: registered
+      ? `${ownerMention(registered.ownerId, registered.ownerIsRole)}${registered.modele ? ` — ${registered.modele}` : ""}`
+      : "Non enregistré · `/vehicle add` pour l'ajouter",
   });
 
   if (apiVehicle.model) {

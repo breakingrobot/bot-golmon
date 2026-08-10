@@ -3,6 +3,8 @@ import { logger } from "../../lib/logger.js";
 const API_URL = "https://api.glife.fr/roleplay/vehicles";
 const TIMEOUT_MS = 8000;
 const CACHE_TTL_MS = 5 * 60 * 1000;
+/** Au-delà, on balaie les entrées périmées : sans quoi le cache ne rétrécit jamais. */
+const CACHE_SWEEP_THRESHOLD = 500;
 
 export interface ApiVehicleParty {
   id: string;
@@ -35,6 +37,21 @@ interface CacheEntry {
 
 const cache = new Map<string, CacheEntry>();
 const inFlight = new Map<string, Promise<LookupResult>>();
+
+/**
+ * Une entrée n'expire qu'à la relecture de sa propre clé : une plaque consultée
+ * une seule fois resterait en mémoire pour la durée de vie du processus.
+ */
+function sweepCache(now: number): void {
+  if (cache.size < CACHE_SWEEP_THRESHOLD) {
+    return;
+  }
+  for (const [plate, entry] of cache) {
+    if (entry.expiresAt <= now) {
+      cache.delete(plate);
+    }
+  }
+}
 
 /** Majuscules, sans espaces ni tirets : évite les doublons et les recherches ratées. */
 export function normalizePlate(plate: string): string {
@@ -81,8 +98,9 @@ function parseVehicle(value: unknown): ApiVehicle | null {
     plate,
     name: optionalString(value.name),
     model: optionalString(value.model),
-    // `illegal` est un entier 0/1 côté API, pas un booléen.
-    illegal: Boolean(value.illegal),
+    // `illegal` est un entier 0/1 côté API, pas un booléen — et `Boolean("0")`
+    // vaut `true`, donc on compare explicitement.
+    illegal: value.illegal === 1 || value.illegal === true || value.illegal === "1",
     owner: parseParty(value.owner),
     buyer: parseParty(value.buyer),
   };
@@ -140,7 +158,9 @@ export async function lookupPlate(rawPlate: string): Promise<LookupResult> {
     .then((result) => {
       // Les erreurs ne sont pas mises en cache : la prochaine tentative doit réessayer.
       if (result.status !== "error") {
-        cache.set(plate, { result, expiresAt: Date.now() + CACHE_TTL_MS });
+        const now = Date.now();
+        sweepCache(now);
+        cache.set(plate, { result, expiresAt: now + CACHE_TTL_MS });
       }
       return result;
     })

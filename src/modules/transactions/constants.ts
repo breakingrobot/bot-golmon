@@ -46,9 +46,16 @@ export const TRANSACTION_TYPE_LABELS: Record<TransactionType, string> = {
   [TransactionType.VENTE]: "Vente",
 };
 
-export const TRANSACTION_STATUS_CHOICES = Object.entries(TRANSACTION_STATUS_LABELS).map(
-  ([value, name]) => ({ name, value }),
-);
+/**
+ * Statuts proposés par `/transaction status`. `ANNULEE` en est exclu : c'est le
+ * rôle de `/transaction cancel`, et le proposer aux deux endroits invite à
+ * annuler une transaction en croyant la faire avancer.
+ */
+export const TRANSACTION_STATUS_CHOICES = [
+  ...ACTIVE_STATUSES,
+  TransactionStatus.LIVRE_PAYE,
+  TransactionStatus.CLOTUREE,
+].map((value) => ({ name: TRANSACTION_STATUS_LABELS[value], value }));
 
 export const TRANSACTION_TYPE_CHOICES = Object.entries(TRANSACTION_TYPE_LABELS).map(
   ([value, name]) => ({ name, value }),

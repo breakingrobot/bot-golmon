@@ -6,6 +6,8 @@ import {
 } from "discord.js";
 import { parseEventDate, todayLabel } from "../../../lib/datetime.js";
 import { truncateField } from "../../../lib/format.js";
+import { fetchChannelSafe } from "../../../lib/discordClient.js";
+import { GUILD_ONLY } from "../../../lib/replies.js";
 import { logger } from "../../../lib/logger.js";
 import {
   declareAbsence,
@@ -14,11 +16,6 @@ import {
   listActiveAbsences,
 } from "../absences.js";
 import { getPresenceConfig } from "../service.js";
-
-const GUILD_ONLY = {
-  content: "Commande utilisable en serveur uniquement.",
-  flags: MessageFlags.Ephemeral,
-} as const;
 
 function unix(date: Date): number {
   return Math.floor(date.getTime() / 1000);
@@ -40,10 +37,11 @@ async function announceAbsence(
   }
 
   try {
-    const channel = await interaction.client.channels.fetch(config.absenceChannelId).catch((err) => {
-      logger.warn(`Impossible de récupérer le salon des absences : ${err.message}`);
-      return null;
-    });
+    const channel = await fetchChannelSafe(
+      interaction.client,
+      config.absenceChannelId,
+      "le salon des absences",
+    );
     if (channel?.isSendable()) {
       await channel.send({ embeds: [embed] });
     }

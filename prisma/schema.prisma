@@ -23,17 +23,17 @@ enum TransactionStatus {
 }
 
 model Transaction {
-  id          String             @id @default(cuid())
+  id          String            @id @default(cuid())
   guildId     String
   channelId   String
   messageId   String?
   groupe      String
   type        TransactionType
   prix        Float
-  statut      TransactionStatus  @default(PREPARATION)
+  statut      TransactionStatus @default(PREPARATION)
   createdById String
-  createdAt   DateTime           @default(now())
-  updatedAt   DateTime           @updatedAt
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
   items       TransactionItem[]
 
   @@index([guildId, channelId])
@@ -107,20 +107,20 @@ model PresenceBlocklist {
 }
 
 model Presence {
-  id              String             @id @default(cuid())
-  guildId         String
-  channelId       String
-  messageId       String?
-  titre           String
-  description     String?
-  eventDate       DateTime
-  roleId          String
-  absenceRoleId   String?
-  createdById     String
-  createdAt       DateTime           @default(now())
-  closedAt        DateTime?
-  lastReminderAt  DateTime?
-  responses       PresenceResponse[]
+  id             String             @id @default(cuid())
+  guildId        String
+  channelId      String
+  messageId      String?
+  titre          String
+  description    String?
+  eventDate      DateTime
+  roleId         String
+  absenceRoleId  String?
+  createdById    String
+  createdAt      DateTime           @default(now())
+  closedAt       DateTime?
+  lastReminderAt DateTime?
+  responses      PresenceResponse[]
 
   @@index([guildId, channelId])
   @@index([messageId])
@@ -145,12 +145,12 @@ model PresenceResponse {
 
 // historique des changements de réponse (ex: Présent -> Absent), pour /presence stats
 model PresenceResponseChange {
-  id         String            @id @default(cuid())
+  id         String           @id @default(cuid())
   responseId String
-  response   PresenceResponse  @relation(fields: [responseId], references: [id], onDelete: Cascade)
+  response   PresenceResponse @relation(fields: [responseId], references: [id], onDelete: Cascade)
   fromStatus ResponseStatus?
   toStatus   ResponseStatus
-  changedAt  DateTime          @default(now())
+  changedAt  DateTime         @default(now())
 
   @@index([responseId])
 }
@@ -158,14 +158,14 @@ model PresenceResponseChange {
 // ---------- MODULE VEHICULES ----------
 
 model Vehicle {
-  id        String   @id @default(cuid())
-  guildId   String
+  id          String   @id @default(cuid())
+  guildId     String
   plate       String
   ownerId     String
   ownerIsRole Boolean  @default(false)
   modele      String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   @@unique([guildId, plate])
   @@index([guildId, ownerId])

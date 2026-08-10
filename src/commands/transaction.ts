@@ -99,6 +99,11 @@ export const command: Command = {
           option
             .setName("ping_role")
             .setDescription("Rôle à mentionner lors de la création d'une transaction"),
+        )
+        .addBooleanOption((option) =>
+          option
+            .setName("clear_ping_role")
+            .setDescription("Ne plus mentionner aucun rôle à la création"),
         ),
     )
     .addSubcommand((sub) =>

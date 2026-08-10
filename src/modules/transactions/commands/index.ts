@@ -7,7 +7,8 @@ import {
 } from "discord.js";
 import { TransactionStatus, type TransactionType } from "@prisma/client";
 import { buildTransactionEmbed } from "../../../lib/embeds/transactionEmbed.js";
-import { logger } from "../../../lib/logger.js";
+import { fetchChannelSafe } from "../../../lib/discordClient.js";
+import { GUILD_ONLY } from "../../../lib/replies.js";
 import {
   addTransactionItem,
   createTransaction,
@@ -22,10 +23,7 @@ import {
 } from "../service.js";
 import { TRANSACTION_STATUS_LABELS, formatPrice } from "../constants.js";
 
-const GUILD_ONLY = {
-  content: "Commande utilisable en serveur uniquement.",
-  flags: MessageFlags.Ephemeral,
-} as const;
+const CLOSED = "Cette transaction est clôturée et ne peut plus être modifiée.";
 
 export async function autocompleteTransaction(interaction: AutocompleteInteraction) {
   if (!interaction.guildId) {
@@ -47,6 +45,13 @@ export async function autocompleteTransaction(interaction: AutocompleteInteracti
   );
 }
 
+function pingRoleUpdate(pingRole: { id: string } | null, clearPingRole: boolean) {
+  if (clearPingRole) {
+    return { pingRoleId: null };
+  }
+  return pingRole ? { pingRoleId: pingRole.id } : {};
+}
+
 export async function handleTransactionConfig(interaction: ChatInputCommandInteraction) {
   if (!interaction.guildId) {
     await interaction.reply(GUILD_ONLY);
@@ -62,8 +67,11 @@ export async function handleTransactionConfig(interaction: ChatInputCommandInter
   }
 
   const dashboardChannel = interaction.options.getChannel("dashboard_channel");
+  const pingRole = interaction.options.getRole("ping_role");
+  const clearPingRole = interaction.options.getBoolean("clear_ping_role") ?? false;
 
-  if (!dashboardChannel) {
+  // Aucune option fournie : on se contente d'afficher la configuration courante.
+  if (!dashboardChannel && !pingRole && !clearPingRole) {
     const config = await getTransactionConfig(interaction.guildId);
     const embed = new EmbedBuilder()
       .setTitle("Configuration des transactions")
@@ -76,32 +84,31 @@ export async function handleTransactionConfig(interaction: ChatInputCommandInter
         {
           name: "Rôle à ping",
           value: config?.pingRoleId ? `<@&${config.pingRoleId}>` : "*aucun*",
-        }
+        },
       );
     await interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
     return;
   }
 
-  if (!interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild)) {
-    await interaction.reply({
-      content: "Seuls les membres avec la permission « Gérer le serveur » peuvent modifier la configuration.",
-      flags: MessageFlags.Ephemeral,
-    });
-    return;
-  }
-
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-  // Nouveau salon => l'ancien message de tableau de bord n'est plus pertinent.
-  const pingRole = interaction.options.getRole("ping_role");
-  
+
   await upsertTransactionConfig({
     guildId: interaction.guildId,
-    dashboardChannelId: dashboardChannel.id,
-    dashboardMessageId: null,
-    pingRoleId: pingRole ? pingRole.id : undefined,
+    // Nouveau salon => l'ancien message de tableau de bord n'est plus pertinent.
+    ...(dashboardChannel
+      ? { dashboardChannelId: dashboardChannel.id, dashboardMessageId: null }
+      : {}),
+    ...pingRoleUpdate(pingRole, clearPingRole),
   });
   await syncTransactionDashboard(interaction.client, interaction.guildId);
-  await interaction.editReply(`Tableau de bord installé dans <#${dashboardChannel.id}>.`);
+
+  const messages = [
+    dashboardChannel && `Tableau de bord installé dans <#${dashboardChannel.id}>.`,
+    clearPingRole && "Rôle à ping retiré.",
+    !clearPingRole && pingRole && `Rôle à ping : <@&${pingRole.id}>.`,
+  ].filter((part): part is string => typeof part === "string");
+
+  await interaction.editReply(messages.join(" "));
 }
 
 export async function handleTransactionCreate(interaction: ChatInputCommandInteraction) {
@@ -112,7 +119,6 @@ export async function handleTransactionCreate(interaction: ChatInputCommandInter
 
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
-  const config = await getTransactionConfig(interaction.guildId);
   const transaction = await createTransaction({
     guildId: interaction.guildId,
     // L'embed détaillé reste dans le salon de travail ; le tableau de bord
@@ -124,8 +130,9 @@ export async function handleTransactionCreate(interaction: ChatInputCommandInter
     createdById: interaction.user.id,
   });
 
-  await refreshTransaction(interaction.client, transaction.id, interaction.guildId);
-  
+  // C'est cette publication qui mentionne le rôle configuré, le cas échéant.
+  await refreshTransaction(interaction.client, interaction.guildId, transaction.id);
+
   await interaction.editReply(`Transaction pour **${transaction.groupe}** créée avec succès.`);
 }
 
@@ -140,14 +147,14 @@ export async function handleTransactionAddItem(interaction: ChatInputCommandInte
 
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
-  const transaction = await getTransaction(transactionId);
+  const transaction = await getTransaction(interaction.guildId, transactionId);
   if (!transaction) {
     await interaction.editReply("Transaction introuvable. Assure-toi de la sélectionner correctement.");
     return;
   }
 
   if (transaction.statut === TransactionStatus.CLOTUREE) {
-    await interaction.editReply("Cette transaction est clôturée et ne peut plus être modifiée.");
+    await interaction.editReply(CLOSED);
     return;
   }
 
@@ -157,10 +164,15 @@ export async function handleTransactionAddItem(interaction: ChatInputCommandInte
     prixUnitaire: interaction.options.getNumber("prix_unitaire") ?? undefined,
   });
 
-  await refreshTransaction(interaction.client, transactionId, interaction.guildId);
+  await refreshTransaction(interaction.client, interaction.guildId, transactionId);
   await interaction.editReply(`Objet « ${nom} » ajouté.`);
 }
 
+/**
+ * Volontairement ouvert à tous les membres du serveur : faire avancer une
+ * transaction est une action courante du groupe, pas une action de modération.
+ * Seule la suppression définitive est protégée. Ne pas « corriger » sans arbitrage.
+ */
 export async function handleTransactionStatus(interaction: ChatInputCommandInteraction) {
   if (!interaction.guildId) {
     await interaction.reply(GUILD_ONLY);
@@ -172,18 +184,18 @@ export async function handleTransactionStatus(interaction: ChatInputCommandInter
 
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
-  const transaction = await getTransaction(transactionId);
+  const transaction = await getTransaction(interaction.guildId, transactionId);
   if (!transaction) {
     await interaction.editReply("Transaction introuvable.");
     return;
   }
   if (transaction.statut === TransactionStatus.CLOTUREE) {
-    await interaction.editReply("Cette transaction est clôturée et ne peut plus être modifiée.");
+    await interaction.editReply(CLOSED);
     return;
   }
 
-  await setTransactionStatus(transactionId, statut);
-  await refreshTransaction(interaction.client, transactionId, interaction.guildId);
+  await setTransactionStatus(interaction.guildId, transactionId, statut);
+  await refreshTransaction(interaction.client, interaction.guildId, transactionId);
   await interaction.editReply(`Statut passé à **${TRANSACTION_STATUS_LABELS[statut]}**.`);
 }
 
@@ -196,18 +208,18 @@ export async function handleTransactionCancel(interaction: ChatInputCommandInter
   const transactionId = interaction.options.getString("transaction", true);
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
-  const transaction = await getTransaction(transactionId);
+  const transaction = await getTransaction(interaction.guildId, transactionId);
   if (!transaction) {
     await interaction.editReply("Transaction introuvable.");
     return;
   }
   if (transaction.statut === TransactionStatus.CLOTUREE) {
-    await interaction.editReply("Cette transaction est clôturée et ne peut plus être modifiée.");
+    await interaction.editReply(CLOSED);
     return;
   }
 
-  await setTransactionStatus(transactionId, TransactionStatus.ANNULEE);
-  await refreshTransaction(interaction.client, transactionId, interaction.guildId);
+  await setTransactionStatus(interaction.guildId, transactionId, TransactionStatus.ANNULEE);
+  await refreshTransaction(interaction.client, interaction.guildId, transactionId);
   await interaction.editReply("Transaction annulée.");
 }
 
@@ -217,7 +229,7 @@ export async function handleTransactionDelete(interaction: ChatInputCommandInter
     return;
   }
 
-  // Vérification de sécurité supplémentaire
+  // Seule action irréversible du module : elle reste réservée aux modérateurs.
   if (!interaction.memberPermissions?.has(PermissionFlagsBits.ManageMessages)) {
     await interaction.reply({
       content: "Tu dois avoir la permission de gérer les messages pour supprimer une transaction.",
@@ -229,7 +241,7 @@ export async function handleTransactionDelete(interaction: ChatInputCommandInter
   const transactionId = interaction.options.getString("transaction", true);
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
-  const transaction = await getTransaction(transactionId);
+  const transaction = await getTransaction(interaction.guildId, transactionId);
   if (!transaction) {
     await interaction.editReply("Transaction introuvable.");
     return;
@@ -237,22 +249,31 @@ export async function handleTransactionDelete(interaction: ChatInputCommandInter
 
   // Tenter de supprimer le message si possible
   if (transaction.messageId) {
-    const channel = await interaction.client.channels.fetch(transaction.channelId).catch((err) => {
-      logger.warn(`Impossible de récupérer le salon pour la transaction : ${err.message}`);
-      return null;
-    });
+    const channel = await fetchChannelSafe(
+      interaction.client,
+      transaction.channelId,
+      `le salon de la transaction ${transactionId}`,
+    );
     if (channel?.isSendable()) {
       await channel.messages.delete(transaction.messageId).catch(() => null);
     }
   }
 
-  await deleteTransaction(transactionId);
+  await deleteTransaction(interaction.guildId, transactionId);
   await syncTransactionDashboard(interaction.client, interaction.guildId);
   await interaction.editReply("Transaction supprimée définitivement de la base de données.");
 }
 
 export async function handleTransactionView(interaction: ChatInputCommandInteraction) {
-  const transaction = await getTransaction(interaction.options.getString("transaction", true));
+  if (!interaction.guildId) {
+    await interaction.reply(GUILD_ONLY);
+    return;
+  }
+
+  const transaction = await getTransaction(
+    interaction.guildId,
+    interaction.options.getString("transaction", true),
+  );
   if (!transaction) {
     await interaction.reply({ content: "Transaction introuvable.", flags: MessageFlags.Ephemeral });
     return;
