@@ -1,25 +1,42 @@
 use super::{api::ApiVehicle, service::Vehicle};
 use crate::{
-    discord::embed::{EmbedBuilder, footer, now},
-    util::format::{field, owner_mention, pack_fields, truncate_field},
+    discord::{
+        components::{container, separator, text_display, text_displays},
+        embed::{EmbedBuilder, footer},
+    },
+    util::{
+        format::{V2_TEXT_LIMIT, and_others, bounded_lines, field, owner_mention, plural},
+        time::DbTime,
+    },
 };
-use twilight_model::channel::message::Embed;
+use twilight_model::channel::message::{Component, Embed};
 
-const FIELD_BUDGET: usize = 5200;
-const MAX_OWNER_FIELDS: usize = 24;
+/// Titre, résumé et pied de page sont décomptés à part ; on garde une marge.
+const TEXT_BUDGET: usize = V2_TEXT_LIMIT - 100;
+/// Une organisation peut posséder des dizaines de véhicules : sa liste est
+/// bornée pour laisser de la place aux autres propriétaires.
+const OWNER_BUDGET: usize = 1000;
+const ACCENT_COLOR: u32 = 0x5865f2;
 
 fn vehicle_line(vehicle: &Vehicle) -> String {
     match &vehicle.modele {
-        Some(modele) => format!("`{}` — {modele}", vehicle.plate),
-        None => format!("`{}`", vehicle.plate),
+        Some(modele) => format!("- `{}` — {modele}", vehicle.plate),
+        None => format!("- `{}`", vehicle.plate),
     }
 }
 
-/// Registre groupé par propriétaire, les mieux fournis en premier.
-pub fn build_dashboard(vehicles: &[Vehicle]) -> Embed {
-    let builder = EmbedBuilder::new().title("🚗 Véhicules").color(0x5865f2).timestamp(now());
+/// Registre en Components V2, groupé par propriétaire, les mieux fournis en premier.
+pub fn build_dashboard(vehicles: &[Vehicle]) -> Vec<Component> {
+    let footer = format!("-# Mis à jour <t:{}:R>", DbTime::now().unix());
     if vehicles.is_empty() {
-        return builder.description("Aucun véhicule enregistré. Ajoute-en un avec `/vehicle add`.").build();
+        return vec![container(
+            Some(ACCENT_COLOR),
+            vec![
+                text_display("## 🚗 Véhicules\nAucun véhicule enregistré. Ajoute-en un avec `/vehicle add`."),
+                separator(),
+                text_display(footer),
+            ],
+        )];
     }
 
     let mut owners: Vec<(&str, Vec<&Vehicle>)> = Vec::new();
@@ -31,35 +48,33 @@ pub fn build_dashboard(vehicles: &[Vehicle]) -> Embed {
     }
     owners.sort_by_key(|(_, owned)| std::cmp::Reverse(owned.len()));
 
-    let fields = owners
+    let blocks: Vec<String> = owners
         .iter()
-        .map(|(owner, owned)| {
-            let lines = owned.iter().map(|v| vehicle_line(v)).collect::<Vec<_>>().join("\n");
-            field(
-                format!("{} véhicule{}", owned.len(), if owned.len() > 1 { "s" } else { "" }),
-                truncate_field(&format!("{}\n{lines}", owner_mention(owner, owned[0].owner_is_role))),
-                true,
+        .enumerate()
+        .map(|(index, (owner, owned))| {
+            let lines: Vec<String> = owned.iter().map(|v| vehicle_line(v)).collect();
+            format!(
+                "{}{} — {} véhicule{}\n{}",
+                // Ligne vide entre deux propriétaires.
+                if index > 0 { "\n" } else { "" },
+                owner_mention(owner, owned[0].owner_is_role),
+                owned.len(),
+                plural(owned.len()),
+                bounded_lines(&lines, OWNER_BUDGET, and_others)
             )
         })
         .collect();
 
-    // Borner le nombre de champs ne suffit pas : 24 champs pleins font quatre
-    // fois la limite de 6000 caractères d'un embed.
-    let (kept, dropped) = pack_fields(fields, FIELD_BUDGET, MAX_OWNER_FIELDS);
-    let kept_count = kept.len();
-    let mut builder = builder;
-    for f in kept {
-        builder = builder.field(f);
-    }
-    if !dropped.is_empty() {
-        let hidden: usize = owners[kept_count..].iter().map(|(_, owned)| owned.len()).sum();
-        builder = builder.field(field(
-            "…",
-            format!("+{} autre(s) propriétaire(s), {hidden} véhicule(s)", dropped.len()),
-            false,
-        ));
-    }
-    builder.footer(footer(format!("{} véhicule(s) · {} propriétaire(s)", vehicles.len(), owners.len()))).build()
+    let header = format!("## 🚗 Véhicules\n**{}** véhicule(s) · **{}** propriétaire(s)", vehicles.len(), owners.len());
+    let list = bounded_lines(&blocks, TEXT_BUDGET.saturating_sub(header.len() + footer.len()), |hidden| {
+        let count: usize = owners[owners.len() - hidden..].iter().map(|(_, owned)| owned.len()).sum();
+        format!("\n… et {hidden} autre{s} propriétaire{s}, {count} véhicule{}", plural(count), s = plural(hidden))
+    });
+
+    let mut components = vec![text_display(header), separator()];
+    components.extend(text_displays(&list));
+    components.extend([separator(), text_display(footer)]);
+    vec![container(Some(ACCENT_COLOR), components)]
 }
 
 pub fn build_lookup(api: &ApiVehicle, registered: Option<&Vehicle>) -> Embed {
@@ -98,4 +113,56 @@ pub fn build_lookup(api: &ApiVehicle, registered: Option<&Vehicle>) -> Embed {
         builder = builder.footer(footer(format!("Code modèle : {model}")));
     }
     builder.build()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{
+        discord::components::{v2_text, v2_usage},
+        util::format::V2_COMPONENT_LIMIT,
+    };
+
+    fn vehicle(plate: &str, owner: &str, is_role: bool, modele: Option<&str>) -> Vehicle {
+        Vehicle {
+            plate: plate.to_owned(),
+            owner_id: owner.to_owned(),
+            owner_is_role: is_role,
+            modele: modele.map(str::to_owned),
+        }
+    }
+
+    #[test]
+    fn dashboard_groups_by_owner() {
+        let vehicles = vec![
+            vehicle("AAA111", "100", false, Some("Sultan")),
+            vehicle("BBB222", "200", true, None),
+            vehicle("CCC333", "200", true, Some("Kuruma")),
+        ];
+        let components = build_dashboard(&vehicles);
+        let text = v2_text(&components);
+        assert!(text.starts_with("## 🚗 Véhicules\n**3** véhicule(s) · **2** propriétaire(s)"));
+        assert!(text.contains(
+            "<@&200> — 2 véhicules\n- `BBB222`\n- `CCC333` — Kuruma\n\n<@100> — 1 véhicule\n- `AAA111` — Sultan"
+        ));
+        assert!(matches!(components.as_slice(), [Component::Container(_)]));
+        assert!(v2_text(&build_dashboard(&[])).contains("Aucun véhicule enregistré"));
+    }
+
+    #[test]
+    fn dashboard_stays_within_v2_limits() {
+        let mut vehicles: Vec<Vehicle> = (0..150)
+            .map(|i| vehicle(&format!("ORG{i:03}"), "999999999999999999", true, Some("Véhicule de société")))
+            .collect();
+        vehicles.extend((0..300u64).map(|i| {
+            vehicle(&format!("P{i:05}"), &(100_000_000_000_000_000 + i / 2).to_string(), false, Some("Élégie"))
+        }));
+        let components = build_dashboard(&vehicles);
+        let (text_len, count) = v2_usage(&components);
+        assert!(text_len <= V2_TEXT_LIMIT, "{text_len} octets");
+        assert!(count <= V2_COMPONENT_LIMIT, "{count} composants");
+        let text = v2_text(&components);
+        assert!(text.contains("<@&999999999999999999> — 150 véhicules"));
+        assert!(text.contains("autres propriétaires, "));
+    }
 }

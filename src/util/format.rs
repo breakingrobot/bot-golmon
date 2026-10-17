@@ -135,6 +135,82 @@ pub fn pack_fields(
     (fields, dropped)
 }
 
+/// Messages « Components V2 » : 4000 caractères cumulés sur l'ensemble des
+/// TextDisplay et 40 composants, imbriqués compris. twilight-validate refuse en
+/// outre tout TextDisplay de plus de 2000 octets : les budgets V2 se comptent
+/// donc en octets, un majorant des unités UTF-16 comptées par Discord.
+pub const V2_TEXT_LIMIT: usize = 4000;
+/// Les tableaux de bord ont une structure fixe : seuls les tests le vérifient.
+#[cfg(test)]
+pub const V2_COMPONENT_LIMIT: usize = 40;
+pub const TEXT_DISPLAY_LIMIT: usize = 2000;
+
+pub fn plural(count: usize) -> &'static str {
+    if count > 1 { "s" } else { "" }
+}
+
+/// Ligne de débordement par défaut : « … et 3 autres ».
+pub fn and_others(count: usize) -> String {
+    format!("… et {count} autre{}", plural(count))
+}
+
+/// Joint les lignes dans la limite de `budget` octets. Les lignes qui ne
+/// tiennent plus sont résumées par `overflow(nombre écarté)`, dont la place
+/// est réservée à l'avance : le résultat ne dépasse jamais le budget tant que
+/// celui-ci peut contenir `overflow(lines.len())`.
+pub fn bounded_lines(lines: &[String], budget: usize, overflow: impl Fn(usize) -> String) -> String {
+    let mut text = String::new();
+    for (index, line) in lines.iter().enumerate() {
+        let after = lines.len() - index - 1;
+        let reserve = if after > 0 { overflow(after).len() + 1 } else { 0 };
+        let separator = usize::from(!text.is_empty());
+        if text.len() + separator + line.len() + reserve > budget {
+            if !text.is_empty() {
+                text.push('\n');
+            }
+            text.push_str(&overflow(lines.len() - index));
+            return text;
+        }
+        if separator == 1 {
+            text.push('\n');
+        }
+        text.push_str(line);
+    }
+    text
+}
+
+/// Bloc de tableau de bord : un intitulé suivi d'une liste (ou de `empty`).
+pub struct ListBlock {
+    pub header: String,
+    pub lines: Vec<String>,
+    pub empty: String,
+}
+
+/// Répartit `budget` octets entre les blocs, dans l'ordre d'importance : chacun
+/// prend ce dont il a besoin en laissant de quoi afficher l'intitulé et une
+/// ligne « … et N autres » de chacun des blocs suivants.
+pub fn pack_blocks(blocks: &[ListBlock], budget: usize) -> Vec<String> {
+    let min_cost =
+        |block: &ListBlock| block.header.len() + 1 + block.empty.len().max(and_others(block.lines.len()).len());
+    let mut left = budget;
+    blocks
+        .iter()
+        .enumerate()
+        .map(|(index, block)| {
+            let reserved: usize = blocks[index + 1..].iter().map(min_cost).sum();
+            let list_budget = left.saturating_sub(reserved + block.header.len() + 1);
+            let body = if block.lines.is_empty() {
+                block.empty.clone()
+            } else {
+                bounded_lines(&block.lines, list_budget, and_others)
+            };
+            let text = format!("{}\n{body}", block.header);
+            left = left.saturating_sub(text.len());
+            text
+        })
+        .collect()
+}
+
 /// Format monétaire français : `1 500 000,5`.
 pub fn format_price(value: f64) -> String {
     let negative = value < 0.0;
@@ -183,6 +259,33 @@ mod tests {
         let (kept, dropped) = pack_fields(fields, 5200, 24);
         assert_eq!(kept.len(), 17);
         assert_eq!(dropped.len(), 13);
+    }
+
+    #[test]
+    fn bounds_lines_with_overflow() {
+        let lines: Vec<String> = (0..100).map(|i| format!("ligne {i:03}")).collect();
+        let text = bounded_lines(&lines, 200, and_others);
+        assert!(text.len() <= 200);
+        assert!(text.starts_with("ligne 000\n"));
+        let shown = text.lines().filter(|l| l.starts_with("ligne")).count();
+        assert!(text.ends_with(&format!("… et {} autres", 100 - shown)));
+        assert_eq!(bounded_lines(&lines[..2], 200, and_others), "ligne 000\nligne 001");
+    }
+
+    #[test]
+    fn packs_blocks_keeping_every_header() {
+        let block = |name: &str, count: usize| ListBlock {
+            header: format!("### {name}"),
+            lines: (0..count).map(|i| format!("- {name} {i:04} {}", "x".repeat(40))).collect(),
+            empty: "*Aucune*".to_owned(),
+        };
+        let blocks = [block("a", 200), block("b", 0), block("c", 200)];
+        let texts = pack_blocks(&blocks, 3000);
+        assert_eq!(texts.len(), 3);
+        assert!(texts.iter().map(String::len).sum::<usize>() <= 3000);
+        assert!(texts[0].contains("autres"));
+        assert_eq!(texts[1], "### b\n*Aucune*");
+        assert!(texts[2].starts_with("### c\n") && texts[2].contains("autre"));
     }
 
     #[test]

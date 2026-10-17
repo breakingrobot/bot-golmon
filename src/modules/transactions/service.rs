@@ -237,7 +237,7 @@ pub async fn sync_message(ctx: &Ctx, guild_id: &str, transaction_id: &str) -> Re
 /// Met à jour (ou crée) le message unique du tableau de bord. Les transactions
 /// en cours sont listées intégralement ; les terminées sont bornées aux plus
 /// récentes, sans quoi le tableau de bord grossirait jusqu'à dépasser les
-/// limites d'un embed.
+/// limites d'un message.
 pub async fn sync_dashboard(ctx: &Ctx, guild_id: &str) -> Result<()> {
     let Some(config) = get_config(&ctx.db, guild_id).await? else {
         return Ok(());
@@ -269,7 +269,7 @@ pub async fn sync_dashboard(ctx: &Ctx, guild_id: &str) -> Result<()> {
         .fetch_one(&ctx.db)
         .await?;
 
-    let message = Outgoing::embeds(vec![build_dashboard(&transactions, total)]);
+    let message = Outgoing::components_v2(build_dashboard(&transactions, total));
     let known = config.dashboard_message_id.as_deref().and_then(parse_id);
     match messages::upsert(ctx, channel_id, known, &message).await {
         Ok(Some(new_id)) => set_dashboard_message(&ctx.db, guild_id, &new_id.to_string()).await,
