@@ -11,6 +11,7 @@ serveurs. Il démarre toujours, même sans module ticket, ne serait-ce que pour 
 | `/logs/staff` | Statistiques du staff sur 30 jours | Staff des tickets |
 | `/stats/<serveur>` | Statistiques d'un serveur | « Gérer le serveur » sur ce serveur |
 | `/stats/<serveur>/journal` | [Journal du staff](modules.md#journal-du-staff) | « Gérer le serveur » sur ce serveur |
+| `/stats/<serveur>/transactions` | Historique des transactions, export CSV | « Gérer le serveur » sur ce serveur |
 | `/healthz` | Répond `ok` (health check de la plateforme) | Tout le monde |
 
 Le **staff des tickets** est défini par l'option `inboxServerPermission` sur le serveur inbox
@@ -87,6 +88,28 @@ ticket en charge (bouton *Prendre en charge* sur Discord).
 - **Staff** (`/logs/staff`) : sur 30 jours, tickets ouverts, créés, fermés et sans réponse, délai médian de
   première réponse ; par membre du staff : réponses, tickets, prises en charge, premières réponses et délai
   moyen.
+
+### Transactions
+
+![Historique des transactions](images/transactions.png)
+
+Lien **Historique des transactions** depuis l'accueil et la page de statistiques du serveur
+(`/stats/<id>/transactions`).
+
+- **Filtres** : groupe (recherche partielle, sans tenir compte des majuscules), statut, achat ou vente,
+  période **du / au** (jours en heure de Paris, bornes incluses). Les filtres restent dans l'adresse : une
+  vue filtrée peut être mise en favori ou partagée avec quelqu'un qui a le même accès.
+- **Totaux** de la sélection : nombre de transactions, total des achats et des ventes, solde (ventes −
+  achats), transactions en cours. Les transactions **annulées** comptent dans le nombre, pas dans les
+  montants.
+- **Par mois** : achats, ventes, solde et nombre, du plus récent au plus ancien (12 derniers mois de la
+  sélection).
+- **Détail** : 25 transactions par page, des plus récentes aux plus anciennes ; un clic sur une ligne
+  affiche ses objets (quantité, prix unitaire).
+- **Exporter en CSV** reprend les filtres en cours (10 000 lignes au plus) : séparateur `;`, encodage UTF-8
+  reconnu par Excel, dates `JJ/MM/AAAA HH:MM` en heure de Paris, prix en nombre (virgule décimale). Une
+  cellule qui commence par `=`, `+`, `-` ou `@` est préfixée d'une apostrophe pour qu'Excel ne l'exécute
+  pas comme une formule.
 
 ## Sécurité
 

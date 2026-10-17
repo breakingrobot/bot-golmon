@@ -88,6 +88,8 @@ période passent en **Absent**. Déclarer ou clore l'absence d'un autre membre d
 - `add-item`, `status`, `view`, `cancel` sont ouverts à tous ; la suppression définitive se fait avec
   `/gestion transaction supprimer`.
   Une transaction **clôturée** n'est plus modifiable.
+- **Historique** sur le site web (`/stats/<serveur>/transactions`) : filtres, totaux par mois, export
+  CSV ([détails](site-web.md#transactions)).
 
 ## Véhicules
 

@@ -202,7 +202,7 @@ mod tests {
     fn renders_stats_page() {
         let page = StatsPage {
             layout: Layout::bare("Statistiques"),
-            guild_id: "1".into(),
+            guild_id: "123".into(),
             guild_name: "Serveur RP".into(),
             figures: vec![
                 Figure {
@@ -247,6 +247,7 @@ mod tests {
         let html = page.render().unwrap();
         assert!(html.contains("Assiduité aux présences") && html.contains("Véto · Marco"));
         assert!(html.contains("14 min") && html.contains("Pris en charge"));
+        assert!(html.contains("/stats/123/transactions"));
         if let Ok(path) = std::env::var("STATS_PREVIEW_PATH") {
             let html = html.replace(
                 &format!(r#"<link rel="stylesheet" href="/assets/app.css?v={}">"#, crate::web::ASSET_VERSION),
