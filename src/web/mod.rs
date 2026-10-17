@@ -7,6 +7,7 @@
 //! par leur lien non devinable, comme dans modmailbot.
 
 pub mod auth;
+pub mod markdown;
 pub mod pages;
 mod stats;
 
@@ -91,6 +92,24 @@ fn member_permissions(
     let permissions =
         roles.iter().filter_map(|id| ctx.cache.role(*id)).fold(everyone, |acc, role| acc | role.resource().permissions);
     if permissions.contains(Permissions::ADMINISTRATOR) { Permissions::all() } else { permissions }
+}
+
+/// Noms des mentions lus dans le cache du bot.
+pub struct CacheResolver<'a>(pub &'a Ctx);
+
+impl markdown::Resolver for CacheResolver<'_> {
+    fn user(&self, id: u64) -> Option<String> {
+        let user = self.0.cache.user(Id::new_checked(id)?)?;
+        Some(user.global_name.clone().unwrap_or_else(|| user.name.clone()))
+    }
+
+    fn role(&self, id: u64) -> Option<String> {
+        Some(self.0.cache.role(Id::new_checked(id)?)?.resource().name.clone())
+    }
+
+    fn channel(&self, id: u64) -> Option<String> {
+        self.0.cache.channel(Id::new_checked(id)?)?.name.clone()
+    }
 }
 
 fn asset(content_type: &'static str, body: &'static str) -> Response {
