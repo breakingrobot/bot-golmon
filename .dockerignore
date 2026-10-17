@@ -4,9 +4,11 @@ web/node_modules
 web/dist
 .env
 config.ini
+data
 prisma
 db
 logs
 attachments
 *.db
 *.sqlite
+docs

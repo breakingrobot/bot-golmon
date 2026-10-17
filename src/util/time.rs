@@ -150,12 +150,21 @@ pub fn resolve_event_date(date_label: Option<&str>, time_label: &str) -> Option<
     parse_event_date(&tomorrow, time_label).map(|date| ResolvedDate { date, rolled_to_tomorrow: true })
 }
 
+/// Minuit heure de Paris du jour `day`, exprimé en UTC.
+pub fn paris_day_start(day: NaiveDate) -> DbTime {
+    DbTime(paris_to_utc(day.and_time(NaiveTime::MIN)).expect("minuit existe toujours à Paris"))
+}
+
+/// Jour saisi dans un `<input type="date">` (`AAAA-MM-JJ`).
+pub fn parse_iso_day(raw: &str) -> Option<NaiveDate> {
+    NaiveDate::parse_from_str(raw.trim(), "%Y-%m-%d").ok()
+}
+
 /// Lundi 00:00 heure de Paris de la semaine de `reference`, exprimé en UTC.
 /// Sans conversion, un dimanche 23:30 à Paris serait rattaché à la semaine suivante.
 pub fn week_start(reference: DateTime<Utc>) -> DbTime {
     let local = reference.with_timezone(&TIMEZONE).date_naive();
-    let monday = local - Duration::days(i64::from(local.weekday().num_days_from_monday()));
-    DbTime(paris_to_utc(monday.and_time(NaiveTime::MIN)).expect("minuit existe toujours à Paris"))
+    paris_day_start(local - Duration::days(i64::from(local.weekday().num_days_from_monday())))
 }
 
 #[cfg(test)]
@@ -188,6 +197,16 @@ mod tests {
         // Lundi 00:30 à Paris : nouvelle semaine.
         let monday = Utc.with_ymd_and_hms(2026, 8, 16, 22, 30, 0).unwrap();
         assert_eq!(week_start(monday).to_db_string(), "2026-08-16T22:00:00.000Z");
+    }
+
+    #[test]
+    fn parses_iso_days_as_paris_day_start() {
+        let day = parse_iso_day("2026-10-25").unwrap();
+        // Jour du passage à l'heure d'hiver : minuit est encore en UTC+2.
+        assert_eq!(paris_day_start(day).to_db_string(), "2026-10-24T22:00:00.000Z");
+        assert_eq!(paris_day_start(day.succ_opt().unwrap()).to_db_string(), "2026-10-25T23:00:00.000Z");
+        assert!(parse_iso_day("2026-02-30").is_none());
+        assert!(parse_iso_day("25/10/2026").is_none());
     }
 
     #[test]

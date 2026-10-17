@@ -45,13 +45,15 @@ pub fn definition() -> Command {
                 ),
         )
         .option(SubCommandBuilder::new("remove", "Retire un véhicule du registre").option(registered_plate()))
-        .option(
-            SubCommandBuilder::new("config", "Configure le tableau de bord (sans option: affiche la config)").option(
-                ChannelBuilder::new("dashboard_channel", "Salon du tableau de bord des véhicules")
-                    .channel_types([ChannelType::GuildText]),
-            ),
-        )
         .build()
+}
+
+/// `/config vehicule`.
+pub fn config_subcommand() -> SubCommandBuilder {
+    SubCommandBuilder::new("vehicule", "Véhicules : salon du tableau de bord (sans option : affiche)").option(
+        ChannelBuilder::new("dashboard_channel", "Salon du tableau de bord des véhicules")
+            .channel_types([ChannelType::GuildText]),
+    )
 }
 
 fn owner(options: &Options) -> Option<(String, bool)> {
@@ -91,7 +93,6 @@ pub async fn handle(ix: &Ix, options: &Options) -> Result<()> {
         "add" => add(ix, options, &guild).await,
         "owner" => change_owner(ix, options, &guild).await,
         "remove" => remove(ix, options, &guild).await,
-        "config" => config(ix, options, &guild).await,
         _ => Ok(()),
     }
 }
@@ -180,7 +181,7 @@ async fn lookup(ix: &Ix, options: &Options) -> Result<()> {
     }
 }
 
-async fn config(ix: &Ix, options: &Options, guild: &str) -> Result<()> {
+pub async fn config(ix: &Ix, options: &Options, guild: &str) -> Result<()> {
     if !ix.has_permission(Permissions::MANAGE_GUILD) {
         return ix.reply(Reply::ephemeral(MANAGE_GUILD_ONLY)).await;
     }

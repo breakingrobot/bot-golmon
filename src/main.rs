@@ -1,4 +1,4 @@
-//! Bot Discord Golmon : présences, absences, transactions, véhicules, recrues,
+//! Bot Discord : présences, absences, transactions, véhicules, recrues,
 //! annuaire et tickets (modmail compatible Dragory/modmailbot).
 
 mod config;
@@ -8,6 +8,7 @@ mod discord;
 mod modmail;
 mod modules;
 mod util;
+mod web;
 
 use anyhow::{Context as _, Result};
 use context::Ctx;
@@ -17,8 +18,20 @@ use twilight_cache_inmemory::{DefaultInMemoryCache, ResourceType};
 use twilight_gateway::Config as GatewayConfig;
 use twilight_http::Client as HttpClient;
 
-#[tokio::main]
-async fn main() -> Result<()> {
+/// Un bot Discord attend surtout le réseau : deux threads de travail suffisent,
+/// quel que soit le nombre de cœurs de la machine hôte (chaque thread coûte sa
+/// pile et, avec la glibc, une arène mémoire). `TOKIO_WORKER_THREADS` ajuste.
+fn main() -> Result<()> {
+    let workers = std::env::var("TOKIO_WORKER_THREADS").ok().and_then(|v| v.parse().ok()).unwrap_or(2);
+    tokio::runtime::Builder::new_multi_thread()
+        .worker_threads(workers)
+        .max_blocking_threads(8)
+        .enable_all()
+        .build()?
+        .block_on(run())
+}
+
+async fn run() -> Result<()> {
     let _ = dotenvy::dotenv();
     tracing_subscriber::fmt()
         .with_env_filter(
@@ -88,6 +101,7 @@ async fn main() -> Result<()> {
     if let Some(modmail) = &ctx.modmail {
         modmail.start(Arc::clone(&ctx));
     }
+    web::spawn(Arc::clone(&ctx));
 
     let (shutdown_tx, shutdown_rx) = watch::channel(false);
     let tasks: Vec<_> = shards

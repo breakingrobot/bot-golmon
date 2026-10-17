@@ -94,7 +94,7 @@ impl Modmail {
         let ip = self
             .public_ip
             .get_or_init(|| async {
-                match self.http.get("https://api.ipify.org").send().await {
+                match self.http.get("https://api.ipify.org").timeout(std::time::Duration::from_secs(10)).send().await {
                     Ok(response) => response.text().await.unwrap_or_else(|_| "UNKNOWN".to_owned()),
                     Err(error) => {
                         tracing::warn!(%error, "IP publique introuvable");

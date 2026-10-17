@@ -176,7 +176,7 @@ CREATE INDEX `notes_author_id_index` on `notes` (`author_id`);
 ];
 
 pub async fn open(path: &Path) -> Result<SqlitePool> {
-    let pool = crate::db::open(path, 4).await?;
+    let pool = crate::db::open(path, 2).await?;
     migrate(&pool).await.context("migrations de la base modmail")?;
     Ok(pool)
 }

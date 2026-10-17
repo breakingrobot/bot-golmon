@@ -74,6 +74,34 @@ pub async fn active_absence(db: &SqlitePool, guild_id: &str, user_id: &str) -> R
     .await?)
 }
 
+/// Prochaine absence pas encore commencée (pour l'annuler).
+pub async fn upcoming_absence(db: &SqlitePool, guild_id: &str, user_id: &str) -> Result<Option<Absence>> {
+    Ok(sqlx::query_as(&format!(
+        r#"SELECT {ABSENCE_COLUMNS} FROM "Absence" WHERE "guildId" = ? AND "userId" = ? AND "endedAt" IS NULL AND "startsAt" > ? ORDER BY "startsAt" ASC LIMIT 1"#
+    ))
+    .bind(guild_id)
+    .bind(user_id)
+    .bind(DbTime::now())
+    .fetch_optional(db)
+    .await?)
+}
+
+/// Mémorise l'annonce publiée, pour la supprimer à la fin de l'absence.
+pub async fn remember_announcement(
+    db: &SqlitePool,
+    absence_id: &str,
+    channel_id: &str,
+    message_id: &str,
+) -> Result<()> {
+    sqlx::query(r#"UPDATE "Absence" SET "channelId" = ?, "messageId" = ? WHERE "id" = ?"#)
+        .bind(channel_id)
+        .bind(message_id)
+        .bind(absence_id)
+        .execute(db)
+        .await?;
+    Ok(())
+}
+
 pub async fn list_active(db: &SqlitePool, guild_id: &str) -> Result<Vec<Absence>> {
     Ok(sqlx::query_as(&format!(
         r#"SELECT {ABSENCE_COLUMNS} FROM "Absence" WHERE "guildId" = ? AND "endedAt" IS NULL AND "endsAt" > ? ORDER BY "endsAt" ASC"#
@@ -93,6 +121,7 @@ pub struct NewAbsence {
 }
 
 pub struct Declared {
+    pub id: String,
     pub role: RoleUpdate,
     /// Présences ouvertes passées en absent.
     pub affected: usize,
@@ -101,10 +130,11 @@ pub struct Declared {
 /// Enregistre une absence, attribue le rôle si elle a déjà commencé et marque
 /// le membre absent sur les présences ouvertes tombant dans la période.
 pub async fn declare(ctx: &Ctx, guild_id: Id<GuildMarker>, absence: NewAbsence) -> Result<Declared> {
+    let id = new_id();
     sqlx::query(
         r#"INSERT INTO "Absence" ("id", "guildId", "userId", "motif", "startsAt", "endsAt", "createdById", "createdAt") VALUES (?, ?, ?, ?, ?, ?, ?, ?)"#,
     )
-    .bind(new_id())
+    .bind(&id)
     .bind(guild_id.to_string())
     .bind(&absence.user_id)
     .bind(&absence.motif)
@@ -140,11 +170,12 @@ pub async fn declare(ctx: &Ctx, guild_id: Id<GuildMarker>, absence: NewAbsence) 
         }
     }
 
-    Ok(Declared { role, affected })
+    Ok(Declared { id, role, affected })
 }
 
-/// Clôture une absence. Le rôle n'est retiré que si le membre n'a aucune
-/// autre absence encore active (périodes qui se chevauchent).
+/// Clôture (ou annule, si elle n'a pas commencé) une absence et supprime son
+/// annonce. Le rôle n'est retiré que si le membre n'a aucune autre absence
+/// encore active (périodes qui se chevauchent).
 pub async fn end(ctx: &Ctx, guild_id: Id<GuildMarker>, absence_id: &str, user_id: &str) -> Result<RoleUpdate> {
     let now = DbTime::now();
     let (still_absent,): (bool,) = sqlx::query_as(
@@ -167,8 +198,28 @@ pub async fn end(ctx: &Ctx, guild_id: Id<GuildMarker>, absence_id: &str, user_id
             .bind(absence_id)
             .execute(&ctx.db)
             .await?;
+        delete_announcement(ctx, absence_id).await?;
     }
     Ok(role)
+}
+
+/// L'annonce d'une absence terminée n'a plus lieu d'être : elle est supprimée.
+async fn delete_announcement(ctx: &Ctx, absence_id: &str) -> Result<()> {
+    let row: Option<(Option<String>, Option<String>)> =
+        sqlx::query_as(r#"SELECT "channelId", "messageId" FROM "Absence" WHERE "id" = ?"#)
+            .bind(absence_id)
+            .fetch_optional(&ctx.db)
+            .await?;
+    if let Some((Some(channel), Some(message))) = row
+        && let (Some(channel_id), Some(message_id)) = (parse_id(&channel), parse_id(&message))
+    {
+        crate::discord::messages::delete_quietly(ctx, channel_id, message_id).await;
+        sqlx::query(r#"UPDATE "Absence" SET "messageId" = NULL WHERE "id" = ?"#)
+            .bind(absence_id)
+            .execute(&ctx.db)
+            .await?;
+    }
+    Ok(())
 }
 
 /// Absences arrivées à échéance, à clôturer par le cron.

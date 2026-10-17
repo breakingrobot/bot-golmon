@@ -83,6 +83,31 @@ pub async fn threads_to_suspend(db: &SqlitePool) -> Result<Vec<Thread>> {
     .await?)
 }
 
+/// Marqueur (colonne `metadata`, JSON) du message qui annonce une fermeture pour
+/// inactivité. Le schéma modmailbot reste inchangé.
+pub const AUTO_CLOSE_WARNING_METADATA: &str = r#"{"autoCloseWarning":true}"#;
+
+/// Tickets ouverts inactifs depuis `cutoff` (date au format de la base) : dernier
+/// échange avec l'utilisateur (`FROM_USER` ou `TO_USER`, à défaut la création du
+/// ticket) antérieur à `cutoff`, aucune fermeture programmée (celle du staff n'est
+/// jamais remplacée), et pas d'avertissement déjà donné depuis ce dernier échange.
+pub async fn inactive_threads(db: &SqlitePool, cutoff: &str) -> Result<Vec<Thread>> {
+    const LAST_EXCHANGE: &str = "COALESCE((SELECT MAX(m.`created_at`) FROM `thread_messages` m \
+         WHERE m.`thread_id` = `threads`.`id` AND m.`message_type` IN (?2, ?3)), `threads`.`created_at`)";
+    Ok(sqlx::query_as(&thread_query(&format!(
+        "`status` = ?1 AND `scheduled_close_at` IS NULL AND {LAST_EXCHANGE} <= ?4 \
+         AND NOT EXISTS (SELECT 1 FROM `thread_messages` w WHERE w.`thread_id` = `threads`.`id` \
+             AND w.`metadata` = ?5 AND w.`created_at` >= {LAST_EXCHANGE})"
+    )))
+    .bind(thread_status::OPEN)
+    .bind(message_type::FROM_USER)
+    .bind(message_type::TO_USER)
+    .bind(cutoff)
+    .bind(AUTO_CLOSE_WARNING_METADATA)
+    .fetch_all(db)
+    .await?)
+}
+
 /// Crée un ticket et renvoie son identifiant (UUID v4, numéro incrémental).
 pub async fn create_thread(db: &SqlitePool, user_id: &str, user_name: &str, channel_id: &str) -> Result<String> {
     let id = uuid::Uuid::new_v4().to_string();
@@ -575,4 +600,60 @@ pub async fn reset_role_override(db: &SqlitePool, moderator_id: &str, thread_id:
         }
     };
     Ok(())
+}
+
+/// Ticket de la liste web, avec le nombre d'échanges.
+#[derive(sqlx::FromRow)]
+pub struct ThreadSummary {
+    pub id: String,
+    pub status: i64,
+    pub user_id: String,
+    pub user_name: String,
+    pub created_at: String,
+    pub thread_number: Option<i64>,
+    pub exchanges: i64,
+}
+
+/// Recherche de tickets : identifiant ou nom d'utilisateur, numéro de ticket,
+/// ou texte d'un message. `status` : `None` pour tous.
+pub async fn search_threads(
+    db: &SqlitePool,
+    query: &str,
+    status: Option<i64>,
+    limit: i64,
+    offset: i64,
+) -> Result<(Vec<ThreadSummary>, i64)> {
+    let query = query.trim();
+    let pattern = format!("%{}%", query.replace('\\', "\\\\").replace('%', "\\%").replace('_', "\\_"));
+    let filter = "(?1 = '' OR t.`user_id` = ?1 OR CAST(t.`thread_number` AS TEXT) = ltrim(?1, '#')
+          OR t.`user_name` LIKE ?2 ESCAPE '\\'
+          OR EXISTS (SELECT 1 FROM `thread_messages` m WHERE m.`thread_id` = t.`id`
+                     AND m.`message_type` IN (?4, ?5, ?6) AND m.`body` LIKE ?2 ESCAPE '\\'))
+         AND (?3 IS NULL OR t.`status` = ?3)";
+    let (total,): (i64,) = sqlx::query_as(&format!("SELECT COUNT(*) FROM `threads` t WHERE {filter}"))
+        .bind(query)
+        .bind(&pattern)
+        .bind(status)
+        .bind(message_type::FROM_USER)
+        .bind(message_type::TO_USER)
+        .bind(message_type::CHAT)
+        .fetch_one(db)
+        .await?;
+    let rows = sqlx::query_as(&format!(
+        "SELECT t.`id`, t.`status`, t.`user_id`, t.`user_name`, t.`created_at`, t.`thread_number`,
+                (SELECT COUNT(*) FROM `thread_messages` m WHERE m.`thread_id` = t.`id` AND m.`message_type` IN (?4, ?5)) AS exchanges
+         FROM `threads` t WHERE {filter}
+         ORDER BY t.`created_at` DESC LIMIT ?7 OFFSET ?8"
+    ))
+    .bind(query)
+    .bind(&pattern)
+    .bind(status)
+    .bind(message_type::FROM_USER)
+    .bind(message_type::TO_USER)
+    .bind(message_type::CHAT)
+    .bind(limit)
+    .bind(offset)
+    .fetch_all(db)
+    .await?;
+    Ok((rows, total))
 }

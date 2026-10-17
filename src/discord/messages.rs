@@ -7,7 +7,7 @@ use twilight_http::{api_error::ApiError, error::ErrorType};
 use twilight_model::{
     channel::{
         Message,
-        message::{AllowedMentions, Component, Embed, MentionType},
+        message::{AllowedMentions, Component, Embed, MentionType, MessageFlags},
     },
     id::{
         Id,
@@ -22,6 +22,7 @@ pub struct Outgoing {
     pub embeds: Vec<Embed>,
     pub components: Vec<Component>,
     pub mentions: Mentions,
+    pub flags: Option<MessageFlags>,
 }
 
 /// Mentions autorisées. Par défaut aucune : le bot ne pingue que lorsque c'est voulu.
@@ -61,6 +62,15 @@ impl Outgoing {
         Self { embeds, ..Default::default() }
     }
 
+    /// Message « Components V2 » : ni `content` ni embeds, tout passe par les composants.
+    pub fn components_v2(components: Vec<Component>) -> Self {
+        Self { components, flags: Some(MessageFlags::IS_COMPONENTS_V2), ..Default::default() }
+    }
+
+    pub fn is_v2(&self) -> bool {
+        self.flags.is_some_and(|flags| flags.contains(MessageFlags::IS_COMPONENTS_V2))
+    }
+
     pub fn with_components(mut self, components: Vec<Component>) -> Self {
         self.components = components;
         self
@@ -75,6 +85,10 @@ impl Outgoing {
 pub async fn send(ctx: &Ctx, channel_id: Id<ChannelMarker>, message: &Outgoing) -> Result<Message> {
     let allowed = message.mentions.to_allowed();
     let mut request = ctx.http.create_message(channel_id).allowed_mentions(Some(&allowed));
+    // Avant `components` : twilight choisit la validation V1 ou V2 d'après les flags.
+    if let Some(flags) = message.flags {
+        request = request.flags(flags);
+    }
     if let Some(content) = &message.content {
         request = request.content(content);
     }
@@ -94,16 +108,19 @@ pub async fn edit(
     message: &Outgoing,
 ) -> Result<Message> {
     let allowed = message.mentions.to_allowed();
-    Ok(ctx
+    // `content` et `embeds` sont toujours envoyés : vides, ils effacent ceux
+    // d'un ancien message embed converti en V2.
+    let mut request = ctx
         .http
         .update_message(channel_id, message_id)
         .allowed_mentions(Some(&allowed))
         .content(message.content.as_deref())
         .embeds(Some(&message.embeds))
-        .components(Some(&message.components))
-        .await?
-        .model()
-        .await?)
+        .components(Some(&message.components));
+    if let Some(flags) = message.flags {
+        request = request.flags(flags);
+    }
+    Ok(request.await?.model().await?)
 }
 
 /// `true` si l'erreur signifie que la ressource n'existe plus (404, ou codes
@@ -130,6 +147,11 @@ pub fn is_forbidden(error: &twilight_http::Error) -> bool {
     matches!(error.kind(), ErrorType::Response { status, .. } if status.get() == 403)
 }
 
+/// Requête refusée par Discord (4xx), hors limitation de débit.
+pub fn is_rejected(error: &twilight_http::Error) -> bool {
+    matches!(error.kind(), ErrorType::Response { status, .. } if (400..500).contains(&status.get()) && status.get() != 429)
+}
+
 /// Supprime un message en ignorant les erreurs (déjà supprimé, droits retirés).
 pub async fn delete_quietly(ctx: &Ctx, channel_id: Id<ChannelMarker>, message_id: Id<MessageMarker>) {
     if let Err(error) = ctx.http.delete_message(channel_id, message_id).await
@@ -141,24 +163,36 @@ pub async fn delete_quietly(ctx: &Ctx, channel_id: Id<ChannelMarker>, message_id
 
 /// Édite le message mémorisé s'il existe encore, sinon en publie un nouveau.
 /// Renvoie l'identifiant du nouveau message quand il a fallu republier.
+///
+/// Un ancien message à embeds peut refuser la conversion en Components V2 :
+/// il est alors remplacé. Le nouveau est publié avant la suppression de
+/// l'ancien, pour qu'un contenu invalide (refusé aux deux étapes) ne fasse pas
+/// disparaître le tableau de bord.
 pub async fn upsert(
     ctx: &Ctx,
     channel_id: Id<ChannelMarker>,
     known: Option<Id<MessageMarker>>,
     message: &Outgoing,
 ) -> Result<Option<Id<MessageMarker>>> {
+    let mut replaced = None;
     if let Some(message_id) = known {
         match edit(ctx, channel_id, message_id, message).await {
             Ok(_) => return Ok(None),
-            Err(error) => {
-                let gone = error.downcast_ref::<twilight_http::Error>().is_some_and(is_not_found);
-                if !gone {
-                    return Err(error);
+            Err(error) => match error.downcast_ref::<twilight_http::Error>() {
+                Some(http) if is_not_found(http) => {}
+                Some(http) if message.is_v2() && is_rejected(http) => {
+                    tracing::info!(%channel_id, %message_id, %http, "conversion en Components V2 refusée, message republié");
+                    replaced = Some(message_id);
                 }
-            }
+                _ => return Err(error),
+            },
         }
     }
-    Ok(Some(send(ctx, channel_id, message).await?.id))
+    let sent = send(ctx, channel_id, message).await?;
+    if let Some(message_id) = replaced {
+        delete_quietly(ctx, channel_id, message_id).await;
+    }
+    Ok(Some(sent.id))
 }
 
 pub fn parse_id<T>(raw: &str) -> Option<Id<T>> {

@@ -1,3 +1,4 @@
+pub mod audit;
 pub mod phones;
 pub mod presences;
 pub mod recrues;

@@ -3,7 +3,7 @@
 //! et leurs valeurs par défaut sont identiques à l'original ; un fichier de
 //! configuration modmailbot existant peut être réutilisé tel quel.
 
-use super::ini;
+use super::{ini, util::convert_delay_string_to_ms};
 use anyhow::{Result, bail};
 use serde_json::{Map, Value};
 use std::{collections::HashMap, path::PathBuf};
@@ -47,8 +47,18 @@ pub struct MmConfig {
     pub response_message: Option<String>,
     pub close_message: Option<String>,
     pub allow_user_close: bool,
+    /// `autoCloseInactive` (propre à ce bot) : inactivité, en ms, au bout de laquelle
+    /// l'utilisateur est averti et la fermeture programmée. `None` : désactivé.
+    pub auto_close_inactive_ms: Option<i64>,
+    /// `autoCloseWarning` (propre à ce bot) : délai entre l'avertissement et la fermeture, en ms.
+    pub auto_close_warning_ms: i64,
+    /// `autoCloseMessage` (propre à ce bot) : avertissement envoyé à l'utilisateur
+    /// (`{inactive}` et `{delay}` remplacés par les durées).
+    pub auto_close_message: String,
 
     pub new_thread_category_id: Option<String>,
+    /// `newThreadForumId` (propre à ce bot) : tickets ouverts en fils d'un salon forum.
+    pub new_thread_forum_id: Option<Id<ChannelMarker>>,
     pub new_thread_category_from_server: Vec<(String, String)>,
     pub mention_role: Vec<String>,
     pub ping_on_bot_mention: bool,
@@ -257,7 +267,8 @@ impl Reader<'_> {
                 "1" | "true" | "on" | "yes" => true,
                 "0" | "false" | "off" | "no" => false,
                 other => {
-                    self.errors.push(format!("The \"{key}\" option must be a boolean. (Is currently: \"{other}\")"));
+                    self.errors
+                        .push(format!("L'option \"{key}\" doit être un booléen. (Valeur actuelle : \"{other}\")"));
                     default
                 }
             },
@@ -274,9 +285,25 @@ impl Reader<'_> {
             _ => None,
         };
         if parsed.is_none() {
-            self.errors.push(format!("The \"{key}\" option must be a number."));
+            self.errors.push(format!("L'option \"{key}\" doit être un nombre."));
         }
         parsed
+    }
+
+    /// Durée au format `1h30m` / `7d`, en ms. `0`, `off`, `none` ou `false` : `None`.
+    fn delay(&mut self, key: &str, default: Option<&str>) -> Option<i64> {
+        let raw = self.string(key).or_else(|| default.map(str::to_owned))?;
+        if matches!(raw.trim().to_lowercase().as_str(), "off" | "none" | "false" | "no") {
+            return None;
+        }
+        match convert_delay_string_to_ms(&raw) {
+            Some(0) => None,
+            Some(ms) => Some(ms),
+            None => {
+                self.errors.push(format!("The \"{key}\" option must be a delay such as \"7d\" or \"1h30m\"."));
+                None
+            }
+        }
     }
 
     fn object(&self, key: &str) -> Option<&Map<String, Value>> {
@@ -298,19 +325,19 @@ impl MmConfig {
         let main_server_ids: Vec<Id<GuildMarker>> =
             main_server_raw.iter().filter_map(|id| id.trim().parse().ok()).collect();
         if main_server_ids.is_empty() {
-            r.errors.push("Missing required option: \"mainServerId\"".to_owned());
+            r.errors.push("Option obligatoire manquante : \"mainServerId\"".to_owned());
         }
         let inbox_server_id = inbox_raw.as_deref().and_then(|id| id.trim().parse().ok());
         if inbox_server_id.is_none() {
-            r.errors.push("Missing required option: \"inboxServerId\"".to_owned());
+            r.errors.push("Option obligatoire manquante : \"inboxServerId\"".to_owned());
         }
         let log_channel_id = log_channel_raw.as_deref().and_then(|id| id.trim().parse().ok());
         if log_channel_id.is_none() {
-            r.errors.push("Missing required option: \"logChannelId\"".to_owned());
+            r.errors.push("Option obligatoire manquante : \"logChannelId\"".to_owned());
         }
 
         if r.string("dbType").is_some_and(|t| t != "sqlite") {
-            r.errors.push("Only dbType = sqlite is supported by this bot.".to_owned());
+            r.errors.push("Seul dbType = sqlite est pris en charge par ce bot.".to_owned());
         }
         if r.list("plugins").is_some_and(|p| !p.is_empty()) {
             tracing::warn!("modmail : les plugins JavaScript ne sont pas pris en charge et seront ignorés");
@@ -321,13 +348,13 @@ impl MmConfig {
             "discord" => AttachmentStorage::Discord,
             "original" => AttachmentStorage::Original,
             other => {
-                r.errors.push(format!("Unknown attachment storage option: {other}"));
+                r.errors.push(format!("Option de stockage des pièces jointes inconnue : {other}"));
                 AttachmentStorage::Original
             }
         };
         let attachment_storage_channel_id = r.string("attachmentStorageChannelId").and_then(|id| id.parse().ok());
         if attachment_storage == AttachmentStorage::Discord && attachment_storage_channel_id.is_none() {
-            r.errors.push("Missing required option: \"attachmentStorageChannelId\"".to_owned());
+            r.errors.push("Option obligatoire manquante : \"attachmentStorageChannelId\"".to_owned());
         }
 
         let log_storage = match r.string_or("logStorage", "local").as_str() {
@@ -389,13 +416,13 @@ impl MmConfig {
 
         let log_options = r.object("logOptions");
         let log_attachment_directory = PathBuf::from(
-            log_options.and_then(|o| o.get("attachmentDirectory")).and_then(|v| v.as_str()).unwrap_or("logs"),
+            log_options.and_then(|o| o.get("attachmentDirectory")).and_then(|v| v.as_str()).unwrap_or("data/logs"),
         );
         let sqlite_filename = PathBuf::from(
             r.object("sqliteOptions")
                 .and_then(|o| o.get("filename"))
                 .and_then(|v| v.as_str())
-                .unwrap_or("db/data.sqlite"),
+                .unwrap_or("data/modmail.sqlite"),
         );
 
         let small_attachment_limit = r.number("smallAttachmentLimit").map_or(2_097_152, |n| n as u64);
@@ -409,7 +436,7 @@ impl MmConfig {
             && !regex::Regex::new(r"(?i)^https://(www\.)?twitch.tv/[a-z\d_\-]+/?$").unwrap().is_match(&status_url)
         {
             r.errors.push(
-                "When statusType is set to \"streaming\", statusUrl must be set to a valid Twitch channel URL, such as https://www.twitch.tv/Dragory"
+                "Quand statusType vaut \"streaming\", statusUrl doit être une URL de chaîne Twitch valide, par exemple https://www.twitch.tv/Dragory"
                     .to_owned(),
             );
         }
@@ -421,15 +448,22 @@ impl MmConfig {
             prefix: r.string_or("prefix", "!"),
             snippet_prefix: r.string_or("snippetPrefix", "!!"),
             snippet_prefix_anon: r.string_or("snippetPrefixAnon", "!!!"),
-            status: Some(r.string_or("status", "Message me for help!")),
+            status: Some(r.string_or("status", "Écris-moi pour contacter le staff !")),
             status_type,
             status_url,
             response_message: Some(r.multiline("responseMessage").unwrap_or_else(|| {
-                "Thank you for your message! Our mod team will reply to you here as soon as possible.".to_owned()
+                "Merci pour ton message ! L'équipe de modération te répondra ici dès que possible.".to_owned()
             })),
             close_message: r.multiline("closeMessage"),
             allow_user_close: r.boolean("allowUserClose", false),
+            auto_close_inactive_ms: r.delay("autoCloseInactive", None),
+            auto_close_warning_ms: r.delay("autoCloseWarning", Some("24h")).unwrap_or(86_400_000),
+            auto_close_message: r.multiline("autoCloseMessage").unwrap_or_else(|| {
+                "Ton ticket est inactif depuis {inactive}. Il sera fermé dans {delay} sans nouvelle réponse de ta part."
+                    .to_owned()
+            }),
             new_thread_category_id,
+            new_thread_forum_id: r.string("newThreadForumId").and_then(|id| id.parse().ok()),
             new_thread_category_from_server: from_server,
             mention_role: r.list("mentionRole").unwrap_or_else(|| vec!["none".to_owned()]),
             ping_on_bot_mention: r.boolean("pingOnBotMention", true),
@@ -462,18 +496,18 @@ impl MmConfig {
             required_account_age_hours,
             account_age_denied_message: Some(
                 r.multiline("accountAgeDeniedMessage")
-                    .unwrap_or_else(|| "Your Discord account is not old enough to contact modmail.".to_owned()),
+                    .unwrap_or_else(|| "Ton compte Discord est trop récent pour contacter le staff.".to_owned()),
             ),
             required_time_on_server_minutes,
             time_on_server_denied_message: Some(r.multiline("timeOnServerDeniedMessage").unwrap_or_else(|| {
-                "You haven't been a member of the server for long enough to contact modmail.".to_owned()
+                "Tu n'es pas membre du serveur depuis assez longtemps pour contacter le staff.".to_owned()
             })),
             relay_small_attachments_as_attachments: r.boolean("relaySmallAttachmentsAsAttachments", false),
             small_attachment_limit,
             relay_inline_replies: r.boolean("relayInlineReplies", true),
             attachment_storage,
             attachment_storage_channel_id,
-            attachment_dir: PathBuf::from(r.string_or("attachmentDir", "attachments")),
+            attachment_dir: PathBuf::from(r.string_or("attachmentDir", "data/attachments")),
             command_aliases,
             react_on_seen: r.boolean("reactOnSeen", false),
             react_on_seen_emoji: r.string_or("reactOnSeenEmoji", "📨"),
@@ -509,7 +543,7 @@ impl MmConfig {
         };
 
         if !r.errors.is_empty() {
-            bail!("NOTE! Issues with modmail configuration:\n- {}", r.errors.join("\n- "));
+            bail!("ATTENTION ! Problèmes dans la configuration modmail :\n- {}", r.errors.join("\n- "));
         }
 
         // `status = none` / `off` désactive le statut.
@@ -527,7 +561,22 @@ impl MmConfig {
 
 #[cfg(test)]
 mod tests {
-    use super::env_key_to_config_key;
+    use super::{Reader, env_key_to_config_key};
+
+    #[test]
+    fn reads_delay_options() {
+        let map =
+            serde_json::json!({ "autoCloseInactive": "7d", "autoCloseWarning": "off", "bad": "abc", "zero": "0" });
+        let mut r = Reader { map: map.as_object().unwrap(), errors: Vec::new() };
+        assert_eq!(r.delay("autoCloseInactive", None), Some(7 * 86_400_000));
+        assert_eq!(r.delay("autoCloseWarning", Some("24h")), None);
+        assert_eq!(r.delay("missing", Some("24h")), Some(86_400_000));
+        assert_eq!(r.delay("missing", None), None);
+        assert_eq!(r.delay("zero", None), None);
+        assert!(r.errors.is_empty());
+        assert_eq!(r.delay("bad", None), None);
+        assert_eq!(r.errors.len(), 1);
+    }
 
     #[test]
     fn maps_env_keys_like_modmailbot() {

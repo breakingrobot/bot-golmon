@@ -218,12 +218,13 @@ dependencies = [
 ]
 
 [[package]]
-name = "bot-golmon"
+name = "bot-discord"
 version = "2.0.0"
 dependencies = [
  "anyhow",
  "askama",
  "axum",
+ "base64 0.22.1",
  "chrono",
  "chrono-tz",
  "deunicode",
@@ -232,6 +233,7 @@ dependencies = [
  "rand 0.9.5",
  "regex",
  "reqwest",
+ "ring",
  "rustls",
  "serde",
  "serde_json",
@@ -244,6 +246,7 @@ dependencies = [
  "twilight-http",
  "twilight-model",
  "twilight-util",
+ "twilight-validate",
  "uuid",
 ]
 

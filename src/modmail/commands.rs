@@ -395,7 +395,7 @@ impl Modmail {
                 c.system_or_say(&format!("<{url}>")).await
             }
             Cmd::Version => {
-                c.system_or_say(&format!("Modmail v{} (bot-golmon, compatible modmailbot)", env!("CARGO_PKG_VERSION")))
+                c.system_or_say(&format!("Modmail v{} (bot-discord, compatible modmailbot)", env!("CARGO_PKG_VERSION")))
                     .await
             }
             Cmd::NewThread => self.cmd_new_thread(c).await,
@@ -425,7 +425,7 @@ impl Modmail {
     async fn cmd_reply(&self, c: &Call<'_>, anonymous: bool) -> Result<()> {
         let text = c.args.str("text").unwrap_or_default();
         if text.is_empty() && c.msg.attachments.is_empty() {
-            return c.error("Text or attachment required").await;
+            return c.error("Texte ou pièce jointe requis").await;
         }
         let reference = c.msg.reference.as_ref().and_then(|r| r.message_id);
         if self
@@ -445,10 +445,10 @@ impl Modmail {
     async fn cmd_edit(&self, c: &Call<'_>) -> Result<()> {
         let number = c.args.number("messageNumber").unwrap_or_default();
         let Some(message) = store::message_by_number(&self.db, &c.thread().id, number).await? else {
-            return c.error("Unknown message number").await;
+            return c.error("Numéro de message inconnu").await;
         };
         if message.user_id.as_deref() != Some(&c.msg.author.id.to_string()) {
-            return c.error("You can only edit your own replies").await;
+            return c.error("Tu ne peux modifier que tes propres réponses").await;
         }
         if self.edit_staff_reply(c.ctx, c.thread(), &message, c.args.str("text").unwrap_or_default()).await? {
             c.delete_command_message().await;
@@ -459,10 +459,10 @@ impl Modmail {
     async fn cmd_delete(&self, c: &Call<'_>) -> Result<()> {
         let number = c.args.number("messageNumber").unwrap_or_default();
         let Some(message) = store::message_by_number(&self.db, &c.thread().id, number).await? else {
-            return c.error("Unknown message number").await;
+            return c.error("Numéro de message inconnu").await;
         };
         if message.user_id.as_deref() != Some(&c.msg.author.id.to_string()) {
-            return c.error("You can only delete your own replies").await;
+            return c.error("Tu ne peux supprimer que tes propres réponses").await;
         }
         self.delete_staff_reply(c.ctx, c.thread(), &message).await?;
         c.delete_command_message().await;
@@ -482,8 +482,8 @@ impl Modmail {
             };
             // Même file que les messages privés : pas de course entre le relais et la fermeture.
             let _queue = self.dm_queue.lock().await;
-            self.post_system_message(c.ctx, &found, "Thread closed by user, closing...").await?;
-            (true, "the user".to_owned(), found)
+            self.post_system_message(c.ctx, &found, "Ticket fermé par l'utilisateur, fermeture…").await?;
+            (true, "l'utilisateur".to_owned(), found)
         } else {
             if c.msg.guild_id != Some(self.config.inbox_server_id) || !self.is_staff(c.ctx, c.msg) {
                 return Ok(());
@@ -498,7 +498,7 @@ impl Modmail {
             if c.args.switch("cancel") || opts.iter().any(|o| o == "cancel" || o == "c") {
                 if found.scheduled_close_at.is_some() {
                     store::cancel_scheduled_close(&self.db, &found.id).await?;
-                    self.post_system_message(c.ctx, &found, "Cancelled scheduled closing").await?;
+                    self.post_system_message(c.ctx, &found, "Fermeture programmée annulée").await?;
                 }
                 return Ok(());
             }
@@ -509,7 +509,7 @@ impl Modmail {
                 let delay = super::util::convert_delay_string_to_ms(delay_arg).filter(|d| *d != 0);
                 let Some(delay) = delay else {
                     return self
-                        .post_system_message(c.ctx, &found, "Invalid delay specified. Format: \"1h30m\"")
+                        .post_system_message(c.ctx, &found, "Délai invalide. Format : \"1h30m\"")
                         .await
                         .map(drop);
                 };
@@ -524,13 +524,13 @@ impl Modmail {
                 .await?;
                 let response = if silent {
                     format!(
-                        "Thread is now scheduled to be closed silently in {}. Use `{}close cancel` to cancel.",
+                        "Le ticket sera fermé silencieusement dans {}. Utilise `{}close cancel` pour annuler.",
                         humanize_delay(delay),
                         self.config.prefix
                     )
                 } else {
                     format!(
-                        "Thread is now scheduled to be closed in {}. Use `{}close cancel` to cancel.",
+                        "Le ticket sera fermé dans {}. Utilise `{}close cancel` pour annuler.",
                         humanize_delay(delay),
                         self.config.prefix
                     )
@@ -541,19 +541,31 @@ impl Modmail {
             (false, c.author_name(), found)
         };
 
+        self.close_now(c.ctx, &thread, &closed_by, c.msg.author.id, suppress_system_messages, silent).await
+    }
+
+    /// Fermeture immédiate : message de fermeture, fermeture, notification dans les logs.
+    pub async fn close_now(
+        &self,
+        ctx: &Ctx,
+        thread: &Thread,
+        closed_by: &str,
+        closed_by_id: Id<UserMarker>,
+        suppress_system_messages: bool,
+        silent: bool,
+    ) -> Result<()> {
         if let (Some(message), false) = (&self.config.close_message, silent) {
-            let _ = self.send_system_message_to_user(c.ctx, &thread, message, true).await;
+            let _ = self.send_system_message_to_user(ctx, thread, message, true).await;
         }
-        self.close_thread(c.ctx, &thread, suppress_system_messages, silent).await?;
+        self.close_thread(ctx, thread, suppress_system_messages, silent).await?;
         self.send_close_notification(
-            c.ctx,
-            &thread,
+            ctx,
+            thread,
             &format!(
-                "Modmail thread #{} with {} ({}) was closed by {closed_by} ({})",
+                "Ticket modmail n°{} avec {} ({}) fermé par {closed_by} ({closed_by_id})",
                 thread.number(),
                 thread.user_name,
                 thread.user_id,
-                c.msg.author.id
             ),
         )
         .await
@@ -597,7 +609,7 @@ impl Modmail {
         for thread in threads.iter().skip(start).take(PER_PAGE) {
             let link = match self.log_url(thread).await? {
                 Some(url) => format!("<{}>", Self::with_query(&url, &query)),
-                None => format!("View log with `{}log {}`", self.config.prefix, thread.number()),
+                None => format!("Voir le log avec `{}log {}`", self.config.prefix, thread.number()),
             };
             let date = parse_db_time(&thread.created_at).map(|d| format_log_date(&d)).unwrap_or_default();
             lines.push(format!("`#{}` `{date}`: {link}", thread.number()));
@@ -605,19 +617,19 @@ impl Modmail {
 
         let mut message = if paginated {
             format!(
-                "**Log files for <@{user_id}>** (page **{page}/{max_page}**, showing logs **{}-{}/{total}**):",
+                "**Logs de <@{user_id}>** (page **{page}/{max_page}**, logs **{}-{}/{total}**) :",
                 start + 1,
                 page * PER_PAGE
             )
         } else {
-            format!("**Log files for <@{user_id}>:**")
+            format!("**Logs de <@{user_id}> :**")
         };
         message.push_str(&format!("\n{}", lines.join("\n")));
         if paginated {
-            message.push_str("\nTo view more, add a page number to the end of the command");
+            message.push_str("\nPour en voir plus, ajoute un numéro de page à la fin de la commande");
         }
         if lines.is_empty() {
-            message = format!("**There are no log files for <@{user_id}>**");
+            message = format!("**Aucun log pour <@{user_id}>**");
         }
 
         // Par messages de 15 lignes.
@@ -645,9 +657,7 @@ impl Modmail {
 
         if let Some(url) = self.log_url(&thread).await? {
             let url = Self::with_query(&url, &Self::log_query(&c.args));
-            return c
-                .say(&format!("Open the following link to view the log for thread #{}:\n<{url}>", thread.number()))
-                .await;
+            return c.say(&format!("Ouvre ce lien pour voir le log du ticket n°{} :\n<{url}>", thread.number())).await;
         }
         if let Some(file) = self.log_file(&thread).await? {
             let uploads =
@@ -655,7 +665,7 @@ impl Modmail {
             c.ctx
                 .http
                 .create_message(c.channel())
-                .content(&format!("Download the following file to view the log for thread #{}:", thread.number()))
+                .content(&format!("Télécharge ce fichier pour voir le log du ticket n°{} :", thread.number()))
                 .attachments(&uploads)
                 .await?;
             return Ok(());
@@ -663,10 +673,12 @@ impl Modmail {
         if thread.status == thread_status::OPEN {
             let channel = thread.channel_id.unwrap_or_default();
             return c
-                .say(&format!("This thread's logs are not currently available, but it's open at <#{channel}>"))
+                .say(&format!(
+                    "Les logs de ce ticket ne sont pas disponibles pour le moment, mais il est ouvert dans <#{channel}>"
+                ))
                 .await;
         }
-        c.say("This thread's logs are not currently available").await
+        c.say("Les logs de ce ticket ne sont pas disponibles pour le moment").await
     }
 
     async fn cmd_block(&self, c: &Call<'_>) -> Result<()> {
@@ -674,7 +686,7 @@ impl Modmail {
             return Ok(());
         };
         if store::is_blocked(&self.db, &user_id).await? {
-            return c.say("User is already blocked").await;
+            return c.say("Cet utilisateur est déjà bloqué").await;
         }
         let block_time = c.args.delay("blockTime").filter(|ms| *ms > 0);
         let expires_at = block_time.map(db_time_in);
@@ -686,14 +698,14 @@ impl Modmail {
 
         if let (Some(ms), Some(expires_at)) = (block_time, &expires_at) {
             let humanized = humanize_duration(ms, 2, None);
-            c.say(&format!("Blocked <@{user_id}> (id `{user_id}`) from modmail for {humanized}")).await?;
+            c.say(&format!("<@{user_id}> (id `{user_id}`) est bloqué du modmail pour {humanized}")).await?;
             if let Some(template) = self.config.timed_block_message.as_ref().or(self.config.block_message.as_ref()) {
                 let timestamp = parse_db_time(expires_at).map(|d| d.timestamp()).unwrap_or_default();
                 let text = template.replace("{duration}", &humanized).replace("{timestamp}", &timestamp.to_string());
                 self.dm_user_quietly(c.ctx, &user_id, &text).await;
             }
         } else {
-            c.say(&format!("Blocked <@{user_id}> (id `{user_id}`) from modmail indefinitely")).await?;
+            c.say(&format!("<@{user_id}> (id `{user_id}`) est bloqué du modmail pour une durée indéterminée")).await?;
             if let Some(message) = &self.config.block_message {
                 self.dm_user_quietly(c.ctx, &user_id, message).await;
             }
@@ -706,13 +718,13 @@ impl Modmail {
             return Ok(());
         };
         if !store::is_blocked(&self.db, &user_id).await? {
-            return c.say("User is not blocked").await;
+            return c.say("Cet utilisateur n'est pas bloqué").await;
         }
         if let Some(delay) = c.args.delay("unblockDelay").filter(|ms| *ms > 0) {
             let unblock_at = db_time_in(delay);
             let humanized = humanize_duration(delay, 2, None);
             store::update_block_expiry(&self.db, &user_id, &unblock_at).await?;
-            c.say(&format!("Scheduled <@{user_id}> (id `{user_id}`) to be unblocked in {humanized}")).await?;
+            c.say(&format!("<@{user_id}> (id `{user_id}`) sera débloqué dans {humanized}")).await?;
             if let Some(template) = self.config.timed_unblock_message.as_ref().or(self.config.unblock_message.as_ref())
             {
                 let timestamp = parse_db_time(&unblock_at).map(|d| d.timestamp()).unwrap_or_default();
@@ -721,7 +733,7 @@ impl Modmail {
             }
         } else {
             store::unblock(&self.db, &user_id).await?;
-            c.say(&format!("Unblocked <@{user_id}> (id {user_id}) from modmail")).await?;
+            c.say(&format!("<@{user_id}> (id {user_id}) est débloqué du modmail")).await?;
             if let Some(message) = &self.config.unblock_message {
                 self.dm_user_quietly(c.ctx, &user_id, message).await;
             }
@@ -749,10 +761,10 @@ impl Modmail {
         });
         let text = match store::block_status(&self.db, &user_id).await? {
             Some(block) => match block.expires_at {
-                Some(expires) => format!("<@!{user_id}> (id `{user_id}`) is blocked until {expires} (UTC)"),
-                None => format!("<@!{user_id}> (id `{user_id}`) is blocked indefinitely"),
+                Some(expires) => format!("<@!{user_id}> (id `{user_id}`) est bloqué jusqu'au {expires} (UTC)"),
+                None => format!("<@!{user_id}> (id `{user_id}`) est bloqué pour une durée indéterminée"),
             },
-            None => format!("<@!{user_id}> (id `{user_id}`) is NOT blocked"),
+            None => format!("<@!{user_id}> (id `{user_id}`) n'est PAS bloqué"),
         };
         c.say_with(&text, mentions).await
     }
@@ -760,13 +772,14 @@ impl Modmail {
     async fn cmd_blocklist(&self, c: &Call<'_>) -> Result<()> {
         let blocked = store::blocked_users(&self.db).await?;
         if blocked.is_empty() {
-            return c.say("No users are currently blocked.").await;
+            return c.say("Aucun utilisateur n'est bloqué pour le moment.").await;
         }
-        let mut reply = "List of blocked users:\n".to_owned();
+        let mut reply = "Liste des utilisateurs bloqués :\n".to_owned();
         for user in blocked {
-            let until = user.expires_at.map_or_else(|| " permanently".to_owned(), |e| format!(" until {e} (UTC)"));
+            let until =
+                user.expires_at.map_or_else(|| " définitivement".to_owned(), |e| format!(" jusqu'au {e} (UTC)"));
             reply.push_str(&format!(
-                "**<@!{}> (id `{}`)** - Blocked by <@{}>{until}\n",
+                "**<@!{}> (id `{}`)** - Bloqué par <@{}>{until}\n",
                 user.user_id,
                 user.user_id,
                 user.blocked_by.unwrap_or_default()
@@ -780,6 +793,14 @@ impl Modmail {
 
     async fn cmd_move(&self, c: &Call<'_>) -> Result<()> {
         let thread = c.thread();
+        if self.config.new_thread_forum_id.is_some()
+            && c.ctx.cache.channel(c.msg.channel_id).is_some_and(|ch| ch.kind.is_thread())
+        {
+            return self
+                .post_system_message(c.ctx, thread, "Un ticket en fil de forum ne peut pas être déplacé.")
+                .await
+                .map(drop);
+        }
         let search = super::util::slugify(c.args.str("category").unwrap_or_default());
         let current_parent = c.ctx.cache.channel(c.msg.channel_id).and_then(|ch| ch.parent_id);
         let categories: Vec<(Id<ChannelMarker>, String, Vec<PermissionOverwrite>)> = c
@@ -823,12 +844,15 @@ impl Modmail {
             return Ok(());
         };
         if score == 0.0 {
-            return self.post_system_message(c.ctx, thread, "No matching category").await.map(drop);
+            return self.post_system_message(c.ctx, thread, "Aucune catégorie correspondante").await.map(drop);
         }
 
         let channel_id = c.msg.channel_id;
         if let Err(error) = c.ctx.http.update_channel(channel_id).parent_id(Some(*category_id)).await {
-            return self.post_system_message(c.ctx, thread, &format!("Failed to move thread: {error}")).await.map(drop);
+            return self
+                .post_system_message(c.ctx, thread, &format!("Impossible de déplacer le ticket : {error}"))
+                .await
+                .map(drop);
         }
         if self.config.sync_permissions_on_move
             && let Err(error) = c.ctx.http.update_channel(channel_id).permission_overwrites(overwrites).await
@@ -837,12 +861,15 @@ impl Modmail {
                 .post_system_message(
                     c.ctx,
                     thread,
-                    &format!("Thread moved to {}, but failed to sync permissions: {error}", name.to_uppercase()),
+                    &format!(
+                        "Ticket déplacé dans {}, mais la synchronisation des permissions a échoué : {error}",
+                        name.to_uppercase()
+                    ),
                 )
                 .await
                 .map(drop);
         }
-        self.post_system_message(c.ctx, thread, &format!("Thread moved to {}", name.to_uppercase())).await.map(drop)
+        self.post_system_message(c.ctx, thread, &format!("Ticket déplacé dans {}", name.to_uppercase())).await.map(drop)
     }
 
     async fn cmd_snippet(&self, c: &Call<'_>) -> Result<()> {
@@ -852,20 +879,20 @@ impl Modmail {
         match (store::snippet(&self.db, trigger).await?, text) {
             (Some(_), Some(_)) => {
                 c.system_or_say(&format!(
-                    "Snippet \"{trigger}\" already exists! You can edit or delete it with {prefix}edit_snippet and {prefix}delete_snippet respectively."
+                    "Le snippet \"{trigger}\" existe déjà ! Tu peux le modifier avec {prefix}edit_snippet ou le supprimer avec {prefix}delete_snippet."
                 ))
                 .await
             }
             (Some(snippet), None) => {
-                c.system_or_say(&format!("`{}{trigger}` replies with: ```\n{}```", self.config.snippet_prefix, disable_code_blocks(&snippet.body)))
+                c.system_or_say(&format!("`{}{trigger}` répond : ```\n{}```", self.config.snippet_prefix, disable_code_blocks(&snippet.body)))
                     .await
             }
             (None, Some(text)) => {
                 store::add_snippet(&self.db, trigger, text, &c.msg.author.id.to_string()).await?;
-                c.system_or_say(&format!("Snippet \"{trigger}\" created!")).await
+                c.system_or_say(&format!("Snippet \"{trigger}\" créé !")).await
             }
             (None, None) => {
-                c.system_or_say(&format!("Snippet \"{trigger}\" doesn't exist! You can create it with `{prefix}snippet {trigger} text`")).await
+                c.system_or_say(&format!("Le snippet \"{trigger}\" n'existe pas ! Tu peux le créer avec `{prefix}snippet {trigger} texte`")).await
             }
         }
     }
@@ -873,28 +900,28 @@ impl Modmail {
     async fn cmd_delete_snippet(&self, c: &Call<'_>) -> Result<()> {
         let trigger = c.args.str("trigger").unwrap_or_default();
         if store::snippet(&self.db, trigger).await?.is_none() {
-            return c.system_or_say(&format!("Snippet \"{trigger}\" doesn't exist!")).await;
+            return c.system_or_say(&format!("Le snippet \"{trigger}\" n'existe pas !")).await;
         }
         store::delete_snippet(&self.db, trigger).await?;
-        c.system_or_say(&format!("Snippet \"{trigger}\" deleted!")).await
+        c.system_or_say(&format!("Snippet \"{trigger}\" supprimé !")).await
     }
 
     async fn cmd_edit_snippet(&self, c: &Call<'_>) -> Result<()> {
         let trigger = c.args.str("trigger").unwrap_or_default();
         if store::snippet(&self.db, trigger).await?.is_none() {
-            return c.system_or_say(&format!("Snippet \"{trigger}\" doesn't exist!")).await;
+            return c.system_or_say(&format!("Le snippet \"{trigger}\" n'existe pas !")).await;
         }
         store::delete_snippet(&self.db, trigger).await?;
         store::add_snippet(&self.db, trigger, c.args.str("text").unwrap_or_default(), &c.msg.author.id.to_string())
             .await?;
-        c.system_or_say(&format!("Snippet \"{trigger}\" edited!")).await
+        c.system_or_say(&format!("Snippet \"{trigger}\" modifié !")).await
     }
 
     async fn cmd_snippets(&self, c: &Call<'_>) -> Result<()> {
         let mut triggers: Vec<String> = store::all_snippets(&self.db).await?.into_iter().map(|s| s.trigger).collect();
         triggers.sort();
         c.system_or_say(&format!(
-            "Available snippets (prefix {}):\n{}",
+            "Snippets disponibles (préfixe {}) :\n{}",
             self.config.snippet_prefix,
             triggers.join(", ")
         ))
@@ -905,16 +932,16 @@ impl Modmail {
         let thread = c.thread();
         if thread.scheduled_suspend_at.is_some() {
             store::cancel_scheduled_suspend(&self.db, &thread.id).await?;
-            self.post_system_message(c.ctx, thread, "Cancelled scheduled suspension").await.map(drop)
+            self.post_system_message(c.ctx, thread, "Suspension programmée annulée").await.map(drop)
         } else {
-            self.post_system_message(c.ctx, thread, "Thread is not scheduled to be suspended").await.map(drop)
+            self.post_system_message(c.ctx, thread, "Aucune suspension n'est programmée pour ce ticket").await.map(drop)
         }
     }
 
     async fn cmd_suspend(&self, c: &Call<'_>) -> Result<()> {
         let thread = c.thread();
         if thread.status == thread_status::SUSPENDED {
-            return self.post_system_message(c.ctx, thread, "Thread is already suspended.").await.map(drop);
+            return self.post_system_message(c.ctx, thread, "Le ticket est déjà suspendu.").await.map(drop);
         }
         if let Some(delay) = c.args.delay("delay").filter(|d| *d > 0) {
             store::schedule_suspend(
@@ -930,7 +957,7 @@ impl Modmail {
                     c.ctx,
                     thread,
                     &format!(
-                        "Thread will be suspended in {}. Use `{}suspend cancel` to cancel.",
+                        "Le ticket sera suspendu dans {}. Utilise `{}suspend cancel` pour annuler.",
                         humanize_delay(delay),
                         self.config.prefix
                     ),
@@ -943,7 +970,7 @@ impl Modmail {
             c.ctx,
             thread,
             &format!(
-                "**Thread suspended!** This thread will act as closed until unsuspended with `{}unsuspend`",
+                "**Ticket suspendu !** Il sera considéré comme fermé jusqu'à sa réactivation avec `{}unsuspend`",
                 self.config.prefix
             ),
         )
@@ -953,13 +980,13 @@ impl Modmail {
 
     async fn cmd_unsuspend(&self, c: &Call<'_>) -> Result<()> {
         if let Some(thread) = &c.thread {
-            return self.post_system_message(c.ctx, thread, "Thread is not suspended").await.map(drop);
+            return self.post_system_message(c.ctx, thread, "Le ticket n'est pas suspendu").await.map(drop);
         }
         let Some(thread) =
             store::find_by_channel_and_status(&self.db, &c.msg.channel_id.to_string(), thread_status::SUSPENDED)
                 .await?
         else {
-            return c.say("Not in a thread").await;
+            return c.say("Ce salon n'est pas un ticket").await;
         };
         if let Some(other) = store::find_open_by_user_id(&self.db, &thread.user_id).await? {
             let channel = other.channel_id.unwrap_or_default();
@@ -967,31 +994,33 @@ impl Modmail {
                 .post_system_message(
                     c.ctx,
                     &thread,
-                    &format!("Cannot unsuspend; there is another open thread with this user: <#{channel}>"),
+                    &format!(
+                        "Réactivation impossible : un autre ticket est déjà ouvert avec cet utilisateur : <#{channel}>"
+                    ),
                 )
                 .await
                 .map(drop);
         }
         store::set_status(&self.db, &thread.id, thread_status::OPEN).await?;
-        self.post_system_message(c.ctx, &thread, "**Thread unsuspended!**").await.map(drop)
+        self.post_system_message(c.ctx, &thread, "**Ticket réactivé !**").await.map(drop)
     }
 
     async fn cmd_new_thread(&self, c: &Call<'_>) -> Result<()> {
         let Some(user_id) = c.args.str("userId").and_then(parse_id::<UserMarker>) else {
-            return c.system_or_say("User not found!").await;
+            return c.system_or_say("Utilisateur introuvable !").await;
         };
         let user = match c.ctx.http.user(user_id).await {
             Ok(response) => response.model().await?,
-            Err(_) => return c.system_or_say("User not found!").await,
+            Err(_) => return c.system_or_say("Utilisateur introuvable !").await,
         };
         if user.bot {
-            return c.system_or_say("Can't create a thread for a bot").await;
+            return c.system_or_say("Impossible de créer un ticket pour un bot").await;
         }
         if let Some(existing) = store::find_open_by_user_id(&self.db, &user.id.to_string()).await? {
             let channel = existing.channel_id.unwrap_or_default();
             return c
                 .system_or_say(&format!(
-                    "Cannot create a new thread; there is another open thread with this user: <#{channel}>"
+                    "Impossible de créer un ticket : un autre ticket est déjà ouvert avec cet utilisateur : <#{channel}>"
                 ))
                 .await;
         }
@@ -1003,8 +1032,8 @@ impl Modmail {
             return Ok(());
         };
         let opener = c.msg.member.as_ref().and_then(|m| m.nick.clone()).unwrap_or_else(|| c.author_name());
-        self.post_system_message(c.ctx, &created, &format!("Thread was opened by {opener}")).await?;
-        c.say(&format!("Thread opened: <#{}>", created.channel_id.unwrap_or_default())).await
+        self.post_system_message(c.ctx, &created, &format!("Ticket ouvert par {opener}")).await?;
+        c.say(&format!("Ticket ouvert : <#{}>", created.channel_id.unwrap_or_default())).await
     }
 
     async fn cmd_message_info(&self, c: &Call<'_>) -> Result<()> {
@@ -1012,7 +1041,7 @@ impl Modmail {
         let number = c.args.number("messageNumber").unwrap_or_default();
         let Some(message) = store::message_by_number(&self.db, &thread.id, number).await? else {
             return self
-                .post_system_message(c.ctx, thread, "No message in this thread with that number")
+                .post_system_message(c.ctx, thread, "Aucun message de ce ticket ne porte ce numéro")
                 .await
                 .map(drop);
         };
@@ -1033,10 +1062,10 @@ impl Modmail {
             ),
         };
         let parts = [
-            format!("Details for message `{}`:", message.message_number.unwrap_or_default()),
-            format!("Channel ID: `{channel_id}`"),
-            format!("Message ID: `{}`", message.dm_message_id.unwrap_or_default()),
-            format!("Link: <{link}>"),
+            format!("Détails du message `{}` :", message.message_number.unwrap_or_default()),
+            format!("ID du salon : `{channel_id}`"),
+            format!("ID du message : `{}`", message.dm_message_id.unwrap_or_default()),
+            format!("Lien : <{link}>"),
         ];
         self.post_system_message(c.ctx, thread, &parts.join("\n")).await.map(drop)
     }
@@ -1045,11 +1074,11 @@ impl Modmail {
         let thread = c.thread();
         if c.args.str("opt").is_some_and(|opt| opt.starts_with('c')) {
             store::remove_alert(&self.db, &thread.id, &c.msg.author.id.to_string()).await?;
-            return self.post_system_message(c.ctx, thread, "Cancelled new message alert").await.map(drop);
+            return self.post_system_message(c.ctx, thread, "Alerte de nouveau message annulée").await.map(drop);
         }
         store::add_alert(&self.db, &thread.id, &c.msg.author.id.to_string()).await?;
         let name = c.msg.member.as_ref().and_then(|m| m.nick.clone()).unwrap_or_else(|| c.author_name());
-        self.post_system_message(c.ctx, thread, &format!("Pinging {name} when this thread gets a new reply"))
+        self.post_system_message(c.ctx, thread, &format!("{name} sera notifié à la prochaine réponse dans ce ticket"))
             .await
             .map(drop)
     }
@@ -1075,8 +1104,8 @@ impl Modmail {
             Cmd::ThreadRole => {
                 let thread = c.thread();
                 let text = match self.moderator_display_role(c.ctx, &moderator, Some(&thread.id)).await? {
-                    Some(role) => format!("Your display role in this thread is currently **{role}**"),
-                    None => "Your replies in this thread do not currently display a role".to_owned(),
+                    Some(role) => format!("Ton rôle affiché dans ce ticket est actuellement **{role}**"),
+                    None => "Tes réponses dans ce ticket n'affichent actuellement aucun rôle".to_owned(),
                 };
                 self.post_system_message(c.ctx, thread, &text).await.map(drop)
             }
@@ -1085,10 +1114,10 @@ impl Modmail {
                 store::reset_role_override(&self.db, &moderator_id, Some(&thread.id)).await?;
                 let text = match self.moderator_display_role(c.ctx, &moderator, Some(&thread.id)).await? {
                     Some(role) => format!(
-                        "Your display role for this thread has been reset. Your replies will now display the default role **{role}**."
+                        "Ton rôle affiché dans ce ticket a été réinitialisé. Tes réponses afficheront désormais le rôle par défaut **{role}**."
                     ),
                     None => {
-                        "Your display role for this thread has been reset. Your replies will no longer display a role."
+                        "Ton rôle affiché dans ce ticket a été réinitialisé. Tes réponses n'afficheront plus de rôle."
                             .to_owned()
                     }
                 };
@@ -1104,7 +1133,7 @@ impl Modmail {
                         .post_system_message(
                             c.ctx,
                             thread,
-                            "No matching role found. Make sure you have the role before trying to set it as your display role in this thread.",
+                            "Aucun rôle correspondant. Vérifie que tu as bien ce rôle avant de le choisir comme rôle affiché dans ce ticket.",
                         )
                         .await
                         .map(drop);
@@ -1113,23 +1142,23 @@ impl Modmail {
                 self.post_system_message(
                     c.ctx,
                     thread,
-                    &format!("Your display role for this thread has been set to **{name}**. You can reset it with `{prefix}role reset`."),
+                    &format!("Ton rôle affiché dans ce ticket est désormais **{name}**. Tu peux le réinitialiser avec `{prefix}role reset`."),
                 )
                 .await
                 .map(drop)
             }
             Cmd::DefaultRole => {
                 let text = match self.moderator_display_role(c.ctx, &moderator, None).await? {
-                    Some(role) => format!("Your default display role is currently **{role}**"),
-                    None => "Your replies do not currently display a role by default".to_owned(),
+                    Some(role) => format!("Ton rôle affiché par défaut est actuellement **{role}**"),
+                    None => "Tes réponses n'affichent actuellement aucun rôle par défaut".to_owned(),
                 };
                 c.say(&text).await
             }
             Cmd::DefaultRoleReset => {
                 store::reset_role_override(&self.db, &moderator_id, None).await?;
                 let text = match self.moderator_display_role(c.ctx, &moderator, None).await? {
-                    Some(role) => format!("Your default display role has been reset. Your replies will now display the role **{role}** by default."),
-                    None => "Your default display role has been reset. Your replies will no longer display a role by default.".to_owned(),
+                    Some(role) => format!("Ton rôle affiché par défaut a été réinitialisé. Tes réponses afficheront désormais le rôle **{role}** par défaut."),
+                    None => "Ton rôle affiché par défaut a été réinitialisé. Tes réponses n'afficheront plus de rôle par défaut.".to_owned(),
                 };
                 c.say(&text).await
             }
@@ -1138,11 +1167,11 @@ impl Modmail {
                     .resolve_role(c.ctx, c.args.str("role").unwrap_or_default())
                     .filter(|(id, _)| moderator.roles.contains(id));
                 let Some((role_id, name)) = role else {
-                    return c.say("No matching role found. Make sure you have the role before trying to set it as your default display role.").await;
+                    return c.say("Aucun rôle correspondant. Vérifie que tu as bien ce rôle avant de le choisir comme rôle affiché par défaut.").await;
                 };
                 store::set_role_override(&self.db, &moderator_id, None, &role_id.to_string()).await?;
                 c.say(&format!(
-                    "Your default display role has been set to **{name}**. You can reset it with `{prefix}role reset`."
+                    "Ton rôle affiché par défaut est désormais **{name}**. Tu peux le réinitialiser avec `{prefix}role reset`."
                 ))
                 .await
             }
@@ -1153,15 +1182,15 @@ impl Modmail {
     async fn cmd_notes(&self, c: &Call<'_>, user_id: &str) -> Result<()> {
         let notes = store::notes_by_user(&self.db, user_id).await?;
         if notes.is_empty() {
-            return c.say(&format!("There are no notes for <@!{user_id}>")).await;
+            return c.say(&format!("Aucune note pour <@!{user_id}>")).await;
         }
         for note in notes {
             let timestamp =
                 note.created_at.as_deref().and_then(parse_db_time).map(|d| d.timestamp()).unwrap_or_default();
             let content = [
-                format!("Set by <@!{}> at <t:{timestamp}:f>:", note.author_id.unwrap_or_default()),
+                format!("Ajoutée par <@!{}> le <t:{timestamp}:f> :", note.author_id.unwrap_or_default()),
                 format!("```{}```", escape_markdown(note.body.as_deref().unwrap_or_default())),
-                format!("*Delete with `{}delete_note {}`*\n", self.config.prefix, note.id),
+                format!("*Supprimer avec `{}delete_note {}`*\n", self.config.prefix, note.id),
             ]
             .join("\n");
             // Ne pas pinguer chaque auteur de note.
@@ -1175,17 +1204,17 @@ impl Modmail {
     async fn cmd_add_note(&self, c: &Call<'_>, user_id: &str) -> Result<()> {
         store::create_note(&self.db, user_id, &c.msg.author.id.to_string(), c.args.str("body").unwrap_or_default())
             .await?;
-        c.say(&format!("Note added for <@!{user_id}>")).await
+        c.say(&format!("Note ajoutée pour <@!{user_id}>")).await
     }
 
     async fn cmd_delete_note(&self, c: &Call<'_>) -> Result<()> {
         let id = c.args.number("noteId").unwrap_or_default();
         let Some(note) = store::note(&self.db, id).await? else {
-            return c.error("Note not found!").await;
+            return c.error("Note introuvable !").await;
         };
         store::delete_note(&self.db, id).await?;
         c.say(&format!(
-            "Deleted note on <@!{}>:\n```{}```",
+            "Note supprimée pour <@!{}> :\n```{}```",
             note.user_id.unwrap_or_default(),
             escape_markdown(note.body.as_deref().unwrap_or_default())
         ))
@@ -1193,18 +1222,15 @@ impl Modmail {
     }
 }
 
-/// « MMM Do [at] HH:mm [UTC] » de moment.js, ex. « Jan 2nd at 03:04 UTC ».
+/// Date courte des listes de logs, ex. « 2 janv. à 03:04 UTC ».
 fn format_log_date(date: &chrono::DateTime<chrono::Utc>) -> String {
     use chrono::Datelike;
+    const MONTHS: [&str; 12] =
+        ["janv.", "févr.", "mars", "avr.", "mai", "juin", "juil.", "août", "sept.", "oct.", "nov.", "déc."];
+    let month = MONTHS[date.month0() as usize];
     let day = date.day();
-    let suffix = match (day % 10, day % 100) {
-        (1, 11) | (2, 12) | (3, 13) => "th",
-        (1, _) => "st",
-        (2, _) => "nd",
-        (3, _) => "rd",
-        _ => "th",
-    };
-    format!("{} {day}{suffix} at {} UTC", date.format("%b"), date.format("%H:%M"))
+    let day = if day == 1 { "1er".to_owned() } else { day.to_string() };
+    format!("{day} {month} à {} UTC", date.format("%H:%M"))
 }
 
 #[cfg(test)]
@@ -1213,10 +1239,12 @@ mod tests {
     use chrono::TimeZone;
 
     #[test]
-    fn formats_dates_like_moment() {
+    fn formats_log_dates_in_french() {
         let date = chrono::Utc.with_ymd_and_hms(2026, 1, 2, 3, 4, 0).unwrap();
-        assert_eq!(format_log_date(&date), "Jan 2nd at 03:04 UTC");
+        assert_eq!(format_log_date(&date), "2 janv. à 03:04 UTC");
         let date = chrono::Utc.with_ymd_and_hms(2026, 3, 11, 13, 0, 0).unwrap();
-        assert_eq!(format_log_date(&date), "Mar 11th at 13:00 UTC");
+        assert_eq!(format_log_date(&date), "11 mars à 13:00 UTC");
+        let date = chrono::Utc.with_ymd_and_hms(2026, 8, 1, 9, 30, 0).unwrap();
+        assert_eq!(format_log_date(&date), "1er août à 09:30 UTC");
     }
 }

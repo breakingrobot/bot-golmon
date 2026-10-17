@@ -31,7 +31,14 @@ impl Modmail {
     async fn download(&self, url: &str) -> Result<Vec<u8>> {
         let mut last_error = None;
         for _ in 0..3 {
-            match self.http.get(url).send().await.and_then(reqwest::Response::error_for_status) {
+            match self
+                .http
+                .get(url)
+                .timeout(std::time::Duration::from_secs(60))
+                .send()
+                .await
+                .and_then(reqwest::Response::error_for_status)
+            {
                 Ok(response) => return Ok(response.bytes().await?.to_vec()),
                 Err(error) => {
                     tracing::warn!(%error, "téléchargement de pièce jointe échoué, nouvel essai");
@@ -39,7 +46,10 @@ impl Modmail {
                 }
             }
         }
-        bail!("Attachment download failed after 3 tries: {}", last_error.map(|e| e.to_string()).unwrap_or_default())
+        bail!(
+            "Échec du téléchargement de la pièce jointe après 3 tentatives : {}",
+            last_error.map(|e| e.to_string()).unwrap_or_default()
+        )
     }
 
     /// Les pièces jointes au nom identique sont ignorées par l'API (« unknown.png »
@@ -59,7 +69,7 @@ impl Modmail {
             Ok(url) => url,
             Err(error) => {
                 tracing::error!(%error, "pièce jointe non enregistrée");
-                format!("Attachment could not be saved: {error}")
+                format!("Impossible d'enregistrer la pièce jointe : {error}")
             }
         }
     }
@@ -82,12 +92,14 @@ impl Modmail {
             }
             AttachmentStorage::Discord => {
                 if attachment.size > 8 * 1024 * 1024 {
-                    return Ok("Attachment could not be saved: attachment too large (max 8MB)".to_owned());
+                    return Ok(
+                        "Impossible d'enregistrer la pièce jointe : fichier trop volumineux (8 Mo max)".to_owned()
+                    );
                 }
                 let channel_id = self
                     .config
                     .attachment_storage_channel_id
-                    .ok_or_else(|| anyhow::anyhow!("Attachment storage channel not found!"))?;
+                    .ok_or_else(|| anyhow::anyhow!("Salon de stockage des pièces jointes introuvable !"))?;
                 let file = self.attachment_to_file(attachment).await?;
                 let uploads = FileData::to_uploads(&[file]);
                 for _ in 0..3 {
@@ -103,7 +115,7 @@ impl Modmail {
                         }
                     }
                 }
-                Ok("Attachment could not be saved".to_owned())
+                Ok("Impossible d'enregistrer la pièce jointe".to_owned())
             }
         }
     }

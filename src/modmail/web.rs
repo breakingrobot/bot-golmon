@@ -2,18 +2,24 @@
 //! modmailbot), pièces jointes stockées localement, politique de confidentialité.
 
 use super::{
-    Modmail,
     formatters::{LogOptions, format_log, shown_in_simple_view, summarise_embeds},
     models::{Thread, ThreadMessage, message_type, thread_status},
     store,
     util::parse_db_time,
 };
-use crate::context::Context;
+use crate::{
+    context::Context,
+    web::{
+        self, ASSET_VERSION, MaybeViewer,
+        markdown::{self, Resolver},
+        pages::Layout,
+    },
+};
 use askama::Template;
 use axum::{
     Router,
     extract::{Path, Query, State},
-    http::{HeaderValue, StatusCode, header},
+    http::{StatusCode, Uri, header},
     response::{Html, IntoResponse, Response},
     routing::get,
 };
@@ -21,10 +27,6 @@ use chrono::{DateTime, Datelike, Utc};
 use regex::Regex;
 use serde::Deserialize;
 use std::sync::LazyLock;
-
-const CSS: &str = include_str!("../../web/dist/logs.css");
-const JS: &str = include_str!("../../web/src/logs.js");
-const ASSET_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 /// Style d'un message selon son type. Les classes sont écrites en entier : le
 /// compilateur Tailwind les lit ici (`@source`).
@@ -109,6 +111,7 @@ struct View {
 #[derive(Template)]
 #[template(path = "logs.html")]
 struct LogPage {
+    layout: Layout,
     thread_number: i64,
     user_name: String,
     user_id: String,
@@ -122,85 +125,6 @@ struct LogPage {
     views: Vec<View>,
     raw_href: String,
     entries: Vec<Entry>,
-    asset_version: &'static str,
-}
-
-static URL: LazyLock<Regex> = LazyLock::new(|| Regex::new(r#"https?://[^\s<>"']+"#).unwrap());
-static MENTION: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"&lt;(@!?|@&amp;|#)(\d{17,})&gt;").unwrap());
-static TIMESTAMP: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"&lt;t:(-?\d+)(?::[tTdDfFR])?&gt;").unwrap());
-
-fn escape(text: &str) -> String {
-    let mut out = String::with_capacity(text.len());
-    for ch in text.chars() {
-        match ch {
-            '&' => out.push_str("&amp;"),
-            '<' => out.push_str("&lt;"),
-            '>' => out.push_str("&gt;"),
-            '"' => out.push_str("&quot;"),
-            '\'' => out.push_str("&#39;"),
-            _ => out.push(ch),
-        }
-    }
-    out
-}
-
-static CODE_BLOCK: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?s)```(?:[a-z0-9_+-]*\n)?(.*?)```").unwrap());
-static INLINE_CODE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"`([^`\n]+)`").unwrap());
-static BOLD: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?s)\*\*(.+?)\*\*").unwrap());
-static UNDERLINE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?s)__(.+?)__").unwrap());
-static ITALIC: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\*([^*\n]+)\*|\b_([^_\n]+)_\b").unwrap());
-static STRIKE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?s)~~(.+?)~~").unwrap());
-static PLACEHOLDER: LazyLock<Regex> = LazyLock::new(|| Regex::new("\u{E000}(\\d+)\u{E001}").unwrap());
-
-/// Texte d'un message en HTML sûr : échappé, markdown Discord courant (gras,
-/// italique, souligné, barré, code), liens cliquables, mentions et timestamps.
-fn render_body(text: &str) -> String {
-    // Le code est mis de côté pour ne pas être reformaté ni transformé en liens.
-    let mut code: Vec<String> = Vec::new();
-    let mut stash = |html: String| {
-        code.push(html);
-        format!("\u{E000}{}\u{E001}", code.len() - 1)
-    };
-    let escaped = escape(text);
-    let escaped = CODE_BLOCK
-        .replace_all(&escaped, |caps: &regex::Captures<'_>| stash(format!("<pre><code>{}</code></pre>", &caps[1])));
-    let escaped =
-        INLINE_CODE.replace_all(&escaped, |caps: &regex::Captures<'_>| stash(format!("<code>{}</code>", &caps[1])));
-
-    let formatted = BOLD.replace_all(&escaped, "<strong>$1</strong>");
-    let formatted = UNDERLINE.replace_all(&formatted, "<u>$1</u>");
-    let formatted = ITALIC.replace_all(&formatted, "<em>$1$2</em>");
-    let formatted = STRIKE.replace_all(&formatted, "<s>$1</s>");
-
-    let linked =
-        URL.replace_all(&formatted, r#"<a href="$0" target="_blank" rel="noopener noreferrer nofollow">$0</a>"#);
-    let mentioned = MENTION.replace_all(&linked, |caps: &regex::Captures<'_>| {
-        let sigil = match &caps[1] {
-            "#" => "#",
-            "@&amp;" => "@&amp;",
-            _ => "@",
-        };
-        format!(r#"<span class="mention">{sigil}{}</span>"#, &caps[2])
-    });
-    let timed = TIMESTAMP.replace_all(&mentioned, |caps: &regex::Captures<'_>| {
-        caps[1]
-            .parse::<i64>()
-            .ok()
-            .and_then(|secs| DateTime::from_timestamp(secs, 0))
-            .map(|date| {
-                format!(
-                    r#"<time datetime="{}" data-local>{}</time>"#,
-                    date.to_rfc3339(),
-                    date.format("%d/%m/%Y %H:%M UTC")
-                )
-            })
-            .unwrap_or_else(|| caps[0].to_owned())
-    });
-    PLACEHOLDER
-        .replace_all(&timed, |caps: &regex::Captures<'_>| {
-            caps[1].parse::<usize>().ok().and_then(|i| code.get(i)).cloned().unwrap_or_default()
-        })
-        .into_owned()
 }
 
 const MONTHS: [&str; 12] = [
@@ -231,7 +155,8 @@ fn file_name(url: &str) -> String {
     url.split(['?', '#']).next().unwrap_or(url).rsplit('/').next().filter(|s| !s.is_empty()).unwrap_or(url).to_owned()
 }
 
-fn entry_for(message: &ThreadMessage, verbose: bool) -> Entry {
+fn entry_for(message: &ThreadMessage, verbose: bool, resolver: &dyn Resolver) -> Entry {
+    let render_body = |text: &str| markdown::render(text, resolver);
     let (tone, badge) = match message.message_type {
         message_type::FROM_USER => (Tone::User, "Utilisateur"),
         message_type::TO_USER if message.is_anonymous != 0 => (Tone::Staff, "Staff · anonyme"),
@@ -268,8 +193,8 @@ fn entry_for(message: &ThreadMessage, verbose: bool) -> Entry {
     let (images, files): (Vec<String>, Vec<String>) =
         message.attachment_links().into_iter().partition(|url| is_image(url));
     let embeds = [
-        summarise_embeds(message.metadata_value("embeds").as_ref(), "User sent an embed"),
-        summarise_embeds(message.metadata_value("forwardedEmbeds").as_ref(), "User forwarded an embed"),
+        summarise_embeds(message.metadata_value("embeds").as_ref(), "Embed envoyé"),
+        summarise_embeds(message.metadata_value("forwardedEmbeds").as_ref(), "Embed transféré"),
     ]
     .into_iter()
     .filter(|s| !s.is_empty())
@@ -309,7 +234,13 @@ fn entry_for(message: &ThreadMessage, verbose: bool) -> Entry {
     }
 }
 
-fn render_page(thread: &Thread, messages: &[ThreadMessage], options: LogOptions) -> Result<String, askama::Error> {
+fn render_page(
+    layout: Layout,
+    thread: &Thread,
+    messages: &[ThreadMessage],
+    options: LogOptions,
+    resolver: &dyn Resolver,
+) -> Result<String, askama::Error> {
     let count = |kind| messages.iter().filter(|m| m.message_type == kind).count();
     let opened = parse_db_time(&thread.created_at);
     let (status_label, status_classes) = match thread.status {
@@ -321,7 +252,7 @@ fn render_page(thread: &Thread, messages: &[ThreadMessage], options: LogOptions)
     let mut entries = Vec::new();
     let mut last_day = None;
     for message in messages.iter().filter(|m| !options.simple || shown_in_simple_view(m)) {
-        let mut entry = entry_for(message, options.verbose);
+        let mut entry = entry_for(message, options.verbose, resolver);
         if let Some(date) = parse_db_time(&message.created_at) {
             let day = day_label(&date);
             if last_day.as_ref() != Some(&day) {
@@ -334,6 +265,7 @@ fn render_page(thread: &Thread, messages: &[ThreadMessage], options: LogOptions)
 
     let base = format!("/logs/{}", thread.id);
     LogPage {
+        layout,
         thread_number: thread.number(),
         user_name: thread.user_name.clone(),
         user_id: thread.user_id.clone(),
@@ -355,7 +287,6 @@ fn render_page(thread: &Thread, messages: &[ThreadMessage], options: LogOptions)
         ],
         raw_href: format!("{base}?raw=1"),
         entries,
-        asset_version: ASSET_VERSION,
     }
     .render()
 }
@@ -377,12 +308,27 @@ fn not_found() -> Response {
 
 async fn serve_log(
     State(ctx): State<Context>,
+    viewer: MaybeViewer,
+    uri: Uri,
     Path(thread_id): Path<String>,
     Query(query): Query<LogQuery>,
 ) -> Response {
     let Some(modmail) = ctx.modmail.as_ref() else {
         return not_found();
     };
+    // Connexion configurée : logs réservés au staff. Sinon, lien non devinable (modmailbot).
+    let mut access = None;
+    if web::auth::enabled(&ctx) {
+        let path = uri.path_and_query().map_or("/logs", |p| p.as_str());
+        let (viewer, granted) = match web::pages::require_viewer(&ctx, viewer, path).await {
+            Ok(found) => found,
+            Err(response) => return *response,
+        };
+        if !granted.tickets {
+            return web::pages::forbidden(&ctx, &viewer, &granted);
+        }
+        access = Some((viewer, granted));
+    }
     let Ok(Some(thread)) = store::find_by_id(&modmail.db, &thread_id).await else {
         return not_found();
     };
@@ -411,7 +357,12 @@ async fn serve_log(
         return ([(header::CONTENT_TYPE, "text/plain; charset=UTF-8")], text).into_response();
     }
 
-    match render_page(&thread, &messages, options) {
+    let title = format!("Ticket #{} — {}", thread.number(), thread.user_name);
+    let layout = match &access {
+        Some((viewer, granted)) => Layout::new(&ctx, title, Some(viewer), granted, "/logs"),
+        None => Layout::bare(&title),
+    };
+    match render_page(layout, &thread, &messages, options, &web::CacheResolver(&ctx)) {
         Ok(html) => Html(html).into_response(),
         Err(error) => {
             tracing::error!(%error, "rendu de la page de log impossible");
@@ -455,87 +406,27 @@ async fn serve_privacy_policy() -> Response {
     match tokio::fs::read_to_string("PRIVACY_POLICY.md").await {
         Ok(text) => Html(format!(
             "<!doctype html><html lang=\"fr\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\
-             <title>Privacy policy</title><link rel=\"stylesheet\" href=\"/assets/logs.css?v={ASSET_VERSION}\"></head>\
+             <title>Privacy policy</title><link rel=\"stylesheet\" href=\"/assets/app.css?v={ASSET_VERSION}\"></head>\
              <body><main class=\"mx-auto max-w-3xl px-4 py-12\"><div class=\"message-body text-ink\">{}</div></main></body></html>",
-            render_body(&text)
+            markdown::render(&text, &markdown::NoResolver)
         ))
         .into_response(),
         Err(_) => not_found(),
     }
 }
 
-fn asset(content_type: &'static str, body: &'static str) -> Response {
-    ([(header::CONTENT_TYPE, content_type), (header::CACHE_CONTROL, "public, max-age=86400")], body).into_response()
-}
-
-async fn security_headers(response: Response) -> Response {
-    let mut response = response;
-    let headers = response.headers_mut();
-    headers.insert(header::X_CONTENT_TYPE_OPTIONS, HeaderValue::from_static("nosniff"));
-    headers.insert(header::REFERRER_POLICY, HeaderValue::from_static("no-referrer"));
-    headers.insert(header::X_FRAME_OPTIONS, HeaderValue::from_static("DENY"));
-    headers.insert("x-robots-tag", HeaderValue::from_static("noindex, nofollow"));
-    headers.insert(
-        header::CONTENT_SECURITY_POLICY,
-        HeaderValue::from_static("default-src 'none'; style-src 'self'; script-src 'self'; img-src * data:; base-uri 'none'; form-action 'none'"),
-    );
-    response
-}
-
-impl Modmail {
-    pub fn spawn_webserver(&self, ctx: Context) {
-        let address = format!("{}:{}", self.config.host, self.config.port);
-        let app = Router::new()
-            .route("/logs/{thread_id}", get(serve_log))
-            .route("/attachments/{attachment_id}/{filename}", get(serve_attachment))
-            .route("/privacy-policy", get(serve_privacy_policy))
-            .route("/assets/logs.css", get(|| async { asset("text/css; charset=UTF-8", CSS) }))
-            .route("/assets/logs.js", get(|| async { asset("text/javascript; charset=UTF-8", JS) }))
-            .route("/healthz", get(|| async { "ok" }))
-            .layer(axum::middleware::map_response(security_headers))
-            .with_state(ctx);
-
-        tokio::spawn(async move {
-            match tokio::net::TcpListener::bind(&address).await {
-                Ok(listener) => {
-                    tracing::info!(%address, "serveur web du modmail démarré");
-                    if let Err(error) = axum::serve(listener, app).await {
-                        tracing::warn!(%error, "erreur du serveur web");
-                    }
-                }
-                Err(error) => tracing::warn!(%address, %error, "serveur web du modmail impossible à démarrer"),
-            }
-        });
-    }
+pub fn routes() -> Router<Context> {
+    Router::new()
+        .route("/logs", get(super::web_list::list))
+        .route("/logs/staff", get(super::web_list::staff))
+        .route("/logs/{thread_id}", get(serve_log))
+        .route("/attachments/{attachment_id}/{filename}", get(serve_attachment))
+        .route("/privacy-policy", get(serve_privacy_policy))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn renders_bodies_safely() {
-        let html =
-            render_body("<script>alert(1)</script> https://example.com/a?b=1 <@106391128718245888> <t:1700000000:F>");
-        assert!(!html.contains("<script>"));
-        assert!(html.contains(r#"<a href="https://example.com/a?b=1""#));
-        assert!(html.contains(r#"<span class="mention">@106391128718245888</span>"#));
-        assert!(html.contains("<time datetime=\"2023-11-14T22:13:20+00:00\""));
-    }
-
-    #[test]
-    fn renders_discord_markdown() {
-        let html = render_body(
-            "**gras** *ital* __sous__ ~~barré~~ `https://x.y **pas gras**` snake_case_name\n```rust\nlet a = 1;```",
-        );
-        assert!(html.contains("<strong>gras</strong>"));
-        assert!(html.contains("<em>ital</em>"));
-        assert!(html.contains("<u>sous</u>"));
-        assert!(html.contains("<s>barré</s>"));
-        assert!(html.contains("<code>https://x.y **pas gras**</code>"));
-        assert!(html.contains("snake_case_name"));
-        assert!(html.contains("<pre><code>let a = 1;</code></pre>"));
-    }
 
     #[test]
     fn detects_images() {
@@ -585,7 +476,7 @@ mod page_tests {
         let mut staff = message(
             3,
             message_type::TO_USER,
-            "Golmon",
+            "Marco",
             "Bonjour ! Peux-tu nous envoyer une capture ? Règlement : https://example.com/regles",
             "2026-10-16 21:43:10",
         );
@@ -595,7 +486,7 @@ mod page_tests {
             message(4, message_type::FROM_USER, "Elodie", "Voilà la capture 👇", "2026-10-16 21:45:02");
         with_image.attachments = Some(r#"["https://cdn.discordapp.com/attachments/1/2/capture.png","https://cdn.discordapp.com/attachments/1/3/rapport.pdf"]"#.into());
         let mut edited = message(7, message_type::REPLY_EDITED, "", "", "2026-10-17 09:01:00");
-        edited.metadata = Some(r#"{"originalThreadMessage":{"user_name":"Golmon","body":"On regarde ça demain.","message_number":2},"newBody":"On regarde ça ce matin, merci de ta patience !"}"#.into());
+        edited.metadata = Some(r#"{"originalThreadMessage":{"user_name":"Marco","body":"On regarde ça demain.","message_number":2},"newBody":"On regarde ça ce matin, merci de ta patience !"}"#.into());
         let messages = vec![
             message(
                 1,
@@ -614,17 +505,26 @@ mod page_tests {
             staff,
             with_image,
             message(
+                41,
+                message_type::FROM_USER,
+                "Elodie",
+                "## Récapitulatif\n> Rôle perdu **pendant la maintenance** du <t:1792180800:D>\n> (il y a <t:1792180800:R>)\n- salon <#123456789012345678>\n- pseudo `Elodie#0001`\n  - ~~ancien~~ __nouveau__ ||secret|| <:salut:123456789012345678>\n1. voir [le règlement](https://example.com/regles)\n-# envoyé depuis mobile\n```rust\nfn main() {}\n```",
+                "2026-10-16 21:45:30",
+            ),
+            message(
                 5,
                 message_type::CHAT,
-                "Golmon",
+                "Marco",
                 "Vu, c'est le rôle qui a sauté pendant la maintenance. Je regarde demain.",
                 "2026-10-16 21:46:30",
             ),
-            message(6, message_type::COMMAND, "Golmon", "!close 12h", "2026-10-16 21:47:00"),
+            message(6, message_type::COMMAND, "Marco", "!close 12h", "2026-10-16 21:47:00"),
             edited,
             message(8, message_type::SYSTEM, "", "Closing thread...", "2026-10-17 09:30:00"),
         ];
-        let html = render_page(&thread, &messages, LogOptions::default()).unwrap();
+        let html =
+            render_page(Layout::bare("Ticket"), &thread, &messages, LogOptions::default(), &markdown::NoResolver)
+                .unwrap();
         assert!(html.contains("Ticket #42"));
         assert!(html.contains("Note interne"));
         assert!(html.contains("<img src=\"https://cdn.discordapp.com/attachments/1/2/capture.png\""));
@@ -632,9 +532,9 @@ mod page_tests {
         assert!(html.contains("16 octobre 2026") && html.contains("17 octobre 2026"));
 
         if let Ok(path) = std::env::var("LOG_PREVIEW_PATH") {
-            let css = format!("<style>{CSS}</style>");
+            let css = format!("<style>{}</style>", crate::web::CSS);
             let preview =
-                html.replace(&format!(r#"<link rel="stylesheet" href="/assets/logs.css?v={ASSET_VERSION}">"#), &css);
+                html.replace(&format!(r#"<link rel="stylesheet" href="/assets/app.css?v={ASSET_VERSION}">"#), &css);
             std::fs::write(path, preview).unwrap();
         }
     }

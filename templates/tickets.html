@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="flex flex-wrap items-end justify-between gap-4">
+  <div>
+    <h1 class="text-2xl font-semibold tracking-tight text-ink">Tickets</h1>
+    <p class="mt-1 text-sm text-ink-muted">{{ total }} ticket{% if total > 1 %}s{% endif %}</p>
+  </div>
+  <a href="/logs/staff" class="text-sm font-medium text-accent hover:underline">Statistiques du staff →</a>
+</div>
+
+<form method="get" action="/logs" class="mt-6 flex flex-col gap-3 sm:flex-row">
+  <label class="sr-only" for="q">Rechercher</label>
+  <input id="q" name="q" value="{{ query }}" type="search" autocomplete="off"
+         placeholder="Pseudo, identifiant, n° de ticket ou texte d'un message"
+         class="min-w-0 flex-1 rounded-lg border border-line bg-surface px-3 py-2 text-ink placeholder:text-ink-subtle focus:border-accent">
+  <select name="status" aria-label="Statut" class="rounded-lg border border-line bg-surface px-3 py-2 text-ink">
+    {% for filter in filters %}
+    <option value="{{ filter.value }}" {% if filter.active %}selected{% endif %}>{{ filter.label }}</option>
+    {% endfor %}
+  </select>
+  <button type="submit" class="rounded-lg bg-accent px-4 py-2 font-medium text-on-accent hover:bg-accent/90">Rechercher</button>
+</form>
+
+{% if rows.is_empty() %}
+<p class="mt-6 rounded-card border border-dashed border-line-strong px-6 py-12 text-center text-ink-muted">Aucun ticket trouvé.</p>
+{% else %}
+<ul class="mt-6 divide-y divide-line overflow-hidden rounded-card border border-line bg-surface">
+  {% for row in rows %}
+  <li>
+    <a href="{{ row.href }}" class="flex flex-wrap items-center gap-x-4 gap-y-1 px-4 py-3 hover:bg-surface-sunken sm:px-5">
+      <span class="w-14 font-mono text-sm text-ink-subtle">#{{ row.number }}</span>
+      <span class="min-w-0 flex-1">
+        <span class="font-medium text-ink">{{ row.user_name }}</span>
+        <span class="ml-1 hidden font-mono text-xs text-ink-subtle sm:inline">{{ row.user_id }}</span>
+      </span>
+      {% if let Some(name) = row.claimed_by %}<span class="text-sm text-staff">🙋 {{ name }}</span>{% endif %}
+      <span class="text-sm text-ink-muted">{{ row.exchanges }} message{% if row.exchanges > 1 %}s{% endif %}</span>
+      <time datetime="{{ row.opened_iso }}" data-local class="text-sm text-ink-muted">{{ row.opened_display }}</time>
+      <span class="inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium {{ row.status_classes }}">{{ row.status_label }}</span>
+    </a>
+  </li>
+  {% endfor %}
+</ul>
+{% endif %}
+
+{% if pages > 1 %}
+<nav class="mt-6 flex items-center justify-between text-sm" aria-label="Pagination">
+  {% if let Some(href) = previous_href %}<a href="{{ href }}" class="font-medium text-accent hover:underline">← Précédent</a>{% else %}<span></span>{% endif %}
+  <span class="text-ink-muted">Page {{ page }} sur {{ pages }}</span>
+  {% if let Some(href) = next_href %}<a href="{{ href }}" class="font-medium text-accent hover:underline">Suivant →</a>{% else %}<span></span>{% endif %}
+</nav>
+{% endif %}
+{% endblock %}

@@ -139,7 +139,7 @@ pub async fn sync_dashboard(ctx: &Ctx, guild_id: &str) -> Result<()> {
     let Some(channel_id) = config.dashboard_channel_id.as_deref().and_then(parse_id) else {
         return Ok(());
     };
-    let message = Outgoing::embeds(vec![build_dashboard(&list(&ctx.db, guild_id).await?)]);
+    let message = Outgoing::components_v2(build_dashboard(&list(&ctx.db, guild_id).await?));
     let known = config.dashboard_message_id.as_deref().and_then(parse_id);
     match messages::upsert(ctx, channel_id, known, &message).await {
         Ok(Some(new_id)) => {

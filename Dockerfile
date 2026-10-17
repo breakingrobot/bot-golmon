@@ -9,7 +9,8 @@ COPY web/src ./src
 # Les classes utilisées sont lues dans les templates et le code du module ticket.
 COPY templates /build/templates
 COPY src/modmail /build/src/modmail
-RUN npx tailwindcss -i src/logs.css -o dist/logs.css --minify
+COPY src/web /build/src/web
+RUN npx tailwindcss -i src/app.css -o dist/app.css --minify
 
 # --- 2. Compilation du bot ---------------------------------------------------
 FROM rust:1.97-slim-trixie AS build
@@ -20,7 +21,7 @@ WORKDIR /build
 COPY Cargo.toml Cargo.lock ./
 RUN mkdir src && echo "fn main() {}" > src/main.rs \
     && cargo build --release --locked \
-    && rm -rf src target/release/deps/bot_golmon* target/release/bot-golmon*
+    && rm -rf src target/release/deps/bot_discord* target/release/bot-discord*
 
 COPY migrations ./migrations
 COPY templates ./templates
@@ -36,14 +37,19 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
-COPY --from=build /build/target/release/bot-golmon /usr/local/bin/bot-golmon
+COPY --from=build /build/target/release/bot-discord /usr/local/bin/bot-discord
 
+# MALLOC_ARENA_MAX : la glibc crée une arène mémoire par thread, qui gonfle la
+# mémoire résidente sans gain pour un bot ; deux suffisent.
 ENV TZ=Europe/Paris \
-    RUST_LOG=info
+    RUST_LOG=info \
+    MALLOC_ARENA_MAX=2
 # Serveur web des logs de tickets (seulement si le module ticket est configuré).
 EXPOSE 8890
 
-# Les migrations de la base sont appliquées par le bot à chaque démarrage.
-# Exécution en root comme l'image précédente, pour rester compatible avec les
-# volumes déjà montés (base existante sous /app/prisma).
-ENTRYPOINT ["bot-golmon"]
+# Toutes les données (base principale, base et fichiers des tickets) sont sous
+# /app/data : un seul volume à monter. Les migrations sont appliquées au démarrage.
+# Exécution en root comme l'image précédente, pour reprendre les fichiers des
+# volumes existants sans problème de droits.
+VOLUME ["/app/data"]
+ENTRYPOINT ["bot-discord"]

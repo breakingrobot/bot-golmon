@@ -40,8 +40,8 @@ pub fn staff_reply_thread_message(config: &MmConfig, message: &ThreadMessage) ->
     let role = role_name(config, message);
     let mod_info = if message.is_anonymous != 0 {
         match role {
-            Some(role) => format!("(Anonymous) ({}) {role}", message.user_name),
-            None => format!("(Anonymous) ({})", message.user_name),
+            Some(role) => format!("(Anonyme) ({}) {role}", message.user_name),
+            None => format!("(Anonyme) ({})", message.user_name),
         }
     } else {
         match role {
@@ -70,7 +70,7 @@ pub fn user_reply_thread_message(config: &MmConfig, message: &ThreadMessage) -> 
 
 pub fn staff_reply_edit_notification(original: &ThreadMessage, new_body: &str) -> String {
     let mut content = format!(
-        "**{}** (`{}`) edited reply `{}`",
+        "**{}** (`{}`) a modifié la réponse `{}`",
         original.user_name,
         original.user_id.as_deref().unwrap_or_default(),
         original.message_number.unwrap_or_default()
@@ -78,25 +78,25 @@ pub fn staff_reply_edit_notification(original: &ThreadMessage, new_body: &str) -
     let old_body = original.body();
     if old_body.encode_utf16().count() < 200 && new_body.encode_utf16().count() < 200 {
         // Petites modifications affichées en ligne.
-        content.push_str(&format!(" from `{}` to `{new_body}`", disable_inline_code(old_body)));
+        content.push_str(&format!(" de `{}` en `{new_body}`", disable_inline_code(old_body)));
     } else {
         content.push(':');
-        content.push_str(&format!("\n\nBefore:\n```{}```", disable_code_blocks(old_body)));
-        content.push_str(&format!("\nAfter:\n```{}```", disable_code_blocks(new_body)));
+        content.push_str(&format!("\n\nAvant :\n```{}```", disable_code_blocks(old_body)));
+        content.push_str(&format!("\nAprès :\n```{}```", disable_code_blocks(new_body)));
     }
     content
 }
 
 pub fn staff_reply_deletion_notification(original: &ThreadMessage) -> String {
     let mut content = format!(
-        "**{}** (`{}`) deleted reply `{}`",
+        "**{}** (`{}`) a supprimé la réponse `{}`",
         original.user_name,
         original.user_id.as_deref().unwrap_or_default(),
         original.message_number.unwrap_or_default()
     );
     let body = original.body();
     if body.encode_utf16().count() < 200 {
-        content.push_str(&format!(" (message content: `{}`)", disable_inline_code(body)));
+        content.push_str(&format!(" (contenu du message : `{}`)", disable_inline_code(body)));
     } else {
         content.push_str(&format!(":\n```{}```", disable_code_blocks(body)));
     }

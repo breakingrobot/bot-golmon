@@ -51,6 +51,9 @@ pub fn wanted_events(ctx: &Context) -> EventTypeFlags {
                 | EventTypeFlags::REACTION_REMOVE
                 | EventTypeFlags::TYPING_START
                 | EventTypeFlags::VOICE_STATE_UPDATE
+                | EventTypeFlags::THREAD_CREATE
+                | EventTypeFlags::THREAD_DELETE
+                | EventTypeFlags::THREAD_UPDATE
         }
         None => base,
     }

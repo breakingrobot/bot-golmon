@@ -6,8 +6,11 @@
 //! JavaScript ne sont pas pris en charge.
 
 mod attachments;
+mod auto_close;
+pub mod buttons;
 mod commands;
 mod config;
+mod context_menu;
 mod db;
 mod formatters;
 mod handlers;
@@ -15,15 +18,20 @@ mod ini;
 mod logs;
 mod models;
 mod parser;
+mod staff;
 mod store;
 mod thread;
 mod util;
 mod web;
+mod web_list;
 
 use crate::context::{Context, Ctx};
 use anyhow::Result;
 use config::MmConfig;
 use sqlx::SqlitePool;
+#[cfg(test)]
+pub use staff::StaffActivity;
+pub use staff::TicketStats;
 use std::{
     collections::{HashMap, HashSet},
     sync::{Arc, Mutex},
@@ -40,6 +48,11 @@ use twilight_model::{
         marker::{ChannelMarker, UserMarker},
     },
 };
+
+/// Pages web du module (logs, liste des tickets, pièces jointes).
+pub fn web_routes() -> axum::Router<Context> {
+    web::routes()
+}
 
 pub struct Modmail {
     pub config: MmConfig,
@@ -68,7 +81,7 @@ impl Modmail {
         Ok(Some(Self {
             config,
             db,
-            http: reqwest::Client::builder().timeout(Duration::from_secs(60)).build()?,
+            http: crate::util::http::client(),
             dm_queue: tokio::sync::Mutex::new(()),
             creation_lock: tokio::sync::Mutex::new(()),
             dm_channels: Mutex::new(HashMap::new()),
@@ -96,10 +109,8 @@ impl Modmail {
         intents
     }
 
-    /// Démarre le serveur web, les tâches périodiques et le statut du bot.
+    /// Démarre les tâches périodiques et le statut du bot.
     pub fn start(&self, ctx: Context) {
-        self.spawn_webserver(Arc::clone(&ctx));
-
         let periodic = Arc::clone(&ctx);
         tokio::spawn(async move {
             let mut ticker = tokio::time::interval(Duration::from_secs(2));
@@ -122,6 +133,22 @@ impl Modmail {
                 }
             }
         });
+
+        // Tickets inactifs (`autoCloseInactive`) : une vérification par minute suffit.
+        if self.config.auto_close_inactive_ms.is_some() {
+            let inactivity = Arc::clone(&ctx);
+            tokio::spawn(async move {
+                let mut ticker = tokio::time::interval(Duration::from_secs(60));
+                ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+                loop {
+                    ticker.tick().await;
+                    let modmail = inactivity.modmail.as_ref().expect("module ticket");
+                    if let Err(error) = modmail.warn_inactive_threads(&inactivity).await {
+                        tracing::error!(?error, "fermeture des tickets inactifs");
+                    }
+                }
+            });
+        }
 
         let startup = Arc::clone(&ctx);
         tokio::spawn(async move {
@@ -182,18 +209,23 @@ impl Modmail {
                 let _ = self.send_system_message_to_user(ctx, &thread, message, true).await;
             }
             self.close_thread(ctx, &thread, false, silent).await?;
-            self.send_close_notification(
-                ctx,
-                &thread,
-                &format!(
-                    "Modmail thread #{} with {} ({}) was closed as scheduled by {}",
+            let body = if Self::is_auto_close(ctx, &thread) {
+                format!(
+                    "Ticket modmail n°{} avec {} ({}) fermé automatiquement pour inactivité",
+                    thread.number(),
+                    thread.user_name,
+                    thread.user_id
+                )
+            } else {
+                format!(
+                    "Ticket modmail n°{} avec {} ({}) fermé comme programmé par {}",
                     thread.number(),
                     thread.user_name,
                     thread.user_id,
                     thread.scheduled_close_name.clone().unwrap_or_default()
-                ),
-            )
-            .await?;
+                )
+            };
+            self.send_close_notification(ctx, &thread, &body).await?;
         }
         Ok(())
     }
@@ -208,7 +240,7 @@ impl Modmail {
                 ctx,
                 &thread,
                 &format!(
-                    "**Thread suspended** as scheduled by {}. This thread will act as closed until unsuspended with `{}unsuspend`",
+                    "**Ticket suspendu** comme programmé par {}. Il sera considéré comme fermé jusqu'à sa réactivation avec `{}unsuspend`",
                     thread.scheduled_suspend_name.clone().unwrap_or_default(),
                     self.config.prefix
                 ),
@@ -230,7 +262,7 @@ impl Modmail {
             let _ = ctx
                 .http
                 .create_message(self.config.log_channel_id)
-                .content(&format!("Block of <@!{user_id}> (id `{user_id}`) expired"))
+                .content(&format!("Le blocage de <@!{user_id}> (id `{user_id}`) a expiré"))
                 .allowed_mentions(Some(&allowed))
                 .await;
         }

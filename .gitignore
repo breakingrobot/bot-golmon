@@ -3,6 +3,7 @@ web/node_modules/
 .env
 config.ini
 # Données locales
+data/
 prisma/
 db/
 logs/
@@ -12,3 +13,4 @@ attachments/
 *.db-wal
 *.db-shm
 *.sqlite
+.claude/worktrees/

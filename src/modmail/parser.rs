@@ -138,7 +138,7 @@ pub fn parse(input: &str, params: &[Param], switches: &[(&'static str, &'static 
                 let rest = tokens.get(index).map(|t| input[t.start..].trim().to_owned()).unwrap_or_default();
                 if rest.is_empty() {
                     if required {
-                        return Err(format!("Missing argument: {name}"));
+                        return Err(format!("Argument manquant : {name}"));
                     }
                 } else {
                     args.values.insert(name, Value::Str(rest));
@@ -155,7 +155,7 @@ pub fn parse(input: &str, params: &[Param], switches: &[(&'static str, &'static 
             Param::Required(name, kind) | Param::Optional(name, kind) => {
                 let Some(token) = tokens.get(index) else {
                     if matches!(param, Param::Required(..)) {
-                        return Err(format!("Missing argument: {name}"));
+                        return Err(format!("Argument manquant : {name}"));
                     }
                     continue;
                 };
@@ -172,14 +172,14 @@ pub fn parse(input: &str, params: &[Param], switches: &[(&'static str, &'static 
                         args.values.insert(name, value);
                         index += 1;
                     }
-                    None => return Err(format!("Could not convert argument {name}'s type")),
+                    None => return Err(format!("Type invalide pour l'argument {name}")),
                 }
             }
         }
     }
 
     if index < tokens.len() {
-        return Err("Too many arguments".to_owned());
+        return Err("Trop d'arguments".to_owned());
     }
     Ok(args)
 }

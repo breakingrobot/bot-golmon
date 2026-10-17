@@ -59,41 +59,42 @@ pub fn convert_delay_string_to_ms(value: &str) -> Option<i64> {
     Some(ms)
 }
 
-/// Équivalent de `humanize-duration` (anglais, arrondi, `largest` unités).
+/// Équivalent de `humanize-duration` (en français, arrondi, `largest` unités).
 pub fn humanize_duration(ms: i64, largest: usize, conjunction: Option<&str>) -> String {
-    const UNITS: [(&str, i64); 7] = [
-        ("year", 31_557_600_000),
-        ("month", 2_629_800_000),
-        ("week", 604_800_000),
-        ("day", 86_400_000),
-        ("hour", 3_600_000),
-        ("minute", 60_000),
-        ("second", 1000),
+    // (singulier, pluriel, durée en ms)
+    const UNITS: [(&str, &str, i64); 7] = [
+        ("an", "ans", 31_557_600_000),
+        ("mois", "mois", 2_629_800_000),
+        ("semaine", "semaines", 604_800_000),
+        ("jour", "jours", 86_400_000),
+        ("heure", "heures", 3_600_000),
+        ("minute", "minutes", 60_000),
+        ("seconde", "secondes", 1000),
     ];
     let mut remaining = ms.max(0) as f64;
-    let mut parts: Vec<(i64, &str)> = Vec::new();
-    for (index, (name, unit)) in UNITS.iter().enumerate() {
+    let mut parts: Vec<(i64, &str, &str)> = Vec::new();
+    for (index, (singular, plural, unit)) in UNITS.iter().enumerate() {
         if parts.len() == largest {
             break;
         }
         let is_last_slot = parts.len() + 1 == largest || index == UNITS.len() - 1;
         let value = if is_last_slot { (remaining / *unit as f64).round() } else { (remaining / *unit as f64).floor() };
         if value >= 1.0 {
-            parts.push((value as i64, name));
+            parts.push((value as i64, singular, plural));
             remaining -= value * *unit as f64;
         } else if !parts.is_empty() {
             // humanize-duration garde des unités consécutives : une unité vide
             // compte comme une place prise.
-            parts.push((0, name));
+            parts.push((0, singular, plural));
         }
     }
     let parts: Vec<String> = parts
         .into_iter()
-        .filter(|(v, _)| *v > 0)
-        .map(|(v, name)| format!("{v} {name}{}", if v == 1 { "" } else { "s" }))
+        .filter(|(v, _, _)| *v > 0)
+        .map(|(v, singular, plural)| format!("{v} {}", if v == 1 { singular } else { plural }))
         .collect();
     if parts.is_empty() {
-        return "0 seconds".to_owned();
+        return "0 seconde".to_owned();
     }
     match (conjunction, parts.len()) {
         (Some(conj), n) if n > 1 => format!("{}{conj}{}", parts[..n - 1].join(", "), parts[n - 1]),
@@ -101,9 +102,9 @@ pub fn humanize_duration(ms: i64, largest: usize, conjunction: Option<&str>) -> 
     }
 }
 
-/// `humanizeDelay` de modmailbot : durée complète avec « and ».
+/// `humanizeDelay` de modmailbot : durée complète avec « et ».
 pub fn humanize_delay(ms: i64) -> String {
-    humanize_duration(ms, 7, Some(" and "))
+    humanize_duration(ms, 7, Some(" et "))
 }
 
 static MARKDOWN_CHARS: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"([\\_*|`~])").unwrap());
@@ -222,10 +223,12 @@ mod tests {
 
     #[test]
     fn humanizes_like_humanize_duration() {
-        assert_eq!(humanize_duration(7 * 86_400_000, 2, None), "1 week");
-        assert_eq!(humanize_delay(5_400_000), "1 hour and 30 minutes");
-        assert_eq!(humanize_duration(90_061_000, 2, None), "1 day, 1 hour");
+        assert_eq!(humanize_duration(7 * 86_400_000, 2, None), "1 semaine");
+        assert_eq!(humanize_delay(5_400_000), "1 heure et 30 minutes");
+        assert_eq!(humanize_duration(90_061_000, 2, None), "1 jour, 1 heure");
         assert_eq!(humanize_delay(900_000), "15 minutes");
+        assert_eq!(humanize_duration(2 * 31_557_600_000 + 2_629_800_000, 2, None), "2 ans, 1 mois");
+        assert_eq!(humanize_delay(2000), "2 secondes");
     }
 
     #[test]
