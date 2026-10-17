@@ -476,7 +476,7 @@ mod page_tests {
         let mut staff = message(
             3,
             message_type::TO_USER,
-            "Golmon",
+            "Marco",
             "Bonjour ! Peux-tu nous envoyer une capture ? Règlement : https://example.com/regles",
             "2026-10-16 21:43:10",
         );
@@ -486,7 +486,7 @@ mod page_tests {
             message(4, message_type::FROM_USER, "Elodie", "Voilà la capture 👇", "2026-10-16 21:45:02");
         with_image.attachments = Some(r#"["https://cdn.discordapp.com/attachments/1/2/capture.png","https://cdn.discordapp.com/attachments/1/3/rapport.pdf"]"#.into());
         let mut edited = message(7, message_type::REPLY_EDITED, "", "", "2026-10-17 09:01:00");
-        edited.metadata = Some(r#"{"originalThreadMessage":{"user_name":"Golmon","body":"On regarde ça demain.","message_number":2},"newBody":"On regarde ça ce matin, merci de ta patience !"}"#.into());
+        edited.metadata = Some(r#"{"originalThreadMessage":{"user_name":"Marco","body":"On regarde ça demain.","message_number":2},"newBody":"On regarde ça ce matin, merci de ta patience !"}"#.into());
         let messages = vec![
             message(
                 1,
@@ -508,17 +508,17 @@ mod page_tests {
                 41,
                 message_type::FROM_USER,
                 "Elodie",
-                "## Récapitulatif\n> Rôle perdu **pendant la maintenance** du <t:1792180800:D>\n> (il y a <t:1792180800:R>)\n- salon <#123456789012345678>\n- pseudo `Elodie#0001`\n  - ~~ancien~~ __nouveau__ ||secret|| <:golmon:123456789012345678>\n1. voir [le règlement](https://example.com/regles)\n-# envoyé depuis mobile\n```rust\nfn main() {}\n```",
+                "## Récapitulatif\n> Rôle perdu **pendant la maintenance** du <t:1792180800:D>\n> (il y a <t:1792180800:R>)\n- salon <#123456789012345678>\n- pseudo `Elodie#0001`\n  - ~~ancien~~ __nouveau__ ||secret|| <:salut:123456789012345678>\n1. voir [le règlement](https://example.com/regles)\n-# envoyé depuis mobile\n```rust\nfn main() {}\n```",
                 "2026-10-16 21:45:30",
             ),
             message(
                 5,
                 message_type::CHAT,
-                "Golmon",
+                "Marco",
                 "Vu, c'est le rôle qui a sauté pendant la maintenance. Je regarde demain.",
                 "2026-10-16 21:46:30",
             ),
-            message(6, message_type::COMMAND, "Golmon", "!close 12h", "2026-10-16 21:47:00"),
+            message(6, message_type::COMMAND, "Marco", "!close 12h", "2026-10-16 21:47:00"),
             edited,
             message(8, message_type::SYSTEM, "", "Closing thread...", "2026-10-17 09:30:00"),
         ];

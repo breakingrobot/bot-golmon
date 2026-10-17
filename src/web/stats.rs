@@ -200,7 +200,7 @@ mod tests {
     fn renders_stats_page() {
         let page = StatsPage {
             layout: Layout::bare("Statistiques"),
-            guild_name: "Golmon RP".into(),
+            guild_name: "Serveur RP".into(),
             figures: vec![
                 Figure {
                     label: "Présences clôturées",

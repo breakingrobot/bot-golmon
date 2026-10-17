@@ -592,7 +592,7 @@ mod tests {
         assert!(html.contains(r#"<span class="mention">@everyone</span>"#));
         assert!(md("<@106391128718245888>").contains("@106391128718245888"));
         assert!(md("</ping:123456789012345678>").contains("/ping"));
-        assert!(md("<:golmon:123456789012345678>").contains("emojis/123456789012345678.webp"));
+        assert!(md("<:salut:123456789012345678>").contains("emojis/123456789012345678.webp"));
         assert!(md("<a:dance:123456789012345678>").contains("emojis/123456789012345678.gif"));
         let html = md("<t:1700000000:R> <t:1700000000>");
         assert!(html.contains(r#"data-format="R""#) && html.contains(r#"data-format="f""#));

@@ -221,7 +221,7 @@ mod tests {
             rows: vec![
                 row(44, "Lina", thread_status::OPEN, 3, None),
                 row(43, "Hugo", thread_status::SUSPENDED, 12, Some("Marco")),
-                row(42, "Elodie", thread_status::CLOSED, 7, Some("Golmon")),
+                row(42, "Elodie", thread_status::CLOSED, 7, Some("Sam")),
             ],
             total: 3,
             page: 1,
