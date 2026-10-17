@@ -17,9 +17,6 @@ use twilight_util::builder::command::{ChannelBuilder, CommandBuilder, StringBuil
 
 pub fn definition() -> Command {
     CommandBuilder::new("numero", "Gestion de l'annuaire téléphonique", CommandType::ChatInput)
-        .option(SubCommandBuilder::new("config", "Configure le salon d'affichage de l'annuaire").option(
-            ChannelBuilder::new("salon", "Le salon où publier l'annuaire").channel_types([ChannelType::GuildText]),
-        ))
         .option(
             SubCommandBuilder::new("ajouter", "Enregistre ton numéro de téléphone")
                 .option(StringBuilder::new("numero", "Ton numéro (ex: 5551234)").required(true))
@@ -40,13 +37,18 @@ pub fn definition() -> Command {
         .build()
 }
 
+/// `/config numero`.
+pub fn config_subcommand() -> SubCommandBuilder {
+    SubCommandBuilder::new("numero", "Annuaire : salon d'affichage (sans option : affiche)")
+        .option(ChannelBuilder::new("salon", "Le salon où publier l'annuaire").channel_types([ChannelType::GuildText]))
+}
+
 pub async fn handle(ix: &Ix, options: &Options) -> Result<()> {
     let Some(guild_id) = ix.guild_id() else {
         return ix.reply(Reply::ephemeral(GUILD_ONLY)).await;
     };
     let guild = guild_id.to_string();
     match options.sub() {
-        "config" => config(ix, options, &guild).await,
         "ajouter" => ajouter(ix, options, &guild).await,
         "voir" => voir(ix, options, &guild).await,
         "supprimer" => supprimer(ix, options, &guild).await,
@@ -59,7 +61,7 @@ pub async fn handle(ix: &Ix, options: &Options) -> Result<()> {
     }
 }
 
-async fn config(ix: &Ix, options: &Options, guild: &str) -> Result<()> {
+pub async fn config(ix: &Ix, options: &Options, guild: &str) -> Result<()> {
     // Sans option, la commande sert à consulter la configuration (lecture ouverte à tous).
     let Some(channel) = options.channel("salon") else {
         let config = service::get_config(&ix.ctx.db, guild).await?;

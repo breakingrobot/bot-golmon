@@ -1,3 +1,4 @@
+pub mod admin;
 pub mod commands;
 pub mod components;
 pub mod embed;

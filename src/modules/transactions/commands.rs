@@ -53,20 +53,26 @@ pub fn definition() -> Command {
         )
         .option(SubCommandBuilder::new("view", "Affiche une transaction").option(transaction_option()))
         .option(SubCommandBuilder::new("cancel", "Annule une transaction").option(transaction_option()))
-        .option(
-            SubCommandBuilder::new("config", "Configure le tableau de bord (sans option: affiche la config)")
-                .option(
-                    ChannelBuilder::new("dashboard_channel", "Salon du tableau de bord permanent")
-                        .channel_types([ChannelType::GuildText]),
-                )
-                .option(RoleBuilder::new("ping_role", "Rôle à mentionner lors de la création d'une transaction"))
-                .option(BooleanBuilder::new("clear_ping_role", "Ne plus mentionner aucun rôle à la création")),
-        )
-        .option(
-            SubCommandBuilder::new("delete", "Supprime définitivement une transaction de la base de données")
-                .option(transaction_option()),
-        )
         .build()
+}
+
+/// `/config transaction`.
+pub fn config_subcommand() -> SubCommandBuilder {
+    SubCommandBuilder::new("transaction", "Transactions : tableau de bord et rôle mentionné (sans option : affiche)")
+        .option(
+            ChannelBuilder::new("dashboard_channel", "Salon du tableau de bord permanent")
+                .channel_types([ChannelType::GuildText]),
+        )
+        .option(RoleBuilder::new("ping_role", "Rôle à mentionner lors de la création d'une transaction"))
+        .option(BooleanBuilder::new("clear_ping_role", "Ne plus mentionner aucun rôle à la création"))
+}
+
+/// `/gestion transaction supprimer`.
+pub fn admin_subcommands() -> Vec<SubCommandBuilder> {
+    vec![
+        SubCommandBuilder::new("supprimer", "Supprime définitivement une transaction de la base de données")
+            .option(transaction_option()),
+    ]
 }
 
 pub async fn autocomplete(ix: &Ix, options: &Options) -> Result<()> {
@@ -95,13 +101,11 @@ pub async fn handle(ix: &Ix, options: &Options) -> Result<()> {
         "status" => status(ix, options, &guild).await,
         "view" => view(ix, options, &guild).await,
         "cancel" => cancel(ix, options, &guild).await,
-        "config" => config(ix, options, &guild).await,
-        "delete" => delete(ix, options, &guild).await,
         _ => Ok(()),
     }
 }
 
-async fn config(ix: &Ix, options: &Options, guild: &str) -> Result<()> {
+pub async fn config(ix: &Ix, options: &Options, guild: &str) -> Result<()> {
     if !ix.has_permission(Permissions::MANAGE_GUILD) {
         return ix.reply(Reply::ephemeral(MANAGE_GUILD_ONLY)).await;
     }
@@ -228,7 +232,7 @@ async fn cancel(ix: &Ix, options: &Options, guild: &str) -> Result<()> {
     ix.edit_text("Transaction annulée.").await
 }
 
-async fn delete(ix: &Ix, options: &Options, guild: &str) -> Result<()> {
+pub async fn delete(ix: &Ix, options: &Options, guild: &str) -> Result<()> {
     // Seule action irréversible du module : elle reste réservée aux modérateurs.
     if !ix.has_permission(Permissions::MANAGE_MESSAGES) {
         return ix

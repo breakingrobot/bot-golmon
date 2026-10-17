@@ -7,16 +7,19 @@ use crate::{
     context::Ctx,
     discord::{
         members::{guild_icon_url, role_member_ids},
-        messages::{self, Outgoing, parse_id},
+        messages::{self, Mentions, Outgoing, parse_id},
     },
     modules::like_contains,
-    util::{ids::new_id, time::DbTime},
+    util::{format::chunk_mentions, ids::new_id, time::DbTime},
 };
 use anyhow::Result;
 use chrono::Duration;
 use sqlx::SqlitePool;
 use std::collections::HashSet;
-use twilight_model::id::{Id, marker::GuildMarker};
+use twilight_model::id::{
+    Id,
+    marker::{ChannelMarker, GuildMarker},
+};
 
 const PRESENCE_COLUMNS: &str = r#""id", "guildId", "channelId", "messageId", "titre", "description", "eventDate", "roleId", "createdById", "createdAt", "closedAt""#;
 
@@ -114,6 +117,34 @@ pub async fn create_presence(ctx: &Ctx, guild_id: Id<GuildMarker>, params: NewPr
     tx.commit().await?;
 
     get_presence(&ctx.db, &id).await?.ok_or_else(|| anyhow::anyhow!("présence {id} introuvable après création"))
+}
+
+/// Crée la présence, publie son message et pingue les membres du rôle (hors
+/// absents et blocklist). `None` si Discord refuse la publication : la présence
+/// est alors retirée de la base plutôt que de rester invisible.
+pub async fn publish_presence(ctx: &Ctx, guild_id: Id<GuildMarker>, params: NewPresence) -> Result<Option<Presence>> {
+    let channel_id = parse_id::<ChannelMarker>(&params.channel_id);
+    let role_id = params.role_id.clone();
+    let absence_role_id = params.absence_role_id.clone();
+    let event_date = params.event_date;
+    let presence = create_presence(ctx, guild_id, params).await?;
+
+    if let Err(error) = sync_message(ctx, &presence.id).await {
+        tracing::error!(presence = %presence.id, ?error, "publication de la présence échouée, suppression");
+        let _ = delete_presence(&ctx.db, &presence.id).await;
+        return Ok(None);
+    }
+
+    if let Some(channel_id) = channel_id {
+        let targets = parse_id(&role_id).map(|role| role_member_ids(ctx, guild_id, role)).unwrap_or_default();
+        let excluded: HashSet<String> =
+            auto_absent_user_ids(ctx, guild_id, event_date, absence_role_id.as_deref()).await?.into_iter().collect();
+        let mentionable: Vec<String> = targets.into_iter().filter(|id| !excluded.contains(id)).collect();
+        for content in chunk_mentions(&mentionable, "📣") {
+            messages::send(ctx, channel_id, &Outgoing::text(content).with_mentions(Mentions::Users)).await?;
+        }
+    }
+    Ok(Some(presence))
 }
 
 /// Membres marqués absents d'office et jamais pingés : porteurs du rôle

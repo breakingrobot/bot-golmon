@@ -13,3 +13,4 @@ attachments/
 *.db-wal
 *.db-shm
 *.sqlite
+.claude/worktrees/

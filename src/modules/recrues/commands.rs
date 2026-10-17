@@ -33,20 +33,6 @@ fn member_option(description: &str) -> UserBuilder {
 
 pub fn definition() -> Command {
     CommandBuilder::new("recrue", "Gestion des recrues en période d'essai", CommandType::ChatInput)
-        .option(
-            SubCommandBuilder::new("config", "Configure ou affiche les paramètres du module recrue")
-                .option(RoleBuilder::new("role_recrue", "Le rôle attribué aux membres en essai"))
-                .option(RoleBuilder::new("role_grade", "Le rôle autorisé à donner son avis"))
-                .option(RoleBuilder::new("role_lead", "Le rôle autorisé à poser un véto"))
-                .option(
-                    ChannelBuilder::new("categorie", "La catégorie où créer les salons privés")
-                        .channel_types([ChannelType::GuildCategory]),
-                )
-                .option(
-                    ChannelBuilder::new("salon", "Le salon où publier les avis de la semaine")
-                        .channel_types([ChannelType::GuildText]),
-                ),
-        )
         .option(SubCommandBuilder::new("liste", "Affiche ou reposte la liste des avis de la semaine"))
         .option(
             SubCommandBuilder::new("avis", "Affiche le détail complet des avis pour un membre")
@@ -68,7 +54,6 @@ pub fn definition() -> Command {
             SubCommandBuilder::new("historique", "Consulte l'historique des avis d'un membre")
                 .option(member_option("Le membre ciblé")),
         )
-        .option(SubCommandBuilder::new("reset", "Force le démarrage d'une nouvelle session hebdomadaire"))
         .option(
             SubCommandGroupBuilder::new("veto", "Gestion des vétos").subcommands([
                 SubCommandBuilder::new("poser", "Pose un véto sur une recrue")
@@ -78,6 +63,27 @@ pub fn definition() -> Command {
             ]),
         )
         .build()
+}
+
+/// `/config recrue`.
+pub fn config_subcommand() -> SubCommandBuilder {
+    SubCommandBuilder::new("recrue", "Recrues : rôles, catégorie et salon des avis (sans option : affiche)")
+        .option(RoleBuilder::new("role_recrue", "Le rôle attribué aux membres en essai"))
+        .option(RoleBuilder::new("role_grade", "Le rôle autorisé à donner son avis"))
+        .option(RoleBuilder::new("role_lead", "Le rôle autorisé à poser un véto"))
+        .option(
+            ChannelBuilder::new("categorie", "La catégorie où créer les salons privés")
+                .channel_types([ChannelType::GuildCategory]),
+        )
+        .option(
+            ChannelBuilder::new("salon", "Le salon où publier les avis de la semaine")
+                .channel_types([ChannelType::GuildText]),
+        )
+}
+
+/// `/gestion recrue reset`.
+pub fn admin_subcommands() -> Vec<SubCommandBuilder> {
+    vec![SubCommandBuilder::new("reset", "Force le démarrage d'une nouvelle session hebdomadaire")]
 }
 
 pub async fn handle(ix: &Ix, options: &Options) -> Result<()> {
@@ -92,14 +98,12 @@ pub async fn handle(ix: &Ix, options: &Options) -> Result<()> {
         };
     }
     match options.sub() {
-        "config" => config(ix, options, guild_id).await,
         "liste" => liste(ix, guild_id).await,
         "ajouter" => ajouter(ix, options, guild_id).await,
         "retirer" => retirer(ix, options, guild_id).await,
         "salon" => salon(ix, options, guild_id).await,
         "avis" => avis(ix, options, guild_id).await,
         "historique" => historique(ix, options, guild_id).await,
-        "reset" => reset(ix, guild_id).await,
         _ => Ok(()),
     }
 }
@@ -122,7 +126,7 @@ fn describe(id: Option<&String>, role: bool) -> String {
     }
 }
 
-async fn config(ix: &Ix, options: &Options, guild_id: Id<GuildMarker>) -> Result<()> {
+pub async fn config(ix: &Ix, options: &Options, guild_id: Id<GuildMarker>) -> Result<()> {
     let update = ConfigUpdate {
         recrue_role_id: options.role("role_recrue").map(|id| id.to_string()),
         grade_role_id: options.role("role_grade").map(|id| id.to_string()),
@@ -284,7 +288,7 @@ async fn historique(ix: &Ix, options: &Options, guild_id: Id<GuildMarker>) -> Re
     ix.reply(Reply::embed(embed.build()).hidden()).await
 }
 
-async fn reset(ix: &Ix, guild_id: Id<GuildMarker>) -> Result<()> {
+pub async fn reset(ix: &Ix, guild_id: Id<GuildMarker>) -> Result<()> {
     if !ix.has_permission(Permissions::MANAGE_GUILD) {
         return ix.reply(Reply::ephemeral(MANAGE_GUILD_ONLY)).await;
     }

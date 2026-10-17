@@ -24,6 +24,7 @@ pub fn spawn(ctx: Context) {
             closure_sweep(&ctx).await;
             reminder_sweep(&ctx).await;
             absence_sweep(&ctx).await;
+            super::planning::sweep(&ctx).await;
         }
     });
     tracing::info!("cron des présences démarré (contrôle toutes les 5 min, rappels espacés de 3 h)");

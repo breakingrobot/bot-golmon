@@ -23,6 +23,8 @@ pub fn definitions() -> Vec<Command> {
         vehicles::commands::definition(),
         recrues::commands::definition(),
         phones::commands::definition(),
+        super::admin::config_definition(),
+        super::admin::gestion_definition(),
     ]
 }
 
@@ -70,6 +72,8 @@ async fn route(ix: &Ix) -> Result<()> {
                 "vehicle" => vehicles::commands::handle(ix, &options).await,
                 "recrue" => recrues::commands::handle(ix, &options).await,
                 "numero" => phones::commands::handle(ix, &options).await,
+                "config" => super::admin::handle_config(ix, &options).await,
+                "gestion" => super::admin::handle_gestion(ix, &options).await,
                 _ => Ok(()),
             }
         }
@@ -78,6 +82,13 @@ async fn route(ix: &Ix) -> Result<()> {
             match command.name.as_str() {
                 "presence" => presences::commands::autocomplete(ix, &options).await,
                 "transaction" => transactions::commands::autocomplete(ix, &options).await,
+                // `/gestion` reprend les options « presence » et « transaction » des modules.
+                "gestion" => match options.group() {
+                    Some("presence") if options.sub() == "deplanifier" => presences::planning::autocomplete(ix).await,
+                    Some("presence") => presences::commands::autocomplete(ix, &options).await,
+                    Some("transaction") => transactions::commands::autocomplete(ix, &options).await,
+                    _ => ix.autocomplete(Vec::new()).await,
+                },
                 "vehicle" => vehicles::commands::autocomplete(ix, &options).await,
                 _ => ix.autocomplete(Vec::new()).await,
             }
@@ -90,6 +101,7 @@ async fn route(ix: &Ix) -> Result<()> {
                 "presence" => presences::interactions::button(ix, &custom_id).await,
                 "transaction" => transactions::interactions::button(ix, &custom_id).await,
                 "numero" => phones::interactions::button(ix, &custom_id).await,
+                presences::absence_panel::NAMESPACE => presences::absence_panel::button(ix, &custom_id).await,
                 // « prospect » : messages publiés avant le renommage du module.
                 "recrue" | "prospect" => recrues::interactions::select(ix, &custom_id, &component.values).await,
                 crate::modmail::buttons::NAMESPACE => crate::modmail::buttons::button(ix, &custom_id).await,
@@ -109,6 +121,9 @@ async fn route(ix: &Ix) -> Result<()> {
                     recrues::interactions::modal(ix, custom_id.action, custom_id.id, modal).await
                 }
                 ("numero", "add-modal") => phones::interactions::add_modal(ix, modal).await,
+                (presences::absence_panel::NAMESPACE, "declare-modal") => {
+                    presences::absence_panel::modal(ix, modal).await
+                }
                 (crate::modmail::buttons::NAMESPACE, "reply-modal") => {
                     crate::modmail::buttons::modal(ix, &custom_id, modal).await
                 }
