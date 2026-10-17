@@ -80,13 +80,12 @@ cargo run --release
 docker build -t bot-golmon .
 docker run -d --name bot-golmon --restart unless-stopped \
   --env-file .env \
-  -v golmon-data:/app/prisma \
-  -v golmon-tickets:/app/db \
+  -v golmon-data:/app/data \
   -p 8890:8890 \
   bot-golmon
 ```
 
-`-p 8890:8890` et le volume `golmon-tickets` ne servent qu'au module ticket.
+`-p 8890:8890` ne sert qu'au module ticket.
 
 ### Déploiement sur Northflank
 
@@ -96,13 +95,17 @@ docker run -d --name bot-golmon --restart unless-stopped \
    Debian minimale (~20 Mo de binaire).
 3. **Environment variables** : ajouter au minimum `DISCORD_TOKEN` et `DISCORD_GUILD_IDS` (voir
    [section 3](#3-variables-denvironnement)). Placer le token dans un *Secret group* plutôt qu'en clair.
-4. **Volumes** (Northflank → *Volumes → Add volume*, quelques centaines de Mo suffisent) :
+4. **Volume** (Northflank → *Volumes → Add volume*, quelques centaines de Mo suffisent), monté sur
+   **`/app/data`**. Il contient toutes les données :
 
-   | Chemin de montage | Contenu |
+   | Fichier | Contenu |
    |---|---|
-   | `/app/prisma` | Base principale (`dev.db`). **Même chemin que l'ancienne image** : la base existante est reprise. |
-   | `/app/db` | Base des tickets (`data.sqlite`), si le module ticket est utilisé |
-   | `/app/logs`, `/app/attachments` | Seulement avec `logStorage = attachment` ou `attachmentStorage = local` |
+   | `golmon.db` | Base principale |
+   | `modmail.sqlite` | Base des tickets, si le module ticket est utilisé |
+   | `logs/`, `attachments/` | Seulement avec `logStorage = attachment` ou `attachmentStorage = local` |
+
+   Volume existant de l'ancienne image (monté sur `/app/prisma`) : changer seulement son chemin de
+   montage en `/app/data`. Au démarrage, `dev.db` est renommée en `golmon.db`, sans perte.
 
    Un volume Northflank limite le service à **une instance** : c'est voulu, un bot Discord ne doit
    tourner qu'en un seul exemplaire.
@@ -125,7 +128,7 @@ Copier `.env.example` en `.env` (local) ou les saisir dans Northflank.
 |---|---|---|
 | `DISCORD_TOKEN` | — | **Requis.** Token du bot. |
 | `DISCORD_GUILD_IDS` | *(vide)* | Serveurs autorisés, séparés par des virgules (`111,222`). Le bot quitte automatiquement tout autre serveur, et les commandes sont déployées par serveur (disponibles immédiatement). Vide : aucune restriction, commandes globales (jusqu'à une heure de propagation). **À renseigner en production.** |
-| `DATABASE_URL` | `file:./prisma/dev.db` | Fichier SQLite principal. |
+| `DATABASE_URL` | `file:./data/golmon.db` | Fichier SQLite principal. |
 | `DEPLOY_COMMANDS` | `true` | Déploie les slash commands à chaque démarrage. `false` pour désactiver ; `bot-golmon deploy-commands` les déploie puis s'arrête. |
 | `RUST_LOG` | `info` | Niveau de détail des logs : `error`, `warn`, `info`, `debug`. Par module : `info,bot_golmon::modmail=debug`. |
 | `TZ` | `Europe/Paris` (image Docker) | Sans effet sur les dates du bot, toujours interprétées en heure de Paris. |
@@ -283,7 +286,7 @@ remplacée sans rien changer.
    closeMessage = Ce ticket est fermé. Écris-nous à nouveau si besoin.
    ```
 
-4. Exposer le **port 8890** (`port`/`MM_PORT`, ou `PORT`) et monter `/app/db` sur un volume
+4. Exposer le **port 8890** (`port`/`MM_PORT`, ou `PORT`) et monter `/app/data` sur un volume
    ([Northflank](#déploiement-sur-northflank)).
 
 Le module est **désactivé** tant qu'il n'y a ni `config.ini` ni variable `MM_*` (hors `MM_TOKEN`). Le bot
@@ -383,10 +386,10 @@ acceptent `true/false`, `on/off`, `yes/no`, `1/0`. Les durées s'écrivent `1h30
 | `attachmentStorageChannelId` | — | Salon de stockage pour `discord`. |
 | `relaySmallAttachmentsAsAttachments` / `smallAttachmentLimit` | `false` / 2 Mo | Renvoyer les petits fichiers en pièces jointes. |
 | `logStorage` | `local` | `local` (page web), `attachment` (fichier .txt joint à la fermeture), `none`. |
-| `logOptions.attachmentDirectory` | `logs` | Dossier des logs `attachment`. |
+| `logOptions.attachmentDirectory` | `data/logs` | Dossier des logs `attachment`. |
 | `url` | — | URL publique du serveur web, utilisée dans les liens. **À définir en production.** |
 | `port` / `host` | `8890` / `0.0.0.0` | Écoute du serveur web (`PORT` est aussi accepté). |
-| `sqliteOptions.filename` | `db/data.sqlite` | Base des tickets. |
+| `sqliteOptions.filename` | `data/modmail.sqlite` | Base des tickets. |
 
 </details>
 
@@ -438,7 +441,7 @@ lien peut lire le log.
 ### Reprendre une installation modmailbot
 
 1. Arrêter modmailbot.
-2. Copier son `db/data.sqlite` sur le volume `/app/db` (et `logs/`, `attachments/` le cas échéant).
+2. Copier son `db/data.sqlite` en `modmail.sqlite` sur le volume `/app/data` (et `logs/`, `attachments/` le cas échéant).
 3. Reprendre son `config.ini` à la racine, ou convertir ses options en variables `MM_*`.
 4. Démarrer le bot : la base est reconnue telle quelle (mêmes migrations `knex_migrations`) ; tickets
    ouverts, historique, snippets, notes et blocages sont conservés, et les messages reçus pendant
@@ -448,9 +451,11 @@ lien peut lire le log.
 
 ## 6. Mise à jour depuis la version TypeScript
 
-Rien à faire manuellement, à condition de garder le même volume (`/app/prisma`) et les mêmes variables :
+Seule action : changer le chemin de montage du volume existant de `/app/prisma` en `/app/data`, en gardant les mêmes variables :
 
-- au premier démarrage, la base est mise à jour **sans perte** : schéma repris, tables `Prospect*`
+- au premier démarrage, `dev.db` est renommée en `golmon.db` (si le volume est encore monté sur
+  `/app/prisma`, la base y est quand même utilisée, avec un avertissement dans les logs) ;
+- la base est mise à jour **sans perte** : schéma repris, tables `Prospect*`
   renommées en `Recrue*` (avis, vétos, salons d'essai conservés), dates normalisées ;
 - `/prospect` disparaît, remplacée par `/recrue`. Options renommées : `role_prospect` → `role_recrue` ;
 - les messages déjà publiés (présences, tableaux de bord, menus de la semaine) continuent de fonctionner ;

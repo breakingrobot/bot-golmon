@@ -389,13 +389,13 @@ impl MmConfig {
 
         let log_options = r.object("logOptions");
         let log_attachment_directory = PathBuf::from(
-            log_options.and_then(|o| o.get("attachmentDirectory")).and_then(|v| v.as_str()).unwrap_or("logs"),
+            log_options.and_then(|o| o.get("attachmentDirectory")).and_then(|v| v.as_str()).unwrap_or("data/logs"),
         );
         let sqlite_filename = PathBuf::from(
             r.object("sqliteOptions")
                 .and_then(|o| o.get("filename"))
                 .and_then(|v| v.as_str())
-                .unwrap_or("db/data.sqlite"),
+                .unwrap_or("data/modmail.sqlite"),
         );
 
         let small_attachment_limit = r.number("smallAttachmentLimit").map_or(2_097_152, |n| n as u64);
@@ -473,7 +473,7 @@ impl MmConfig {
             relay_inline_replies: r.boolean("relayInlineReplies", true),
             attachment_storage,
             attachment_storage_channel_id,
-            attachment_dir: PathBuf::from(r.string_or("attachmentDir", "attachments")),
+            attachment_dir: PathBuf::from(r.string_or("attachmentDir", "data/attachments")),
             command_aliases,
             react_on_seen: r.boolean("reactOnSeen", false),
             react_on_seen_emoji: r.string_or("reactOnSeenEmoji", "📨"),

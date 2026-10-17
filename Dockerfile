@@ -43,7 +43,9 @@ ENV TZ=Europe/Paris \
 # Serveur web des logs de tickets (seulement si le module ticket est configuré).
 EXPOSE 8890
 
-# Les migrations de la base sont appliquées par le bot à chaque démarrage.
-# Exécution en root comme l'image précédente, pour rester compatible avec les
-# volumes déjà montés (base existante sous /app/prisma).
+# Toutes les données (base principale, base et fichiers des tickets) sont sous
+# /app/data : un seul volume à monter. Les migrations sont appliquées au démarrage.
+# Exécution en root comme l'image précédente, pour reprendre les fichiers des
+# volumes existants sans problème de droits.
+VOLUME ["/app/data"]
 ENTRYPOINT ["bot-golmon"]
