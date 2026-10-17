@@ -10,6 +10,7 @@ mod auto_close;
 pub mod buttons;
 mod commands;
 mod config;
+mod context_menu;
 mod db;
 mod formatters;
 mod handlers;

@@ -1,6 +1,7 @@
 pub mod admin;
 pub mod commands;
 pub mod components;
+pub mod context_menus;
 pub mod embed;
 pub mod gateway;
 pub mod interaction;

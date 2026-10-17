@@ -8,15 +8,15 @@ use crate::{
 };
 use anyhow::Result;
 use twilight_model::application::{
-    command::Command,
+    command::{Command, CommandType},
     interaction::{
         Interaction, InteractionData, InteractionType,
         modal::{ModalInteractionComponent, ModalInteractionData},
     },
 };
 
-pub fn definitions() -> Vec<Command> {
-    vec![
+pub fn definitions(with_tickets: bool) -> Vec<Command> {
+    let mut commands = vec![
         presences::commands::presence_definition(),
         presences::commands::absence_definition(),
         transactions::commands::definition(),
@@ -25,13 +25,15 @@ pub fn definitions() -> Vec<Command> {
         phones::commands::definition(),
         super::admin::config_definition(),
         super::admin::gestion_definition(),
-    ]
+    ];
+    commands.extend(super::context_menus::definitions(with_tickets));
+    commands
 }
 
 /// Enregistre les commandes : par guilde si une liste blanche est définie
 /// (disponibles immédiatement), sinon globalement.
 pub async fn deploy(ctx: &Ctx) -> Result<()> {
-    let commands = definitions();
+    let commands = definitions(ctx.modmail.is_some());
     let client = ctx.interaction();
     if ctx.config.guild_whitelist.is_empty() {
         client.set_global_commands(&commands).await?;
@@ -63,6 +65,11 @@ async fn route(ix: &Ix) -> Result<()> {
     };
 
     match (ix.interaction.kind, data) {
+        (InteractionType::ApplicationCommand, InteractionData::ApplicationCommand(command))
+            if command.kind != CommandType::ChatInput =>
+        {
+            super::context_menus::handle(ix, command).await
+        }
         (InteractionType::ApplicationCommand, InteractionData::ApplicationCommand(command)) => {
             let options = Options::parse(command);
             match command.name.as_str() {
@@ -160,5 +167,21 @@ pub fn modal_select(modal: &ModalInteractionData, custom_id: &str) -> Vec<String
     match find_component(&modal.components, custom_id) {
         Some(ModalInteractionComponent::StringSelect(select)) => select.values.clone(),
         _ => Vec::new(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::definitions;
+    use twilight_validate::command::command;
+
+    /// Discord refuse tout le lot si une seule commande dépasse ses limites.
+    #[test]
+    fn command_definitions_are_valid() {
+        for with_tickets in [false, true] {
+            for definition in definitions(with_tickets) {
+                command(&definition).unwrap_or_else(|error| panic!("{} : {error}", definition.name));
+            }
+        }
     }
 }

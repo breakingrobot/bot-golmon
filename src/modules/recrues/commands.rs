@@ -183,10 +183,20 @@ async fn liste(ix: &Ix, guild_id: Id<GuildMarker>) -> Result<()> {
 }
 
 async fn ajouter(ix: &Ix, options: &Options, guild_id: Id<GuildMarker>) -> Result<()> {
+    let membre = options.user("membre").expect("option requise");
+    add_member(ix, options, guild_id, membre).await
+}
+
+/// Ajoute un membre aux recrues de la semaine (`/recrue ajouter`, clic droit « Ajouter aux recrues »).
+pub async fn add_member(
+    ix: &Ix,
+    options: &Options,
+    guild_id: Id<GuildMarker>,
+    membre: Id<twilight_model::id::marker::UserMarker>,
+) -> Result<()> {
     if require_grade(ix, guild_id).await?.is_none() {
         return Ok(());
     }
-    let membre = options.user("membre").expect("option requise");
     let name = options.user_name(membre);
     ix.defer(true).await?;
 

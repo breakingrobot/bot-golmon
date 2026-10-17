@@ -38,6 +38,7 @@ ring = "0.17"
 base64 = "0.22"
 
 [dev-dependencies]
+twilight-validate = "0.17"
 tokio = { version = "1.47", features = ["macros", "rt-multi-thread", "test-util"] }
 
 [profile.release]

@@ -282,47 +282,56 @@ pub async fn config(ix: &Ix, options: &Options) -> Result<()> {
     ix.reply(Reply::ephemeral("Configuration mise à jour. `/presence config` sans option pour la consulter.")).await
 }
 
+/// Fiche de présence d'un membre (`/presence stats joueur`, clic droit « Présences du membre »).
+pub async fn member_stats(ix: &Ix, options: &Options, target: Id<UserMarker>) -> Result<()> {
+    let Some(guild_id) = ix.guild_id() else {
+        return ix.reply(Reply::ephemeral(GUILD_ONLY)).await;
+    };
+    let stats = service::user_stats(&ix.ctx.db, &guild_id.to_string(), &target.to_string()).await?;
+
+    let changes = if stats.recent_changes.is_empty() {
+        "Aucun changement".to_owned()
+    } else {
+        stats
+            .recent_changes
+            .iter()
+            .map(|change| {
+                let from = change
+                    .from_status
+                    .as_deref()
+                    .and_then(ResponseStatus::parse)
+                    .map_or_else(|| "*aucune réponse*".to_owned(), ResponseStatus::display);
+                let to = ResponseStatus::parse(&change.to_status).map(ResponseStatus::display).unwrap_or_default();
+                format!("• **{}** : {from} → {to}", change.titre)
+            })
+            .collect::<Vec<_>>()
+            .join("\n")
+    };
+
+    let name = options.user_name(target);
+    let embed = EmbedBuilder::new()
+        .title(format!("Statistiques de {name}"))
+        .color(0x5865f2)
+        .field(field("Présences clôturées", stats.total_closed.to_string(), true))
+        .field(field("% de présence", format!("{}%", stats.percent), true))
+        .field(field("\u{200b}", "\u{200b}", true))
+        .field(field("✅ Présent", stats.present.to_string(), true))
+        .field(field("❌ Absent", stats.absent.to_string(), true))
+        .field(field("⏳ Retard", stats.retard.to_string(), true))
+        .field(field("🕓 Sans réponse", stats.sans_reponse.to_string(), true))
+        .field(field("Derniers changements d'avis", truncate_field(&changes), false))
+        .maybe_thumbnail(options.resolved_user(target).map(|u| avatar_url(&u)))
+        .build();
+    ix.reply(Reply::embed(embed).hidden()).await
+}
+
 async fn stats(ix: &Ix, options: &Options) -> Result<()> {
     let Some(guild_id) = ix.guild_id() else {
         return ix.reply(Reply::ephemeral(GUILD_ONLY)).await;
     };
 
     if let Some(target) = options.user("joueur") {
-        let stats = service::user_stats(&ix.ctx.db, &guild_id.to_string(), &target.to_string()).await?;
-        let changes = if stats.recent_changes.is_empty() {
-            "Aucun changement".to_owned()
-        } else {
-            stats
-                .recent_changes
-                .iter()
-                .map(|change| {
-                    let from = change
-                        .from_status
-                        .as_deref()
-                        .and_then(ResponseStatus::parse)
-                        .map_or_else(|| "*aucune réponse*".to_owned(), ResponseStatus::display);
-                    let to = ResponseStatus::parse(&change.to_status).map(ResponseStatus::display).unwrap_or_default();
-                    format!("• **{}** : {from} → {to}", change.titre)
-                })
-                .collect::<Vec<_>>()
-                .join("\n")
-        };
-
-        let name = options.user_name(target);
-        let embed = EmbedBuilder::new()
-            .title(format!("Statistiques de {name}"))
-            .color(0x5865f2)
-            .field(field("Présences clôturées", stats.total_closed.to_string(), true))
-            .field(field("% de présence", format!("{}%", stats.percent), true))
-            .field(field("\u{200b}", "\u{200b}", true))
-            .field(field("✅ Présent", stats.present.to_string(), true))
-            .field(field("❌ Absent", stats.absent.to_string(), true))
-            .field(field("⏳ Retard", stats.retard.to_string(), true))
-            .field(field("🕓 Sans réponse", stats.sans_reponse.to_string(), true))
-            .field(field("Derniers changements d'avis", truncate_field(&changes), false))
-            .maybe_thumbnail(options.resolved_user(target).map(|u| avatar_url(&u)))
-            .build();
-        return ix.reply(Reply::embed(embed).hidden()).await;
+        return member_stats(ix, options, target).await;
     }
 
     let leaderboard = service::leaderboard(&ix.ctx.db, &guild_id.to_string()).await?;

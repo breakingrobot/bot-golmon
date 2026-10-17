@@ -246,6 +246,7 @@ dependencies = [
  "twilight-http",
  "twilight-model",
  "twilight-util",
+ "twilight-validate",
  "uuid",
 ]
 
