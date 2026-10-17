@@ -576,3 +576,59 @@ pub async fn reset_role_override(db: &SqlitePool, moderator_id: &str, thread_id:
     };
     Ok(())
 }
+
+/// Ticket de la liste web, avec le nombre d'échanges.
+#[derive(sqlx::FromRow)]
+pub struct ThreadSummary {
+    pub id: String,
+    pub status: i64,
+    pub user_id: String,
+    pub user_name: String,
+    pub created_at: String,
+    pub thread_number: Option<i64>,
+    pub exchanges: i64,
+}
+
+/// Recherche de tickets : identifiant ou nom d'utilisateur, numéro de ticket,
+/// ou texte d'un message. `status` : `None` pour tous.
+pub async fn search_threads(
+    db: &SqlitePool,
+    query: &str,
+    status: Option<i64>,
+    limit: i64,
+    offset: i64,
+) -> Result<(Vec<ThreadSummary>, i64)> {
+    let query = query.trim();
+    let pattern = format!("%{}%", query.replace('\\', "\\\\").replace('%', "\\%").replace('_', "\\_"));
+    let filter = "(?1 = '' OR t.`user_id` = ?1 OR CAST(t.`thread_number` AS TEXT) = ltrim(?1, '#')
+          OR t.`user_name` LIKE ?2 ESCAPE '\\'
+          OR EXISTS (SELECT 1 FROM `thread_messages` m WHERE m.`thread_id` = t.`id`
+                     AND m.`message_type` IN (?4, ?5, ?6) AND m.`body` LIKE ?2 ESCAPE '\\'))
+         AND (?3 IS NULL OR t.`status` = ?3)";
+    let (total,): (i64,) = sqlx::query_as(&format!("SELECT COUNT(*) FROM `threads` t WHERE {filter}"))
+        .bind(query)
+        .bind(&pattern)
+        .bind(status)
+        .bind(message_type::FROM_USER)
+        .bind(message_type::TO_USER)
+        .bind(message_type::CHAT)
+        .fetch_one(db)
+        .await?;
+    let rows = sqlx::query_as(&format!(
+        "SELECT t.`id`, t.`status`, t.`user_id`, t.`user_name`, t.`created_at`, t.`thread_number`,
+                (SELECT COUNT(*) FROM `thread_messages` m WHERE m.`thread_id` = t.`id` AND m.`message_type` IN (?4, ?5)) AS exchanges
+         FROM `threads` t WHERE {filter}
+         ORDER BY t.`created_at` DESC LIMIT ?7 OFFSET ?8"
+    ))
+    .bind(query)
+    .bind(&pattern)
+    .bind(status)
+    .bind(message_type::FROM_USER)
+    .bind(message_type::TO_USER)
+    .bind(message_type::CHAT)
+    .bind(limit)
+    .bind(offset)
+    .fetch_all(db)
+    .await?;
+    Ok((rows, total))
+}

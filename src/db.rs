@@ -51,7 +51,7 @@ mod tests {
     };
 
     async fn temp_db() -> (SqlitePool, std::path::PathBuf) {
-        let dir = std::env::temp_dir().join(format!("golmon-test-{}", uuid::Uuid::new_v4()));
+        let dir = std::env::temp_dir().join(format!("bot-test-{}", uuid::Uuid::new_v4()));
         let pool = open_main(&dir.join("bot.db")).await.unwrap();
         (pool, dir)
     }

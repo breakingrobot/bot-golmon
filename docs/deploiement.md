@@ -43,9 +43,9 @@ Hors Northflank, placer un reverse proxy devant le port 8890 (par exemple Caddy 
 ## Docker
 
 ```bash
-docker build -t bot-golmon .
-docker run -d --name bot-golmon --restart unless-stopped \
-  --env-file .env -v golmon-data:/app/data -p 8890:8890 bot-golmon
+docker build -t bot-discord .
+docker run -d --name bot-discord --restart unless-stopped \
+  --env-file .env -v bot-data:/app/data -p 8890:8890 bot-discord
 ```
 
 `-p 8890:8890` ne sert qu'au module ticket.
@@ -65,8 +65,8 @@ cargo run --release
 |---|---|---|
 | `DISCORD_TOKEN` | — | **Requis.** Token du bot. |
 | `DISCORD_GUILD_IDS` | *(vide)* | Serveurs autorisés, séparés par des virgules. Le bot quitte les autres serveurs et y déploie ses commandes immédiatement. Vide : aucune restriction, commandes globales (jusqu'à une heure de propagation). **À renseigner en production.** |
-| `DATABASE_URL` | `file:./data/golmon.db` | Base SQLite principale. |
-| `DEPLOY_COMMANDS` | `true` | Déployer les slash commands au démarrage. `bot-golmon deploy-commands` les déploie puis s'arrête. |
+| `DATABASE_URL` | `file:./data/bot.db` | Base SQLite principale. |
+| `DEPLOY_COMMANDS` | `true` | Déployer les slash commands au démarrage. `bot-discord deploy-commands` les déploie puis s'arrête. |
 | `RUST_LOG` | `info` | Détail des logs : `error`, `warn`, `info`, `debug`. |
 | `MM_*`, `MODMAIL_CONFIG`, `PORT` | — | [Module ticket](tickets.md). |
 
@@ -76,14 +76,14 @@ Les heures sont toujours interprétées en heure de Paris, quel que soit `TZ`.
 
 | Fichier | Contenu |
 |---|---|
-| `golmon.db` | Base principale |
+| `bot.db` | Base principale |
 | `modmail.sqlite` | Base des tickets |
 | `logs/`, `attachments/` | Seulement avec `logStorage = attachment` ou `attachmentStorage = local` |
 
 ## Reprendre les données de l'ancien bot (TypeScript)
 
 Copier son fichier `dev.db` dans le volume `/app/data` **avant le premier démarrage**. Le bot le renomme
-en `golmon.db` et le met à jour sans perte (tables `Prospect*` renommées en `Recrue*`, dates normalisées).
+en `bot.db` et le met à jour sans perte (tables `Prospect*` renommées en `Recrue*`, dates normalisées).
 
 - `/prospect` est remplacée par `/recrue` (option `role_prospect` → `role_recrue`) ;
 - les messages déjà publiés (présences, tableaux de bord, avis de la semaine) restent fonctionnels.

@@ -37,6 +37,7 @@ pub struct Post {
     pub reply_to: Option<Id<MessageMarker>>,
     pub files: Vec<FileData>,
     pub embeds: Vec<Embed>,
+    pub components: Vec<twilight_model::channel::message::Component>,
 }
 
 impl Post {
@@ -158,6 +159,9 @@ impl Modmail {
                 if !post.embeds.is_empty() {
                     request = request.embeds(&post.embeds);
                 }
+                if !post.components.is_empty() {
+                    request = request.components(&post.components);
+                }
             }
             if let (0, Some(reply_to)) = (index, post.reply_to) {
                 request = request.reply(reply_to).fail_if_not_exists(false);
@@ -201,10 +205,20 @@ impl Modmail {
         mentions: Mentions,
         reply_to: Option<Id<MessageMarker>>,
     ) -> Result<Option<Message>> {
+        self.post_system_message_full(ctx, thread, text, Post { mentions, reply_to, ..Default::default() }).await
+    }
+
+    /// Message système avec options (mentions, réponse, boutons) ; le contenu est `text`.
+    pub async fn post_system_message_full(
+        &self,
+        ctx: &Ctx,
+        thread: &Thread,
+        text: &str,
+        post: Post,
+    ) -> Result<Option<Message>> {
         let content =
             formatters::system_thread_message(&ThreadMessage { body: Some(text.to_owned()), ..Default::default() });
-        let message =
-            self.post_to_thread(ctx, thread, Post { content, mentions, reply_to, ..Default::default() }).await?;
+        let message = self.post_to_thread(ctx, thread, Post { content, ..post }).await?;
         store::add_message(
             &self.db,
             &thread.id,
@@ -1054,7 +1068,15 @@ impl Modmail {
         } else {
             Mentions::None
         };
-        let header_message = self.post_system_message_with(ctx, &thread, &header, mentions, None).await?;
+        let controls = super::buttons::controls(&thread.id, None);
+        let header_message = self
+            .post_system_message_full(
+                ctx,
+                &thread,
+                &header,
+                Post { mentions, components: controls, ..Default::default() },
+            )
+            .await?;
         if self.config.pin_thread_header
             && let Some(message) = header_message
         {

@@ -88,7 +88,7 @@ impl VehicleApi {
     pub fn new() -> Self {
         let client = reqwest::Client::builder()
             .timeout(TIMEOUT)
-            .user_agent(concat!("bot-golmon/", env!("CARGO_PKG_VERSION")))
+            .user_agent(concat!("bot-discord/", env!("CARGO_PKG_VERSION")))
             .build()
             .expect("client HTTP");
         Self { client, cache: Mutex::new(HashMap::new()), in_flight: Mutex::new(HashMap::new()) }

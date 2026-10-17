@@ -1,15 +1,6 @@
-<!doctype html>
-<html lang="fr">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="robots" content="noindex, nofollow">
-  <title>Ticket #{{ thread_number }} — {{ user_name }}</title>
-  <link rel="stylesheet" href="/assets/logs.css?v={{ asset_version }}">
-  <script src="/assets/logs.js?v={{ asset_version }}" defer></script>
-</head>
-<body>
-  <div class="mx-auto max-w-4xl px-4 py-8 sm:px-6 sm:py-12">
+{% extends "base.html" %}
+{% block content %}
+  <div class="mx-auto max-w-4xl">
     <header class="mb-8">
       <div class="flex flex-wrap items-center gap-x-3 gap-y-2">
         <h1 class="text-2xl font-semibold tracking-tight text-ink sm:text-3xl">Ticket #{{ thread_number }}</h1>
@@ -46,7 +37,7 @@
       </nav>
     </header>
 
-    <main>
+    <section>
       {% if entries.is_empty() %}
       <p class="rounded-card border border-dashed border-line-strong px-6 py-12 text-center text-ink-muted">Aucun message à afficher.</p>
       {% endif %}
@@ -122,11 +113,10 @@
         </li>
         {% endfor %}
       </ol>
-    </main>
+    </section>
 
     <footer class="mt-12 border-t border-line pt-6 text-sm text-ink-subtle">
-      Heures affichées dans votre fuseau horaire (UTC si JavaScript est désactivé). Log généré par bot-golmon.
+      Heures affichées dans votre fuseau horaire (UTC si JavaScript est désactivé). Log généré par bot-discord.
     </footer>
   </div>
-</body>
-</html>
+{% endblock %}

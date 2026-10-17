@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block content %}
+<h1 class="text-2xl font-semibold tracking-tight text-ink">Bienvenue</h1>
+{% if !login_enabled %}
+<p class="mt-3 max-w-2xl text-ink-muted">
+  La connexion Discord n'est pas configurée : seuls les logs de tickets sont accessibles, par leur lien.
+</p>
+{% else if !logged_in %}
+<p class="mt-3 max-w-2xl text-ink-muted">
+  Connecte-toi avec Discord pour consulter les tickets et les statistiques auxquels tu as accès.
+</p>
+{% else if !tickets && guilds.is_empty() %}
+<p class="mt-3 max-w-2xl text-ink-muted">
+  Ce compte n'a accès à aucune page : il faut faire partie du staff des tickets, ou avoir « Gérer le serveur ».
+</p>
+{% else %}
+<div class="mt-6 grid gap-4 sm:grid-cols-2">
+  {% if tickets %}
+  <a href="/logs" class="rounded-card border border-line bg-surface px-5 py-4 hover:border-line-strong">
+    <h2 class="font-semibold text-ink">Tickets</h2>
+    <p class="mt-1 text-sm text-ink-muted">Recherche dans les tickets, logs et statistiques du staff.</p>
+  </a>
+  {% endif %}
+  {% for (id, name) in guilds %}
+  <a href="/stats/{{ id }}" class="rounded-card border border-line bg-surface px-5 py-4 hover:border-line-strong">
+    <h2 class="font-semibold text-ink">Statistiques · {{ name }}</h2>
+    <p class="mt-1 text-sm text-ink-muted">Assiduité aux présences, recrues et tickets.</p>
+  </a>
+  {% endfor %}
+</div>
+{% endif %}
+{% endblock %}

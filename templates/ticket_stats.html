@@ -1,0 +1,54 @@
+{# Bloc « tickets » partagé par la page du staff et les statistiques du serveur. #}
+<dl class="grid grid-cols-2 gap-3 sm:grid-cols-5">
+  <div class="rounded-card border border-line bg-surface px-4 py-3">
+    <dt class="text-xs font-medium tracking-wide text-ink-subtle uppercase">Ouverts</dt>
+    <dd class="mt-1 text-xl font-semibold text-ink">{{ tickets.open }}</dd>
+  </div>
+  <div class="rounded-card border border-line bg-surface px-4 py-3">
+    <dt class="text-xs font-medium tracking-wide text-ink-subtle uppercase">Créés (30 j)</dt>
+    <dd class="mt-1 text-xl font-semibold text-ink">{{ tickets.opened }}</dd>
+  </div>
+  <div class="rounded-card border border-line bg-surface px-4 py-3">
+    <dt class="text-xs font-medium tracking-wide text-ink-subtle uppercase">Fermés (30 j)</dt>
+    <dd class="mt-1 text-xl font-semibold text-ink">{{ tickets.closed }}</dd>
+  </div>
+  <div class="rounded-card border border-line bg-surface px-4 py-3">
+    <dt class="text-xs font-medium tracking-wide text-ink-subtle uppercase">Sans réponse</dt>
+    <dd class="mt-1 text-xl font-semibold {% if tickets.unanswered > 0 %}text-danger{% else %}text-ink{% endif %}">{{ tickets.unanswered }}</dd>
+  </div>
+  <div class="col-span-2 rounded-card border border-line bg-surface px-4 py-3 sm:col-span-1">
+    <dt class="text-xs font-medium tracking-wide text-ink-subtle uppercase">1re réponse (médiane)</dt>
+    <dd class="mt-1 text-xl font-semibold text-staff">{% if let Some(delay) = tickets.median_first_response %}{{ delay }}{% else %}—{% endif %}</dd>
+  </div>
+</dl>
+
+{% if tickets.staff.is_empty() %}
+<p class="mt-4 text-sm text-ink-muted">Aucune réponse du staff ces 30 derniers jours.</p>
+{% else %}
+<div class="mt-4 overflow-x-auto rounded-card border border-line bg-surface">
+  <table class="w-full text-left text-sm">
+    <thead class="border-b border-line text-xs tracking-wide text-ink-subtle uppercase">
+      <tr>
+        <th class="px-4 py-2 font-medium">Membre du staff</th>
+        <th class="px-4 py-2 text-right font-medium">Réponses</th>
+        <th class="px-4 py-2 text-right font-medium">Tickets</th>
+        <th class="px-4 py-2 text-right font-medium">Pris en charge</th>
+        <th class="px-4 py-2 text-right font-medium">1res réponses</th>
+        <th class="px-4 py-2 text-right font-medium">Délai moyen</th>
+      </tr>
+    </thead>
+    <tbody class="divide-y divide-line">
+      {% for member in tickets.staff %}
+      <tr>
+        <td class="px-4 py-2 font-medium text-ink">{{ member.name }}</td>
+        <td class="px-4 py-2 text-right tabular-nums">{{ member.replies }}</td>
+        <td class="px-4 py-2 text-right tabular-nums">{{ member.tickets }}</td>
+        <td class="px-4 py-2 text-right tabular-nums">{{ member.claims }}</td>
+        <td class="px-4 py-2 text-right tabular-nums">{{ member.first_responses }}</td>
+        <td class="px-4 py-2 text-right tabular-nums text-ink-muted">{% if let Some(delay) = member.average_first_response %}{{ delay }}{% else %}—{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}

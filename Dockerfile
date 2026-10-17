@@ -9,7 +9,8 @@ COPY web/src ./src
 # Les classes utilisées sont lues dans les templates et le code du module ticket.
 COPY templates /build/templates
 COPY src/modmail /build/src/modmail
-RUN npx tailwindcss -i src/logs.css -o dist/logs.css --minify
+COPY src/web /build/src/web
+RUN npx tailwindcss -i src/app.css -o dist/app.css --minify
 
 # --- 2. Compilation du bot ---------------------------------------------------
 FROM rust:1.97-slim-trixie AS build
@@ -20,7 +21,7 @@ WORKDIR /build
 COPY Cargo.toml Cargo.lock ./
 RUN mkdir src && echo "fn main() {}" > src/main.rs \
     && cargo build --release --locked \
-    && rm -rf src target/release/deps/bot_golmon* target/release/bot-golmon*
+    && rm -rf src target/release/deps/bot_discord* target/release/bot-discord*
 
 COPY migrations ./migrations
 COPY templates ./templates
@@ -36,7 +37,7 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
-COPY --from=build /build/target/release/bot-golmon /usr/local/bin/bot-golmon
+COPY --from=build /build/target/release/bot-discord /usr/local/bin/bot-discord
 
 ENV TZ=Europe/Paris \
     RUST_LOG=info
@@ -48,4 +49,4 @@ EXPOSE 8890
 # Exécution en root comme l'image précédente, pour reprendre les fichiers des
 # volumes existants sans problème de droits.
 VOLUME ["/app/data"]
-ENTRYPOINT ["bot-golmon"]
+ENTRYPOINT ["bot-discord"]

@@ -92,6 +92,7 @@ async fn route(ix: &Ix) -> Result<()> {
                 "numero" => phones::interactions::button(ix, &custom_id).await,
                 // « prospect » : messages publiés avant le renommage du module.
                 "recrue" | "prospect" => recrues::interactions::select(ix, &custom_id, &component.values).await,
+                crate::modmail::buttons::NAMESPACE => crate::modmail::buttons::button(ix, &custom_id).await,
                 _ => Ok(()),
             }
         }
@@ -108,6 +109,9 @@ async fn route(ix: &Ix) -> Result<()> {
                     recrues::interactions::modal(ix, custom_id.action, custom_id.id, modal).await
                 }
                 ("numero", "add-modal") => phones::interactions::add_modal(ix, modal).await,
+                (crate::modmail::buttons::NAMESPACE, "reply-modal") => {
+                    crate::modmail::buttons::modal(ix, &custom_id, modal).await
+                }
                 _ => Ok(()),
             }
         }

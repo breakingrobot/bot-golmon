@@ -1,4 +1,4 @@
-# Bot Golmon
+# Bot Discord
 
 Bot Discord pour un groupe RP : **présences et absences**, **transactions**, **véhicules**, **recrues**,
 **annuaire téléphonique** et **tickets** (modmail compatible [Dragory/modmailbot](https://github.com/Dragory/modmailbot)).

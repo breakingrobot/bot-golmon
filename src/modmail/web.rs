@@ -2,18 +2,20 @@
 //! modmailbot), pièces jointes stockées localement, politique de confidentialité.
 
 use super::{
-    Modmail,
     formatters::{LogOptions, format_log, shown_in_simple_view, summarise_embeds},
     models::{Thread, ThreadMessage, message_type, thread_status},
     store,
     util::parse_db_time,
 };
-use crate::context::Context;
+use crate::{
+    context::Context,
+    web::{self, ASSET_VERSION, MaybeViewer, pages::Layout},
+};
 use askama::Template;
 use axum::{
     Router,
     extract::{Path, Query, State},
-    http::{HeaderValue, StatusCode, header},
+    http::{StatusCode, Uri, header},
     response::{Html, IntoResponse, Response},
     routing::get,
 };
@@ -21,10 +23,6 @@ use chrono::{DateTime, Datelike, Utc};
 use regex::Regex;
 use serde::Deserialize;
 use std::sync::LazyLock;
-
-const CSS: &str = include_str!("../../web/dist/logs.css");
-const JS: &str = include_str!("../../web/src/logs.js");
-const ASSET_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 /// Style d'un message selon son type. Les classes sont écrites en entier : le
 /// compilateur Tailwind les lit ici (`@source`).
@@ -109,6 +107,7 @@ struct View {
 #[derive(Template)]
 #[template(path = "logs.html")]
 struct LogPage {
+    layout: Layout,
     thread_number: i64,
     user_name: String,
     user_id: String,
@@ -122,7 +121,6 @@ struct LogPage {
     views: Vec<View>,
     raw_href: String,
     entries: Vec<Entry>,
-    asset_version: &'static str,
 }
 
 static URL: LazyLock<Regex> = LazyLock::new(|| Regex::new(r#"https?://[^\s<>"']+"#).unwrap());
@@ -309,7 +307,12 @@ fn entry_for(message: &ThreadMessage, verbose: bool) -> Entry {
     }
 }
 
-fn render_page(thread: &Thread, messages: &[ThreadMessage], options: LogOptions) -> Result<String, askama::Error> {
+fn render_page(
+    layout: Layout,
+    thread: &Thread,
+    messages: &[ThreadMessage],
+    options: LogOptions,
+) -> Result<String, askama::Error> {
     let count = |kind| messages.iter().filter(|m| m.message_type == kind).count();
     let opened = parse_db_time(&thread.created_at);
     let (status_label, status_classes) = match thread.status {
@@ -334,6 +337,7 @@ fn render_page(thread: &Thread, messages: &[ThreadMessage], options: LogOptions)
 
     let base = format!("/logs/{}", thread.id);
     LogPage {
+        layout,
         thread_number: thread.number(),
         user_name: thread.user_name.clone(),
         user_id: thread.user_id.clone(),
@@ -355,7 +359,6 @@ fn render_page(thread: &Thread, messages: &[ThreadMessage], options: LogOptions)
         ],
         raw_href: format!("{base}?raw=1"),
         entries,
-        asset_version: ASSET_VERSION,
     }
     .render()
 }
@@ -377,12 +380,27 @@ fn not_found() -> Response {
 
 async fn serve_log(
     State(ctx): State<Context>,
+    viewer: MaybeViewer,
+    uri: Uri,
     Path(thread_id): Path<String>,
     Query(query): Query<LogQuery>,
 ) -> Response {
     let Some(modmail) = ctx.modmail.as_ref() else {
         return not_found();
     };
+    // Connexion configurée : logs réservés au staff. Sinon, lien non devinable (modmailbot).
+    let mut access = None;
+    if web::auth::enabled(&ctx) {
+        let path = uri.path_and_query().map_or("/logs", |p| p.as_str());
+        let (viewer, granted) = match web::pages::require_viewer(&ctx, viewer, path).await {
+            Ok(found) => found,
+            Err(response) => return *response,
+        };
+        if !granted.tickets {
+            return web::pages::forbidden(&ctx, &viewer, &granted);
+        }
+        access = Some((viewer, granted));
+    }
     let Ok(Some(thread)) = store::find_by_id(&modmail.db, &thread_id).await else {
         return not_found();
     };
@@ -411,7 +429,12 @@ async fn serve_log(
         return ([(header::CONTENT_TYPE, "text/plain; charset=UTF-8")], text).into_response();
     }
 
-    match render_page(&thread, &messages, options) {
+    let title = format!("Ticket #{} — {}", thread.number(), thread.user_name);
+    let layout = match &access {
+        Some((viewer, granted)) => Layout::new(&ctx, title, Some(viewer), granted, "/logs"),
+        None => Layout::bare(&title),
+    };
+    match render_page(layout, &thread, &messages, options) {
         Ok(html) => Html(html).into_response(),
         Err(error) => {
             tracing::error!(%error, "rendu de la page de log impossible");
@@ -455,7 +478,7 @@ async fn serve_privacy_policy() -> Response {
     match tokio::fs::read_to_string("PRIVACY_POLICY.md").await {
         Ok(text) => Html(format!(
             "<!doctype html><html lang=\"fr\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\
-             <title>Privacy policy</title><link rel=\"stylesheet\" href=\"/assets/logs.css?v={ASSET_VERSION}\"></head>\
+             <title>Privacy policy</title><link rel=\"stylesheet\" href=\"/assets/app.css?v={ASSET_VERSION}\"></head>\
              <body><main class=\"mx-auto max-w-3xl px-4 py-12\"><div class=\"message-body text-ink\">{}</div></main></body></html>",
             render_body(&text)
         ))
@@ -464,49 +487,13 @@ async fn serve_privacy_policy() -> Response {
     }
 }
 
-fn asset(content_type: &'static str, body: &'static str) -> Response {
-    ([(header::CONTENT_TYPE, content_type), (header::CACHE_CONTROL, "public, max-age=86400")], body).into_response()
-}
-
-async fn security_headers(response: Response) -> Response {
-    let mut response = response;
-    let headers = response.headers_mut();
-    headers.insert(header::X_CONTENT_TYPE_OPTIONS, HeaderValue::from_static("nosniff"));
-    headers.insert(header::REFERRER_POLICY, HeaderValue::from_static("no-referrer"));
-    headers.insert(header::X_FRAME_OPTIONS, HeaderValue::from_static("DENY"));
-    headers.insert("x-robots-tag", HeaderValue::from_static("noindex, nofollow"));
-    headers.insert(
-        header::CONTENT_SECURITY_POLICY,
-        HeaderValue::from_static("default-src 'none'; style-src 'self'; script-src 'self'; img-src * data:; base-uri 'none'; form-action 'none'"),
-    );
-    response
-}
-
-impl Modmail {
-    pub fn spawn_webserver(&self, ctx: Context) {
-        let address = format!("{}:{}", self.config.host, self.config.port);
-        let app = Router::new()
-            .route("/logs/{thread_id}", get(serve_log))
-            .route("/attachments/{attachment_id}/{filename}", get(serve_attachment))
-            .route("/privacy-policy", get(serve_privacy_policy))
-            .route("/assets/logs.css", get(|| async { asset("text/css; charset=UTF-8", CSS) }))
-            .route("/assets/logs.js", get(|| async { asset("text/javascript; charset=UTF-8", JS) }))
-            .route("/healthz", get(|| async { "ok" }))
-            .layer(axum::middleware::map_response(security_headers))
-            .with_state(ctx);
-
-        tokio::spawn(async move {
-            match tokio::net::TcpListener::bind(&address).await {
-                Ok(listener) => {
-                    tracing::info!(%address, "serveur web du modmail démarré");
-                    if let Err(error) = axum::serve(listener, app).await {
-                        tracing::warn!(%error, "erreur du serveur web");
-                    }
-                }
-                Err(error) => tracing::warn!(%address, %error, "serveur web du modmail impossible à démarrer"),
-            }
-        });
-    }
+pub fn routes() -> Router<Context> {
+    Router::new()
+        .route("/logs", get(super::web_list::list))
+        .route("/logs/staff", get(super::web_list::staff))
+        .route("/logs/{thread_id}", get(serve_log))
+        .route("/attachments/{attachment_id}/{filename}", get(serve_attachment))
+        .route("/privacy-policy", get(serve_privacy_policy))
 }
 
 #[cfg(test)]
@@ -624,7 +611,7 @@ mod page_tests {
             edited,
             message(8, message_type::SYSTEM, "", "Closing thread...", "2026-10-17 09:30:00"),
         ];
-        let html = render_page(&thread, &messages, LogOptions::default()).unwrap();
+        let html = render_page(Layout::bare("Ticket"), &thread, &messages, LogOptions::default()).unwrap();
         assert!(html.contains("Ticket #42"));
         assert!(html.contains("Note interne"));
         assert!(html.contains("<img src=\"https://cdn.discordapp.com/attachments/1/2/capture.png\""));
@@ -632,9 +619,9 @@ mod page_tests {
         assert!(html.contains("16 octobre 2026") && html.contains("17 octobre 2026"));
 
         if let Ok(path) = std::env::var("LOG_PREVIEW_PATH") {
-            let css = format!("<style>{CSS}</style>");
+            let css = format!("<style>{}</style>", crate::web::CSS);
             let preview =
-                html.replace(&format!(r#"<link rel="stylesheet" href="/assets/logs.css?v={ASSET_VERSION}">"#), &css);
+                html.replace(&format!(r#"<link rel="stylesheet" href="/assets/app.css?v={ASSET_VERSION}">"#), &css);
             std::fs::write(path, preview).unwrap();
         }
     }

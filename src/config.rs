@@ -6,8 +6,9 @@ use std::{
     path::{Path, PathBuf},
 };
 
-const DEFAULT_DATABASE_PATH: &str = "data/golmon.db";
 use twilight_model::id::{Id, marker::GuildMarker};
+
+const DEFAULT_DATABASE_PATH: &str = "data/bot.db";
 
 #[derive(Clone, Debug)]
 pub struct Config {
@@ -17,6 +18,18 @@ pub struct Config {
     pub database_path: PathBuf,
     /// Déploie les slash commands au démarrage (idempotent, activé par défaut).
     pub deploy_commands: bool,
+    pub web: WebConfig,
+}
+
+/// Serveur web (logs des tickets, statistiques, `/healthz`).
+#[derive(Clone, Debug, Default)]
+pub struct WebConfig {
+    /// `PORT` : port d'écoute quand le module ticket ne le fixe pas.
+    pub port: Option<u16>,
+    /// `WEB_URL` : adresse publique (à défaut, `url` du module ticket).
+    pub public_url: Option<String>,
+    /// `DISCORD_CLIENT_SECRET` : active la connexion Discord des pages web.
+    pub client_secret: Option<String>,
 }
 
 impl Config {
@@ -57,7 +70,14 @@ impl Config {
             .map(|v| !matches!(v.trim().to_lowercase().as_str(), "0" | "false" | "off" | "no"))
             .unwrap_or(true);
 
-        Ok(Self { token, guild_whitelist, database_path, deploy_commands })
+        let non_empty = |key: &str| env::var(key).ok().map(|v| v.trim().to_owned()).filter(|v| !v.is_empty());
+        let web = WebConfig {
+            port: non_empty("PORT").map(|p| p.parse().with_context(|| format!("PORT invalide : {p}"))).transpose()?,
+            public_url: non_empty("WEB_URL").map(|u| u.trim_end_matches('/').to_owned()),
+            client_secret: non_empty("DISCORD_CLIENT_SECRET"),
+        };
+
+        Ok(Self { token, guild_whitelist, database_path, deploy_commands, web })
     }
 
     pub fn is_guild_allowed(&self, guild_id: Id<GuildMarker>) -> bool {
@@ -66,7 +86,7 @@ impl Config {
 }
 
 /// Base principale par défaut, avec reprise des emplacements de la version TypeScript :
-/// - `data/dev.db` (ancien volume remonté sur `/app/data`) est renommée en `data/golmon.db` ;
+/// - `data/dev.db` (ancien volume remonté sur `/app/data`) est renommée en `data/bot.db` ;
 /// - `prisma/dev.db` (volume encore monté sur `/app/prisma`) est utilisée telle quelle.
 fn default_database_path() -> Result<PathBuf> {
     let path = PathBuf::from(DEFAULT_DATABASE_PATH);

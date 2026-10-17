@@ -3,6 +3,7 @@
 /* Les classes sont lues dans les templates et dans le code Rust qui les choisit. */
 @source "../../templates";
 @source "../../src/modmail";
+@source "../../src/web";
 
 /*
  * Design tokens.
@@ -23,6 +24,7 @@
   --ink-subtle: oklch(0.6 0.015 265);
   --accent: oklch(0.55 0.2 270);
   --accent-soft: oklch(0.95 0.035 270);
+  --on-accent: oklch(0.99 0 0);
   --focus: oklch(0.62 0.19 270);
 
   /* Rôles des messages du ticket. */
@@ -50,6 +52,7 @@
     --ink-subtle: oklch(0.6 0.015 265);
     --accent: oklch(0.72 0.15 270);
     --accent-soft: oklch(0.3 0.06 270);
+    --on-accent: oklch(0.17 0.012 265);
     --focus: oklch(0.72 0.15 270);
 
     --user: oklch(0.74 0.13 255);
@@ -79,6 +82,7 @@
   --color-ink-subtle: var(--ink-subtle);
   --color-accent: var(--accent);
   --color-accent-soft: var(--accent-soft);
+  --color-on-accent: var(--on-accent);
   --color-focus: var(--focus);
 
   --color-user: var(--user);
@@ -137,5 +141,33 @@
 
   .mention {
     @apply rounded bg-accent-soft px-1 font-medium text-accent;
+  }
+}
+
+@layer components {
+  /* Jauge d'assiduité : couleurs des tokens selon le seuil (low/high/optimum). */
+  .meter {
+    @apply appearance-none overflow-hidden rounded-full bg-surface-sunken;
+  }
+  .meter::-webkit-meter-bar {
+    @apply rounded-full border-0 bg-surface-sunken;
+  }
+  .meter::-webkit-meter-optimum-value {
+    @apply bg-staff;
+  }
+  .meter::-webkit-meter-suboptimum-value {
+    @apply bg-internal;
+  }
+  .meter::-webkit-meter-even-less-good-value {
+    @apply bg-danger;
+  }
+  .meter:-moz-meter-optimum::-moz-meter-bar {
+    @apply bg-staff;
+  }
+  .meter:-moz-meter-sub-optimum::-moz-meter-bar {
+    @apply bg-internal;
+  }
+  .meter:-moz-meter-sub-sub-optimum::-moz-meter-bar {
+    @apply bg-danger;
   }
 }

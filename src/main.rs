@@ -1,4 +1,4 @@
-//! Bot Discord Golmon : présences, absences, transactions, véhicules, recrues,
+//! Bot Discord : présences, absences, transactions, véhicules, recrues,
 //! annuaire et tickets (modmail compatible Dragory/modmailbot).
 
 mod config;
@@ -8,6 +8,7 @@ mod discord;
 mod modmail;
 mod modules;
 mod util;
+mod web;
 
 use anyhow::{Context as _, Result};
 use context::Ctx;
@@ -88,6 +89,7 @@ async fn main() -> Result<()> {
     if let Some(modmail) = &ctx.modmail {
         modmail.start(Arc::clone(&ctx));
     }
+    web::spawn(Arc::clone(&ctx));
 
     let (shutdown_tx, shutdown_rx) = watch::channel(false);
     let tasks: Vec<_> = shards

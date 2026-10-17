@@ -1,10 +1,10 @@
 {
-  "name": "bot-golmon-web",
+  "name": "bot-discord-web",
   "private": true,
-  "description": "Feuille de style des pages web du bot (logs de tickets), compilée avec Tailwind CSS v4.",
+  "description": "Feuille de style des pages web du bot (logs de tickets, statistiques), compilée avec Tailwind CSS v4.",
   "scripts": {
-    "build": "tailwindcss -i src/logs.css -o dist/logs.css --minify",
-    "watch": "tailwindcss -i src/logs.css -o dist/logs.css --watch"
+    "build": "tailwindcss -i src/app.css -o dist/app.css --minify",
+    "watch": "tailwindcss -i src/app.css -o dist/app.css --watch"
   },
   "devDependencies": {
     "@tailwindcss/cli": "4.3.3",

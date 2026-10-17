@@ -6,6 +6,7 @@
 //! JavaScript ne sont pas pris en charge.
 
 mod attachments;
+pub mod buttons;
 mod commands;
 mod config;
 mod db;
@@ -15,15 +16,18 @@ mod ini;
 mod logs;
 mod models;
 mod parser;
+mod staff;
 mod store;
 mod thread;
 mod util;
 mod web;
+mod web_list;
 
 use crate::context::{Context, Ctx};
 use anyhow::Result;
 use config::MmConfig;
 use sqlx::SqlitePool;
+pub use staff::TicketStats;
 use std::{
     collections::{HashMap, HashSet},
     sync::{Arc, Mutex},
@@ -40,6 +44,11 @@ use twilight_model::{
         marker::{ChannelMarker, UserMarker},
     },
 };
+
+/// Pages web du module (logs, liste des tickets, pièces jointes).
+pub fn web_routes() -> axum::Router<Context> {
+    web::routes()
+}
 
 pub struct Modmail {
     pub config: MmConfig,
@@ -96,10 +105,8 @@ impl Modmail {
         intents
     }
 
-    /// Démarre le serveur web, les tâches périodiques et le statut du bot.
+    /// Démarre les tâches périodiques et le statut du bot.
     pub fn start(&self, ctx: Context) {
-        self.spawn_webserver(Arc::clone(&ctx));
-
         let periodic = Arc::clone(&ctx);
         tokio::spawn(async move {
             let mut ticker = tokio::time::interval(Duration::from_secs(2));

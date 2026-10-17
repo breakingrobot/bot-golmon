@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>{{ layout.title }}</title>
+  <link rel="stylesheet" href="/assets/app.css?v={{ layout.asset_version }}">
+  <script src="/assets/app.js?v={{ layout.asset_version }}" defer></script>
+</head>
+<body>
+  <header class="border-b border-line bg-surface">
+    <div class="mx-auto flex max-w-5xl flex-wrap items-center gap-x-6 gap-y-2 px-4 py-3 sm:px-6">
+      <a href="/" class="font-semibold tracking-tight text-ink">Bot Discord</a>
+      <nav class="flex items-center gap-1" aria-label="Navigation principale">
+        {% for link in layout.nav %}
+        <a href="{{ link.href }}"
+           class="rounded-lg px-3 py-1.5 text-sm font-medium {% if link.active %}bg-accent-soft text-accent{% else %}text-ink-muted hover:text-ink{% endif %}"
+           {% if link.active %}aria-current="page"{% endif %}>{{ link.label }}</a>
+        {% endfor %}
+      </nav>
+      <div class="ml-auto flex items-center gap-3 text-sm">
+        {% if let Some(name) = layout.viewer_name %}
+        <span class="text-ink-muted">{{ name }}</span>
+        <a href="/logout" class="font-medium text-ink-muted hover:text-ink">Déconnexion</a>
+        {% else if let Some(href) = layout.login_href %}
+        <a href="{{ href }}" class="rounded-lg bg-accent px-3 py-1.5 font-medium text-on-accent hover:bg-accent/90">Se connecter</a>
+        {% endif %}
+      </div>
+    </div>
+  </header>
+  <main class="mx-auto max-w-5xl px-4 py-8 sm:px-6 sm:py-10">
+    {% block content %}{% endblock %}
+  </main>
+</body>
+</html>

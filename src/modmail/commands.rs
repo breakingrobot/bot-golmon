@@ -395,7 +395,7 @@ impl Modmail {
                 c.system_or_say(&format!("<{url}>")).await
             }
             Cmd::Version => {
-                c.system_or_say(&format!("Modmail v{} (bot-golmon, compatible modmailbot)", env!("CARGO_PKG_VERSION")))
+                c.system_or_say(&format!("Modmail v{} (bot-discord, compatible modmailbot)", env!("CARGO_PKG_VERSION")))
                     .await
             }
             Cmd::NewThread => self.cmd_new_thread(c).await,
@@ -541,19 +541,31 @@ impl Modmail {
             (false, c.author_name(), found)
         };
 
+        self.close_now(c.ctx, &thread, &closed_by, c.msg.author.id, suppress_system_messages, silent).await
+    }
+
+    /// Fermeture immédiate : message de fermeture, fermeture, notification dans les logs.
+    pub async fn close_now(
+        &self,
+        ctx: &Ctx,
+        thread: &Thread,
+        closed_by: &str,
+        closed_by_id: Id<UserMarker>,
+        suppress_system_messages: bool,
+        silent: bool,
+    ) -> Result<()> {
         if let (Some(message), false) = (&self.config.close_message, silent) {
-            let _ = self.send_system_message_to_user(c.ctx, &thread, message, true).await;
+            let _ = self.send_system_message_to_user(ctx, thread, message, true).await;
         }
-        self.close_thread(c.ctx, &thread, suppress_system_messages, silent).await?;
+        self.close_thread(ctx, thread, suppress_system_messages, silent).await?;
         self.send_close_notification(
-            c.ctx,
-            &thread,
+            ctx,
+            thread,
             &format!(
-                "Modmail thread #{} with {} ({}) was closed by {closed_by} ({})",
+                "Modmail thread #{} with {} ({}) was closed by {closed_by} ({closed_by_id})",
                 thread.number(),
                 thread.user_name,
                 thread.user_id,
-                c.msg.author.id
             ),
         )
         .await
