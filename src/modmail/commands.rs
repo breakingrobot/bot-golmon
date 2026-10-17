@@ -792,6 +792,14 @@ impl Modmail {
 
     async fn cmd_move(&self, c: &Call<'_>) -> Result<()> {
         let thread = c.thread();
+        if self.config.new_thread_forum_id.is_some()
+            && c.ctx.cache.channel(c.msg.channel_id).is_some_and(|ch| ch.kind.is_thread())
+        {
+            return self
+                .post_system_message(c.ctx, thread, "Un ticket en fil de forum ne peut pas être déplacé.")
+                .await
+                .map(drop);
+        }
         let search = super::util::slugify(c.args.str("category").unwrap_or_default());
         let current_parent = c.ctx.cache.channel(c.msg.channel_id).and_then(|ch| ch.parent_id);
         let categories: Vec<(Id<ChannelMarker>, String, Vec<PermissionOverwrite>)> = c

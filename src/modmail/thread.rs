@@ -20,6 +20,7 @@ use twilight_model::{
     channel::{
         ChannelType, Message,
         message::{Embed, MessageActivityType},
+        thread::AutoArchiveDuration,
     },
     guild::Member,
     id::{
@@ -769,11 +770,17 @@ impl Modmail {
         }
         store::set_status(&self.db, &thread.id, thread_status::CLOSED).await?;
 
-        if let Some(channel_id) = thread.channel_id.as_deref().and_then(parse_id::<ChannelMarker>)
-            && let Err(error) = ctx.http.delete_channel(channel_id).reason("Thread closed").await
-            && !is_not_found(&error)
-        {
-            tracing::warn!(%error, "suppression du salon du ticket impossible");
+        if let Some(channel_id) = thread.channel_id.as_deref().and_then(parse_id::<ChannelMarker>) {
+            // Fil de forum : archivé et verrouillé (l'historique reste visible sur Discord).
+            // Salon classique (ou ancien ticket d'avant le mode forum) : supprimé.
+            let archived = self.config.new_thread_forum_id.is_some()
+                && ctx.http.update_thread(channel_id).archived(true).locked(true).await.is_ok();
+            if !archived
+                && let Err(error) = ctx.http.delete_channel(channel_id).reason("Thread closed").await
+                && !is_not_found(&error)
+            {
+                tracing::warn!(%error, "suppression du salon du ticket impossible");
+            }
         }
         if let Some(handle) = self.auto_alerts.lock().expect("auto_alerts").remove(&thread.id) {
             handle.abort();
@@ -980,16 +987,33 @@ impl Modmail {
                 request.reason("New Modmail thread").await
             }
         };
-        let channel = match create(channel_name).await {
-            Ok(response) => response.model().await?,
-            Err(error) if error.to_string().contains("Contains words not allowed for servers in Server Discovery") => {
-                create("badname-0000".to_owned()).await?.model().await?
+        let channel_id = if let Some(forum) = self.config.new_thread_forum_id {
+            // Fil de forum : le message d'ouverture est obligatoire, l'en-tête suit.
+            let starter = format!("Nouveau ticket : **{}**", escape_markdown(&user.name));
+            let post = ctx
+                .http
+                .create_forum_thread(forum, &channel_name)
+                .auto_archive_duration(AutoArchiveDuration::Week)
+                .message()
+                .content(&starter)
+                .await?
+                .model()
+                .await?;
+            post.channel.id
+        } else {
+            match create(channel_name).await {
+                Ok(response) => response.model().await?.id,
+                Err(error)
+                    if error.to_string().contains("Contains words not allowed for servers in Server Discovery") =>
+                {
+                    create("badname-0000".to_owned()).await?.model().await?.id
+                }
+                Err(error) => return Err(error.into()),
             }
-            Err(error) => return Err(error.into()),
         };
 
         let thread_id =
-            store::create_thread(&self.db, &user.id.to_string(), &user.name, &channel.id.to_string()).await?;
+            store::create_thread(&self.db, &user.id.to_string(), &user.name, &channel_id.to_string()).await?;
         let thread =
             store::find_by_id(&self.db, &thread_id).await?.ok_or_else(|| anyhow!("ticket {thread_id} introuvable"))?;
 

@@ -49,6 +49,8 @@ pub struct MmConfig {
     pub allow_user_close: bool,
 
     pub new_thread_category_id: Option<String>,
+    /// `newThreadForumId` (propre à ce bot) : tickets ouverts en fils d'un salon forum.
+    pub new_thread_forum_id: Option<Id<ChannelMarker>>,
     pub new_thread_category_from_server: Vec<(String, String)>,
     pub mention_role: Vec<String>,
     pub ping_on_bot_mention: bool,
@@ -430,6 +432,7 @@ impl MmConfig {
             close_message: r.multiline("closeMessage"),
             allow_user_close: r.boolean("allowUserClose", false),
             new_thread_category_id,
+            new_thread_forum_id: r.string("newThreadForumId").and_then(|id| id.parse().ok()),
             new_thread_category_from_server: from_server,
             mention_role: r.list("mentionRole").unwrap_or_else(|| vec!["none".to_owned()]),
             ping_on_bot_mention: r.boolean("pingOnBotMention", true),

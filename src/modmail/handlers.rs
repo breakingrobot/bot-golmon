@@ -124,7 +124,8 @@ impl Modmail {
             Event::MessageCreate(message) => self.on_message(ctx, &message.0).await,
             Event::MessageUpdate(update) => self.on_message_update(ctx, &update.0).await,
             Event::MessageDelete(deleted) => self.on_message_delete(ctx, &deleted.id.to_string()).await,
-            Event::ChannelDelete(channel) => self.on_channel_delete(ctx, &channel.0).await,
+            Event::ChannelDelete(channel) => self.on_channel_delete(ctx, channel.guild_id, channel.id).await,
+            Event::ThreadDelete(thread) => self.on_channel_delete(ctx, Some(thread.guild_id), thread.id).await,
             Event::MemberAdd(member) => self.on_member_add(ctx, member.guild_id, &member.member.user).await,
             Event::MemberRemove(removed) => self.on_member_remove(ctx, removed.guild_id, removed.user.id).await,
             Event::BanAdd(ban) => self.on_ban(ctx, ban.guild_id, ban.user.id, true).await,
@@ -456,13 +457,18 @@ impl Modmail {
         Ok(())
     }
 
-    /// Salon de ticket supprimé à la main : le ticket est fermé.
-    async fn on_channel_delete(&self, ctx: &Ctx, channel: &twilight_model::channel::Channel) -> Result<()> {
-        if channel.guild_id != Some(self.config.inbox_server_id) {
+    /// Salon (ou fil de forum) de ticket supprimé à la main : le ticket est fermé.
+    async fn on_channel_delete(
+        &self,
+        ctx: &Ctx,
+        guild_id: Option<Id<twilight_model::id::marker::GuildMarker>>,
+        channel_id: Id<twilight_model::id::marker::ChannelMarker>,
+    ) -> Result<()> {
+        if guild_id != Some(self.config.inbox_server_id) {
             return Ok(());
         }
         let Some(thread) =
-            store::find_by_channel_and_status(&self.db, &channel.id.to_string(), super::models::thread_status::OPEN)
+            store::find_by_channel_and_status(&self.db, &channel_id.to_string(), super::models::thread_status::OPEN)
                 .await?
         else {
             return Ok(());
