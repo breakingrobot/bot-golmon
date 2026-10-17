@@ -124,6 +124,13 @@ mod tests {
         assert_eq!(session.entries[0].veto_by_id.as_deref(), Some("lead"));
         assert!(recrues::get_entry(&db, "autre-guilde", &entry.id).await.unwrap().is_none());
 
+        // Rappel du dimanche : réservé une seule fois par session.
+        assert!(session.reminder_sent_at.is_none());
+        assert!(recrues::claim_reminder(&db, "s1").await.unwrap());
+        assert!(!recrues::claim_reminder(&db, "s1").await.unwrap());
+        let session = recrues::current_session(&db, "g1").await.unwrap().unwrap();
+        assert!(session.reminder_sent_at.is_some());
+
         db.close().await;
         let _ = std::fs::remove_dir_all(dir);
     }

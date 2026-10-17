@@ -17,6 +17,21 @@ Tous les messages du bot (aux utilisateurs, dans les tickets, dans le salon de l
 4. À la fermeture, le salon est supprimé (ou le fil archivé), le membre reçoit `closeMessage`, et le salon
    de logs reçoit le lien du [log](site-web.md#log-dun-ticket).
 
+### Fermeture des tickets inactifs
+
+Propre à ce bot (absent de modmailbot), désactivé par défaut. Avec `MM_AUTO_CLOSE_INACTIVE=7d`, un ticket
+ouvert sans échange avec l'utilisateur (ni message de sa part, ni réponse du staff) depuis 7 jours est
+traité automatiquement (vérification chaque minute) :
+
+- l'utilisateur reçoit en privé `autoCloseMessage` ;
+- le ticket affiche « Ticket inactif : fermeture automatique dans … sauf nouvelle réponse. » ;
+- la fermeture est programmée dans `autoCloseWarning` (24 h par défaut), comme un `!close 24h` signé
+  « fermeture automatique ». `closeMessage` est envoyé à la fermeture.
+
+Une réponse de l'utilisateur ou du staff annule la fermeture et l'inactivité repart de zéro ;
+`!close cancel` l'annule aussi, sans nouvel avertissement avant un nouvel échange. Une fermeture déjà
+programmée par le staff n'est jamais remplacée.
+
 ## Mise en place
 
 1. Sur le **serveur inbox** (celui des membres, ou un serveur réservé au staff) :

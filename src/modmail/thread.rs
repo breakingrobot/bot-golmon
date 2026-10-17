@@ -725,7 +725,16 @@ impl Modmail {
         }
 
         // Une nouvelle réponse interrompt une fermeture programmée.
-        if let (Some(_), Some(closer)) = (&thread.scheduled_close_at, &thread.scheduled_close_id) {
+        if thread.scheduled_close_at.is_some() && Self::is_auto_close(ctx, thread) {
+            // Fermeture pour inactivité : personne à pinguer.
+            store::cancel_scheduled_close(&self.db, &thread.id).await?;
+            self.post_system_message(
+                ctx,
+                thread,
+                "L'utilisateur a répondu : fermeture automatique pour inactivité annulée.",
+            )
+            .await?;
+        } else if let (Some(_), Some(closer)) = (&thread.scheduled_close_at, &thread.scheduled_close_id) {
             store::cancel_scheduled_close(&self.db, &thread.id).await?;
             let mentions = parse_id(closer).map_or(Mentions::None, |id| Mentions::Explicit {
                 users: vec![id],

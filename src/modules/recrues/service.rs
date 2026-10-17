@@ -33,6 +33,8 @@ pub struct Session {
     pub week_start: DbTime,
     pub closed_at: Option<DbTime>,
     pub message_id: Option<String>,
+    /// Envoi du rappel des avis manquants (au plus un par session).
+    pub reminder_sent_at: Option<DbTime>,
     #[sqlx(skip)]
     pub entries: Vec<Entry>,
 }
@@ -363,6 +365,18 @@ pub async fn remember_channel(db: &SqlitePool, guild_id: &str, user_id: &str, ch
     .execute(db)
     .await?;
     Ok(())
+}
+
+/// Réserve l'envoi du rappel de la session : `true` pour un seul appelant, même
+/// en cas d'appels concurrents (le rappel part au plus une fois).
+pub async fn claim_reminder(db: &SqlitePool, session_id: &str) -> Result<bool> {
+    let result =
+        sqlx::query(r#"UPDATE "RecrueSession" SET "reminderSentAt" = ? WHERE "id" = ? AND "reminderSentAt" IS NULL"#)
+            .bind(DbTime::now())
+            .bind(session_id)
+            .execute(db)
+            .await?;
+    Ok(result.rows_affected() == 1)
 }
 
 /// Met à jour le message d'avis de la semaine. L'identifiant du message est

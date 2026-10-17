@@ -3,7 +3,7 @@
 //! et leurs valeurs par défaut sont identiques à l'original ; un fichier de
 //! configuration modmailbot existant peut être réutilisé tel quel.
 
-use super::ini;
+use super::{ini, util::convert_delay_string_to_ms};
 use anyhow::{Result, bail};
 use serde_json::{Map, Value};
 use std::{collections::HashMap, path::PathBuf};
@@ -47,6 +47,14 @@ pub struct MmConfig {
     pub response_message: Option<String>,
     pub close_message: Option<String>,
     pub allow_user_close: bool,
+    /// `autoCloseInactive` (propre à ce bot) : inactivité, en ms, au bout de laquelle
+    /// l'utilisateur est averti et la fermeture programmée. `None` : désactivé.
+    pub auto_close_inactive_ms: Option<i64>,
+    /// `autoCloseWarning` (propre à ce bot) : délai entre l'avertissement et la fermeture, en ms.
+    pub auto_close_warning_ms: i64,
+    /// `autoCloseMessage` (propre à ce bot) : avertissement envoyé à l'utilisateur
+    /// (`{inactive}` et `{delay}` remplacés par les durées).
+    pub auto_close_message: String,
 
     pub new_thread_category_id: Option<String>,
     /// `newThreadForumId` (propre à ce bot) : tickets ouverts en fils d'un salon forum.
@@ -282,6 +290,22 @@ impl Reader<'_> {
         parsed
     }
 
+    /// Durée au format `1h30m` / `7d`, en ms. `0`, `off`, `none` ou `false` : `None`.
+    fn delay(&mut self, key: &str, default: Option<&str>) -> Option<i64> {
+        let raw = self.string(key).or_else(|| default.map(str::to_owned))?;
+        if matches!(raw.trim().to_lowercase().as_str(), "off" | "none" | "false" | "no") {
+            return None;
+        }
+        match convert_delay_string_to_ms(&raw) {
+            Some(0) => None,
+            Some(ms) => Some(ms),
+            None => {
+                self.errors.push(format!("The \"{key}\" option must be a delay such as \"7d\" or \"1h30m\"."));
+                None
+            }
+        }
+    }
+
     fn object(&self, key: &str) -> Option<&Map<String, Value>> {
         self.raw(key)?.as_object()
     }
@@ -432,6 +456,12 @@ impl MmConfig {
             })),
             close_message: r.multiline("closeMessage"),
             allow_user_close: r.boolean("allowUserClose", false),
+            auto_close_inactive_ms: r.delay("autoCloseInactive", None),
+            auto_close_warning_ms: r.delay("autoCloseWarning", Some("24h")).unwrap_or(86_400_000),
+            auto_close_message: r.multiline("autoCloseMessage").unwrap_or_else(|| {
+                "Ton ticket est inactif depuis {inactive}. Il sera fermé dans {delay} sans nouvelle réponse de ta part."
+                    .to_owned()
+            }),
             new_thread_category_id,
             new_thread_forum_id: r.string("newThreadForumId").and_then(|id| id.parse().ok()),
             new_thread_category_from_server: from_server,
@@ -531,7 +561,22 @@ impl MmConfig {
 
 #[cfg(test)]
 mod tests {
-    use super::env_key_to_config_key;
+    use super::{Reader, env_key_to_config_key};
+
+    #[test]
+    fn reads_delay_options() {
+        let map =
+            serde_json::json!({ "autoCloseInactive": "7d", "autoCloseWarning": "off", "bad": "abc", "zero": "0" });
+        let mut r = Reader { map: map.as_object().unwrap(), errors: Vec::new() };
+        assert_eq!(r.delay("autoCloseInactive", None), Some(7 * 86_400_000));
+        assert_eq!(r.delay("autoCloseWarning", Some("24h")), None);
+        assert_eq!(r.delay("missing", Some("24h")), Some(86_400_000));
+        assert_eq!(r.delay("missing", None), None);
+        assert_eq!(r.delay("zero", None), None);
+        assert!(r.errors.is_empty());
+        assert_eq!(r.delay("bad", None), None);
+        assert_eq!(r.errors.len(), 1);
+    }
 
     #[test]
     fn maps_env_keys_like_modmailbot() {
