@@ -87,6 +87,8 @@ normalisées : `d6cs 3p0g` = `D6CS3P0G`.
 - **Chaque semaine** (lundi 00:00), un nouveau message liste les recrues avec le décompte ✅ / ❌ / ⬜.
   Trois menus : donner son avis (vote **et motif obligatoires**, un avis par gradé, modifiable), poser
   un véto, voir le détail. Les semaines passées restent visibles et consultables via `/recrue historique`.
+- **Le dimanche à 18:00**, un rappel dans le salon des avis mentionne les gradés qui n'ont pas donné leur
+  avis sur toutes les recrues de la semaine (une fois par semaine, rien si tout le monde a voté).
 - Recevoir le rôle recrue crée un salon `essai-<pseudo>` visible par la recrue, les gradés et les leads.
   Perdre le rôle retire de la liste mais conserve le salon.
 - `/recrue liste`, `avis`, `ajouter`, `retirer`, `salon`, `historique` (gradés) ; `veto poser` / `veto lever`

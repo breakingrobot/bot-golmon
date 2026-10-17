@@ -7,6 +7,7 @@ pub mod cron;
 pub mod embed;
 pub mod events;
 pub mod interactions;
+pub mod reminder;
 pub mod service;
 
 use crate::discord::interaction::Ix;
