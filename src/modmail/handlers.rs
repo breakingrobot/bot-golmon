@@ -258,7 +258,7 @@ impl Modmail {
             self.post_system_message(
                 ctx,
                 &thread,
-                &format!("**NOTE:** Could not send auto-response to the user. The error given was: `{error}`"),
+                &format!("**NOTE :** impossible d'envoyer la réponse automatique à l'utilisateur. Erreur : `{error}`"),
             )
             .await?;
         }
@@ -347,11 +347,14 @@ impl Modmail {
         let user = format!("**{}** (`{}`)", msg.author.name, msg.author.id);
         let link = format!("https://discord.com/channels/{guild_id}/{}/{}", msg.channel_id, msg.id);
         let content = if self.config.main_server_ids.len() == 1 {
-            format!("{staff_mention}Bot mentioned in <#{}> by {user}: \"{}\"\n\n<{link}>", msg.channel_id, msg.content)
+            format!(
+                "{staff_mention}Bot mentionné dans <#{}> par {user} : \"{}\"\n\n<{link}>",
+                msg.channel_id, msg.content
+            )
         } else {
             let guild_name = ctx.cache.guild(guild_id).map(|g| g.name().to_owned()).unwrap_or_default();
             format!(
-                "{staff_mention}Bot mentioned in <#{}> ({guild_name}) by {user}: \"{}\"\n\n<{link}>",
+                "{staff_mention}Bot mentionné dans <#{}> ({guild_name}) par {user} : \"{}\"\n\n<{link}>",
                 msg.channel_id, msg.content
             )
         };
@@ -384,7 +387,7 @@ impl Modmail {
             self.post_system_message(
                 ctx,
                 &thread,
-                &format!("This thread was opened from a bot mention in <#{}>", msg.channel_id),
+                &format!("Ce ticket a été ouvert suite à une mention du bot dans <#{}>", msg.channel_id),
             )
             .await?;
             self.receive_user_reply(ctx, &thread, msg, false).await?;
@@ -409,7 +412,7 @@ impl Modmail {
 
         if stored.is_from_user() {
             let edit = super::util::disable_link_previews(&format!(
-                "**The user edited their message:**\n`B:` {}\n`A:` {}",
+                "**L'utilisateur a modifié son message :**\n`Avant :` {}\n`Après :` {}",
                 stored.body(),
                 msg.content
             ));
@@ -482,7 +485,7 @@ impl Modmail {
             ctx,
             &thread,
             &format!(
-                "Modmail thread #{} with {} ({}) was closed automatically because the channel was deleted",
+                "Ticket modmail n°{} avec {} ({}) fermé automatiquement car le salon a été supprimé",
                 thread.number(),
                 thread.user_name,
                 thread.user_id
@@ -505,7 +508,8 @@ impl Modmail {
             && let Some(thread) = store::find_open_by_user_id(&self.db, &user.id.to_string()).await?
         {
             let name = ctx.cache.guild(guild_id).map(|g| g.name().to_owned()).unwrap_or_default();
-            self.post_system_message(ctx, &thread, &format!("***The user joined the {name} server.***")).await?;
+            self.post_system_message(ctx, &thread, &format!("***L'utilisateur a rejoint le serveur {name}.***"))
+                .await?;
         }
         Ok(())
     }
@@ -551,7 +555,9 @@ impl Modmail {
             return Ok(());
         }
         let name = ctx.cache.guild(guild_id).map(|g| g.name().to_owned()).unwrap_or_default();
-        self.post_system_message(ctx, &thread, &format!("***The user left the {name} server.***")).await.map(drop)
+        self.post_system_message(ctx, &thread, &format!("***L'utilisateur a quitté le serveur {name}.***"))
+            .await
+            .map(drop)
     }
 
     async fn on_ban(&self, ctx: &Ctx, guild_id: Id<GuildMarker>, user_id: Id<UserMarker>, banned: bool) -> Result<()> {
@@ -567,9 +573,9 @@ impl Modmail {
         let name = ctx.cache.guild(guild_id).map(|g| g.name().to_owned()).unwrap_or_default();
         let text = if banned {
             self.leave_ignore.lock().expect("leave_ignore").insert(user_id);
-            format!("***The user was banned from the {name} server.***")
+            format!("***L'utilisateur a été banni du serveur {name}.***")
         } else {
-            format!("***The user was unbanned from the {name} server.***")
+            format!("***L'utilisateur a été débanni du serveur {name}.***")
         };
         self.post_system_message(ctx, &thread, &text).await.map(drop)
     }
@@ -605,9 +611,9 @@ impl Modmail {
         let name = self.display_name(&user);
         let number = stored.message_number.unwrap_or_default();
         let text = if added {
-            format!("{name} reacted to message {number} with {emoji}")
+            format!("{name} a réagi au message {number} avec {emoji}")
         } else {
-            format!("{name} removed reaction {emoji} from message {number}")
+            format!("{name} a retiré la réaction {emoji} du message {number}")
         };
         self.post_system_message(ctx, &thread, &text).await.map(drop)
     }
@@ -644,11 +650,11 @@ impl Modmail {
     pub async fn send_close_notification(&self, ctx: &Ctx, thread: &super::models::Thread, body: &str) -> Result<()> {
         let messages = store::messages(&self.db, &thread.id).await?;
         let count = |kind| messages.iter().filter(|m| m.message_type == kind).count();
-        let plural = |n: usize| if n == 1 { "" } else { "s" };
+        let plural = |n: usize| if n > 1 { "s" } else { "" };
         let (from_user, to_user, chat) =
             (count(message_type::FROM_USER), count(message_type::TO_USER), count(message_type::CHAT));
         let body = format!(
-            "{body}\n**{from_user}** message{} from the user, **{to_user}** message{} to the user and **{chat}** internal chat message{}.",
+            "{body}\n**{from_user}** message{} de l'utilisateur, **{to_user}** message{} à l'utilisateur et **{chat}** message{} de discussion interne.",
             plural(from_user),
             plural(to_user),
             plural(chat)

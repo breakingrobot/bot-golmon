@@ -15,7 +15,7 @@ acceptent `true/false`, `on/off`, `yes/no`, `1/0`. Les durées s'écrivent `1h30
 | `logChannelId` | — | **Requis.** Salon de logs. |
 | `prefix` | `!` | Préfixe des commandes. |
 | `inboxServerPermission` | `manageMessages` | Qui est staff : noms de permissions (`manageMessages`, `kickMembers`, `administrator`…), identifiants de rôles ou d'utilisateurs. Le propriétaire du serveur l'est toujours. |
-| `status` / `statusType` / `statusUrl` | `Message me for help!` / `playing` | Statut du bot (`playing`, `watching`, `listening`, `competing`, `custom`, `streaming` + URL Twitch). `none` pour aucun. |
+| `status` / `statusType` / `statusUrl` | `Écris-moi pour contacter le staff !` / `playing` | Statut du bot (`playing`, `watching`, `listening`, `competing`, `custom`, `streaming` + URL Twitch). `none` pour aucun. |
 | `useDisplaynames` | `true` | Afficher le nom global plutôt que le nom d'utilisateur. |
 | `useNicknames` | `false` | Signer les réponses avec le surnom du serveur. |
 | `breakFormattingForNames` | `true` | Échapper le markdown dans les noms. |
@@ -34,7 +34,7 @@ acceptent `true/false`, `on/off`, `yes/no`, `1/0`. Les durées s'écrivent `1h30
 | `newThreadForumId` | — | **Propre à ce bot.** Salon forum : les tickets y sont ouverts en fils (remplace la catégorie). |
 | `categoryAutomation.newThreadFromServer.<idServeur>` | — | Catégorie selon le serveur d'origine (plusieurs serveurs principaux). |
 | `mentionRole` | `none` | Mention à chaque nouveau ticket : identifiant de rôle, `here`, `everyone` ou `none`. |
-| `responseMessage` | message anglais | Réponse automatique au premier message. |
+| `responseMessage` | « Merci pour ton message ! L'équipe de modération te répondra ici dès que possible. » | Réponse automatique au premier message. |
 | `showResponseMessageInThreadChannel` | `true` | Afficher cette réponse dans le salon du ticket. |
 | `ignoreAccidentalThreads` | `false` | « ok », « merci »… n'ouvrent pas de ticket. |
 | `requiredAccountAge` / `accountAgeDeniedMessage` | — | Âge minimum du compte, en heures. |

@@ -190,3 +190,66 @@ async fn build(ctx: &Ctx, guild_id: Id<GuildMarker>) -> Result<Built> {
 
     Ok((figures, attendance, recruits, tickets))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::modmail::{StaffActivity, TicketStats};
+
+    #[test]
+    fn renders_stats_page() {
+        let page = StatsPage {
+            layout: Layout::bare("Statistiques"),
+            guild_name: "Golmon RP".into(),
+            figures: vec![
+                Figure {
+                    label: "Présences clôturées",
+                    value: "42".into(),
+                    hint: Some("8 ces 30 derniers jours".into()),
+                },
+                Figure { label: "Taux de présence moyen", value: "71 %".into(), hint: None },
+                Figure { label: "Recrues en essai", value: "2".into(), hint: None },
+            ],
+            attendance: vec![
+                Attendance { name: "Elodie".into(), present: 38, absent: 2, retard: 2, percent: 90 },
+                Attendance { name: "Marco".into(), present: 25, absent: 12, retard: 5, percent: 60 },
+                Attendance { name: "Sam".into(), present: 10, absent: 30, retard: 2, percent: 24 },
+            ],
+            recruits: vec![
+                Recruit { name: "Lina".into(), pour: 4, contre: 1, blanc: 0, veto: None },
+                Recruit {
+                    name: "Hugo".into(),
+                    pour: 1,
+                    contre: 3,
+                    blanc: 1,
+                    veto: Some("Marco : absences répétées".into()),
+                },
+            ],
+            tickets: Some(TicketStats {
+                open: 3,
+                opened: 27,
+                closed: 24,
+                unanswered: 1,
+                median_first_response: Some("14 min".into()),
+                staff: vec![StaffActivity {
+                    name: "Marco".into(),
+                    replies: 58,
+                    tickets: 19,
+                    claims: 12,
+                    first_responses: 15,
+                    average_first_response: Some("11 min".into()),
+                }],
+            }),
+        };
+        let html = page.render().unwrap();
+        assert!(html.contains("Assiduité aux présences") && html.contains("Véto · Marco"));
+        assert!(html.contains("14 min") && html.contains("Pris en charge"));
+        if let Ok(path) = std::env::var("STATS_PREVIEW_PATH") {
+            let html = html.replace(
+                &format!(r#"<link rel="stylesheet" href="/assets/app.css?v={}">"#, crate::web::ASSET_VERSION),
+                &format!("<style>{}</style>", crate::web::CSS),
+            );
+            std::fs::write(path, html).unwrap();
+        }
+    }
+}

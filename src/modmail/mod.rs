@@ -27,6 +27,8 @@ use crate::context::{Context, Ctx};
 use anyhow::Result;
 use config::MmConfig;
 use sqlx::SqlitePool;
+#[cfg(test)]
+pub use staff::StaffActivity;
 pub use staff::TicketStats;
 use std::{
     collections::{HashMap, HashSet},
@@ -193,7 +195,7 @@ impl Modmail {
                 ctx,
                 &thread,
                 &format!(
-                    "Modmail thread #{} with {} ({}) was closed as scheduled by {}",
+                    "Ticket modmail n°{} avec {} ({}) fermé comme programmé par {}",
                     thread.number(),
                     thread.user_name,
                     thread.user_id,
@@ -215,7 +217,7 @@ impl Modmail {
                 ctx,
                 &thread,
                 &format!(
-                    "**Thread suspended** as scheduled by {}. This thread will act as closed until unsuspended with `{}unsuspend`",
+                    "**Ticket suspendu** comme programmé par {}. Il sera considéré comme fermé jusqu'à sa réactivation avec `{}unsuspend`",
                     thread.scheduled_suspend_name.clone().unwrap_or_default(),
                     self.config.prefix
                 ),
@@ -237,7 +239,7 @@ impl Modmail {
             let _ = ctx
                 .http
                 .create_message(self.config.log_channel_id)
-                .content(&format!("Block of <@!{user_id}> (id `{user_id}`) expired"))
+                .content(&format!("Le blocage de <@!{user_id}> (id `{user_id}`) a expiré"))
                 .allowed_mentions(Some(&allowed))
                 .await;
         }

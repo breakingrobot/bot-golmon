@@ -193,8 +193,8 @@ fn entry_for(message: &ThreadMessage, verbose: bool, resolver: &dyn Resolver) ->
     let (images, files): (Vec<String>, Vec<String>) =
         message.attachment_links().into_iter().partition(|url| is_image(url));
     let embeds = [
-        summarise_embeds(message.metadata_value("embeds").as_ref(), "User sent an embed"),
-        summarise_embeds(message.metadata_value("forwardedEmbeds").as_ref(), "User forwarded an embed"),
+        summarise_embeds(message.metadata_value("embeds").as_ref(), "Embed envoyé"),
+        summarise_embeds(message.metadata_value("forwardedEmbeds").as_ref(), "Embed transféré"),
     ]
     .into_iter()
     .filter(|s| !s.is_empty())

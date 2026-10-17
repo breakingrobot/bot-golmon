@@ -259,7 +259,8 @@ impl Reader<'_> {
                 "1" | "true" | "on" | "yes" => true,
                 "0" | "false" | "off" | "no" => false,
                 other => {
-                    self.errors.push(format!("The \"{key}\" option must be a boolean. (Is currently: \"{other}\")"));
+                    self.errors
+                        .push(format!("L'option \"{key}\" doit être un booléen. (Valeur actuelle : \"{other}\")"));
                     default
                 }
             },
@@ -276,7 +277,7 @@ impl Reader<'_> {
             _ => None,
         };
         if parsed.is_none() {
-            self.errors.push(format!("The \"{key}\" option must be a number."));
+            self.errors.push(format!("L'option \"{key}\" doit être un nombre."));
         }
         parsed
     }
@@ -300,19 +301,19 @@ impl MmConfig {
         let main_server_ids: Vec<Id<GuildMarker>> =
             main_server_raw.iter().filter_map(|id| id.trim().parse().ok()).collect();
         if main_server_ids.is_empty() {
-            r.errors.push("Missing required option: \"mainServerId\"".to_owned());
+            r.errors.push("Option obligatoire manquante : \"mainServerId\"".to_owned());
         }
         let inbox_server_id = inbox_raw.as_deref().and_then(|id| id.trim().parse().ok());
         if inbox_server_id.is_none() {
-            r.errors.push("Missing required option: \"inboxServerId\"".to_owned());
+            r.errors.push("Option obligatoire manquante : \"inboxServerId\"".to_owned());
         }
         let log_channel_id = log_channel_raw.as_deref().and_then(|id| id.trim().parse().ok());
         if log_channel_id.is_none() {
-            r.errors.push("Missing required option: \"logChannelId\"".to_owned());
+            r.errors.push("Option obligatoire manquante : \"logChannelId\"".to_owned());
         }
 
         if r.string("dbType").is_some_and(|t| t != "sqlite") {
-            r.errors.push("Only dbType = sqlite is supported by this bot.".to_owned());
+            r.errors.push("Seul dbType = sqlite est pris en charge par ce bot.".to_owned());
         }
         if r.list("plugins").is_some_and(|p| !p.is_empty()) {
             tracing::warn!("modmail : les plugins JavaScript ne sont pas pris en charge et seront ignorés");
@@ -323,13 +324,13 @@ impl MmConfig {
             "discord" => AttachmentStorage::Discord,
             "original" => AttachmentStorage::Original,
             other => {
-                r.errors.push(format!("Unknown attachment storage option: {other}"));
+                r.errors.push(format!("Option de stockage des pièces jointes inconnue : {other}"));
                 AttachmentStorage::Original
             }
         };
         let attachment_storage_channel_id = r.string("attachmentStorageChannelId").and_then(|id| id.parse().ok());
         if attachment_storage == AttachmentStorage::Discord && attachment_storage_channel_id.is_none() {
-            r.errors.push("Missing required option: \"attachmentStorageChannelId\"".to_owned());
+            r.errors.push("Option obligatoire manquante : \"attachmentStorageChannelId\"".to_owned());
         }
 
         let log_storage = match r.string_or("logStorage", "local").as_str() {
@@ -411,7 +412,7 @@ impl MmConfig {
             && !regex::Regex::new(r"(?i)^https://(www\.)?twitch.tv/[a-z\d_\-]+/?$").unwrap().is_match(&status_url)
         {
             r.errors.push(
-                "When statusType is set to \"streaming\", statusUrl must be set to a valid Twitch channel URL, such as https://www.twitch.tv/Dragory"
+                "Quand statusType vaut \"streaming\", statusUrl doit être une URL de chaîne Twitch valide, par exemple https://www.twitch.tv/Dragory"
                     .to_owned(),
             );
         }
@@ -423,11 +424,11 @@ impl MmConfig {
             prefix: r.string_or("prefix", "!"),
             snippet_prefix: r.string_or("snippetPrefix", "!!"),
             snippet_prefix_anon: r.string_or("snippetPrefixAnon", "!!!"),
-            status: Some(r.string_or("status", "Message me for help!")),
+            status: Some(r.string_or("status", "Écris-moi pour contacter le staff !")),
             status_type,
             status_url,
             response_message: Some(r.multiline("responseMessage").unwrap_or_else(|| {
-                "Thank you for your message! Our mod team will reply to you here as soon as possible.".to_owned()
+                "Merci pour ton message ! L'équipe de modération te répondra ici dès que possible.".to_owned()
             })),
             close_message: r.multiline("closeMessage"),
             allow_user_close: r.boolean("allowUserClose", false),
@@ -465,11 +466,11 @@ impl MmConfig {
             required_account_age_hours,
             account_age_denied_message: Some(
                 r.multiline("accountAgeDeniedMessage")
-                    .unwrap_or_else(|| "Your Discord account is not old enough to contact modmail.".to_owned()),
+                    .unwrap_or_else(|| "Ton compte Discord est trop récent pour contacter le staff.".to_owned()),
             ),
             required_time_on_server_minutes,
             time_on_server_denied_message: Some(r.multiline("timeOnServerDeniedMessage").unwrap_or_else(|| {
-                "You haven't been a member of the server for long enough to contact modmail.".to_owned()
+                "Tu n'es pas membre du serveur depuis assez longtemps pour contacter le staff.".to_owned()
             })),
             relay_small_attachments_as_attachments: r.boolean("relaySmallAttachmentsAsAttachments", false),
             small_attachment_limit,
@@ -512,7 +513,7 @@ impl MmConfig {
         };
 
         if !r.errors.is_empty() {
-            bail!("NOTE! Issues with modmail configuration:\n- {}", r.errors.join("\n- "));
+            bail!("ATTENTION ! Problèmes dans la configuration modmail :\n- {}", r.errors.join("\n- "));
         }
 
         // `status = none` / `off` désactive le statut.

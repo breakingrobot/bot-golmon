@@ -121,7 +121,7 @@ impl Modmail {
         let user_id = parse_id(&thread.user_id).ok_or_else(|| anyhow!("utilisateur invalide"))?;
         let channel_id = self.dm_channel(ctx, user_id).await.map_err(|_| {
             anyhow!(
-                "Could not open DMs with the user. They may have blocked the bot or set their privacy settings higher."
+                "Impossible d'ouvrir les MP avec l'utilisateur. Il a peut-être bloqué le bot ou restreint ses paramètres de confidentialité."
             )
         })?;
         let uploads = FileData::to_uploads(files);
@@ -183,7 +183,7 @@ impl Modmail {
                     tracing::info!(user = %thread.user_name, "message bloqué par le filtre de liens dangereux");
                     ctx.http
                         .create_message(channel_id)
-                        .content("Failed to send message to thread channel because the message contains a link blocked by the harmful links filter")
+                        .content("Impossible d'envoyer le message dans le salon du ticket : il contient un lien bloqué par le filtre de liens dangereux")
                         .await?;
                     return Ok(first);
                 }
@@ -415,7 +415,7 @@ impl Modmail {
                 self.post_system_message(
                     ctx,
                     thread,
-                    &format!("The following snippets used in the reply do not exist:\n{}", unknown.join(", ")),
+                    &format!("Les snippets suivants utilisés dans la réponse n'existent pas :\n{}", unknown.join(", ")),
                 )
                 .await?;
                 return Ok(false);
@@ -452,8 +452,12 @@ impl Modmail {
         // Les réponses doivent rester éditables : elles tiennent en un seul message.
         if dm_content.encode_utf16().count() > 2000 || inbox_content.encode_utf16().count() > 2000 {
             store::delete_message(&self.db, message.id).await?;
-            self.post_system_message(ctx, thread, "Reply is too long! Make sure your reply is under 2000 characters total, moderator name in the reply included.")
-                .await?;
+            self.post_system_message(
+                ctx,
+                thread,
+                "Réponse trop longue ! Elle doit faire moins de 2000 caractères au total, nom du modérateur compris.",
+            )
+            .await?;
             return Ok(false);
         }
 
@@ -461,7 +465,8 @@ impl Modmail {
             Ok(dm) => dm,
             Err(error) => {
                 store::delete_message(&self.db, message.id).await?;
-                self.post_system_message(ctx, thread, &format!("Error while replying to user: {error}")).await?;
+                self.post_system_message(ctx, thread, &format!("Erreur lors de la réponse à l'utilisateur : {error}"))
+                    .await?;
                 return Ok(false);
             }
         };
@@ -492,8 +497,12 @@ impl Modmail {
         // Une nouvelle réponse interrompt une fermeture programmée.
         if thread.scheduled_close_at.is_some() {
             store::cancel_scheduled_close(&self.db, &thread.id).await?;
-            self.post_system_message(ctx, thread, "Cancelling scheduled closing of this thread due to new reply")
-                .await?;
+            self.post_system_message(
+                ctx,
+                thread,
+                "Fermeture programmée de ce ticket annulée suite à une nouvelle réponse",
+            )
+            .await?;
         }
 
         if self.config.auto_alert {
@@ -548,9 +557,9 @@ impl Modmail {
                 .as_deref()
                 .map(str::trim)
                 .filter(|t| !t.is_empty())
-                .unwrap_or("*(no poll title)*")
+                .unwrap_or("*(sondage sans titre)*")
                 .to_owned();
-            let mut lines = vec!["*User sent a poll:*".to_owned(), format!("Title: {title}")];
+            let mut lines = vec!["*L'utilisateur a envoyé un sondage :*".to_owned(), format!("Titre : {title}")];
             for (index, answer) in poll.answers.iter().enumerate() {
                 let text = answer
                     .poll_media
@@ -558,8 +567,8 @@ impl Modmail {
                     .as_deref()
                     .map(str::trim)
                     .filter(|t| !t.is_empty())
-                    .unwrap_or("*(no option text)*");
-                lines.push(format!("Option {}: {text}", index + 1));
+                    .unwrap_or("*(option sans texte)*");
+                lines.push(format!("Option {} : {text}", index + 1));
             }
             lines
         };
@@ -568,24 +577,26 @@ impl Modmail {
         if let Some(snapshot) = message.message_snapshots.first() {
             let forwarded = &snapshot.message;
             let is_embed_forward = !forwarded.embeds.is_empty();
-            let mut lines =
-                vec![if is_embed_forward { "*User forwarded an embed:*" } else { "*Forwarded message:*" }.to_owned()];
+            let mut lines = vec![
+                if is_embed_forward { "*L'utilisateur a transféré un embed :*" } else { "*Message transféré :*" }
+                    .to_owned(),
+            ];
             let text = forwarded.content.trim();
             if !text.is_empty() {
                 lines.push(text.to_owned());
             } else if !is_embed_forward {
-                lines.push("*(no text content)*".to_owned());
+                lines.push("*(pas de texte)*".to_owned());
             }
             if !forwarded.attachments.is_empty() {
                 lines.push(String::new());
-                lines.push("*Attachments:*".to_owned());
+                lines.push("*Pièces jointes :*".to_owned());
                 lines.extend(forwarded.attachments.iter().map(|a| a.url.clone()));
             }
             if let Some(reference) = &message.reference
                 && let (Some(guild), Some(channel), Some(id)) =
                     (snapshot.guild_id.or(reference.guild_id), reference.channel_id, reference.message_id)
             {
-                let link = format!("*Message link:* <https://discord.com/channels/{guild}/{channel}/{id}>");
+                let link = format!("*Lien du message :* <https://discord.com/channels/{guild}/{channel}/{id}>");
                 if lines.len() > 1 {
                     lines.push(String::new());
                 }
@@ -640,14 +651,14 @@ impl Modmail {
                 .map(|a| a.name.clone())
                 .filter(|name| !name.is_empty())
                 .or_else(|| party_id.starts_with("spotify:").then(|| "Spotify".to_owned()))
-                .unwrap_or_else(|| "Unknown Application".to_owned());
+                .unwrap_or_else(|| "Application inconnue".to_owned());
             let action = match activity.kind {
-                MessageActivityType::Join | MessageActivityType::JoinRequest => "join a game",
-                MessageActivityType::Spectate => "spectate",
-                MessageActivityType::Listen => "listen along",
-                _ => "do something",
+                MessageActivityType::Join | MessageActivityType::JoinRequest => "rejoindre une partie",
+                MessageActivityType::Spectate => "regarder",
+                MessageActivityType::Listen => "écouter ensemble",
+                _ => "faire quelque chose",
             };
-            content = format!("{content}\n\n*<This message contains an invite to {action} on {application}>*")
+            content = format!("{content}\n\n*<Ce message contient une invitation à {action} sur {application}>*")
                 .trim()
                 .to_owned();
         }
@@ -658,7 +669,7 @@ impl Modmail {
                 .iter()
                 .map(|s| {
                     format!(
-                        "*Sent sticker \"{}\":* https://media.discordapp.net/stickers/{}.webp?size=160",
+                        "*Sticker envoyé « {} » :* https://media.discordapp.net/stickers/{}.webp?size=160",
                         s.name, s.id
                     )
                 })
@@ -724,7 +735,7 @@ impl Modmail {
             self.post_system_message_with(
                 ctx,
                 thread,
-                &format!("<@!{closer}> Thread that was scheduled to be closed got a new reply. Cancelling."),
+                &format!("<@!{closer}> Le ticket dont la fermeture était programmée a reçu une nouvelle réponse. Fermeture annulée."),
                 mentions,
                 None,
             )
@@ -741,7 +752,7 @@ impl Modmail {
                 self.post_system_message_with(
                     ctx,
                     thread,
-                    &format!("{mentions_text}New message from {}", thread.user_name),
+                    &format!("{mentions_text}Nouveau message de {}", thread.user_name),
                     Mentions::Explicit { users, roles: Vec::new(), everyone: false },
                     None,
                 )
@@ -764,7 +775,7 @@ impl Modmail {
             self.post_system_message(
                 ctx,
                 thread,
-                if silent { "Closing thread silently..." } else { "Closing thread..." },
+                if silent { "Fermeture silencieuse du ticket…" } else { "Fermeture du ticket…" },
             )
             .await?;
         }
@@ -776,7 +787,7 @@ impl Modmail {
             let archived = self.config.new_thread_forum_id.is_some()
                 && ctx.http.update_thread(channel_id).archived(true).locked(true).await.is_ok();
             if !archived
-                && let Err(error) = ctx.http.delete_channel(channel_id).reason("Thread closed").await
+                && let Err(error) = ctx.http.delete_channel(channel_id).reason("Ticket fermé").await
                 && !is_not_found(&error)
             {
                 tracing::warn!(%error, "suppression du salon du ticket impossible");
@@ -804,7 +815,7 @@ impl Modmail {
         let thread_content = formatters::staff_reply_thread_message(&self.config, &edited);
         let dm_content = formatters::staff_reply_dm(&self.config, &edited);
         if dm_content.encode_utf16().count() > 2000 || thread_content.encode_utf16().count() > 2000 {
-            self.post_system_message(ctx, thread, "Edited reply is too long! Make sure the edit is under 2000 characters total, moderator name in the reply included.")
+            self.post_system_message(ctx, thread, "Réponse modifiée trop longue ! Elle doit faire moins de 2000 caractères au total, nom du modérateur compris.")
                 .await?;
             return Ok(false);
         }
@@ -892,7 +903,10 @@ impl Modmail {
         self.post_system_message(
             ctx,
             thread,
-            &format!("📥 Recovering {} message(s) sent by user during bot downtime!", messages.len()),
+            &format!(
+                "📥 Récupération de {} message(s) envoyé(s) par l'utilisateur pendant l'indisponibilité du bot !",
+                messages.len()
+            ),
         )
         .await?;
         for (index, message) in messages.iter().enumerate() {
@@ -923,7 +937,7 @@ impl Modmail {
     ) -> Result<Option<Thread>> {
         let _guard = self.creation_lock.lock().await;
         if store::find_open_by_user_id(&self.db, &user.id.to_string()).await?.is_some() {
-            anyhow::bail!("Attempted to create a new thread for a user with an existing open thread!");
+            anyhow::bail!("Tentative de création d'un ticket pour un utilisateur qui en a déjà un ouvert !");
         }
 
         let now_ms = chrono::Utc::now().timestamp_millis();
@@ -984,7 +998,7 @@ impl Modmail {
                 if let Some(category) = category {
                     request = request.parent_id(category);
                 }
-                request.reason("New Modmail thread").await
+                request.reason("Nouveau ticket modmail").await
             }
         };
         let channel_id = if let Some(forum) = self.config.new_thread_forum_id {
@@ -1023,7 +1037,7 @@ impl Modmail {
                 self.post_non_log_message(
                     ctx,
                     &thread,
-                    &format!("{mention}New modmail thread ({})", thread.user_name),
+                    &format!("{mention}Nouveau ticket modmail ({})", thread.user_name),
                     mentions,
                 )
                 .await?;
@@ -1032,7 +1046,7 @@ impl Modmail {
 
         // En-tête : âge du compte, identifiant, infos membre, historique.
         let account_age = humanize_duration(now_ms - created_ms, 2, None);
-        let mut header = format!("ACCOUNT AGE **{account_age}**, ");
+        let mut header = format!("ÂGE DU COMPTE **{account_age}**, ");
         if self.config.mention_user_in_thread_header {
             header.push_str(&format!("ID **{}** (<@!{}>)", user.id, user.id));
         } else {
@@ -1041,16 +1055,18 @@ impl Modmail {
 
         for (guild_id, member) in &guild_members {
             let nickname = member.nick.clone().unwrap_or_else(|| self.display_name(&member.user));
-            let mut items = vec![format!("NICKNAME **{}**", escape_markdown(&nickname))];
+            let mut items = vec![format!("PSEUDO **{}**", escape_markdown(&nickname))];
             if let Some(joined) = member.joined_at {
-                items
-                    .push(format!("JOINED **{}** ago", humanize_duration(now_ms - joined.as_micros() / 1000, 2, None)));
+                items.push(format!(
+                    "ARRIVÉ IL Y A **{}**",
+                    humanize_duration(now_ms - joined.as_micros() / 1000, 2, None)
+                ));
             }
             if let Some(voice) = ctx.cache.voice_state(user.id, *guild_id)
                 && let Some(channel) = ctx.cache.channel(voice.channel_id())
                 && let Some(name) = &channel.name
             {
-                items.push(format!("VOICE CHANNEL **{}**", escape_markdown(name)));
+                items.push(format!("SALON VOCAL **{}**", escape_markdown(name)));
             }
             if self.config.roles_in_thread_header && !member.roles.is_empty() {
                 let names: Vec<String> = member
@@ -1058,7 +1074,7 @@ impl Modmail {
                     .iter()
                     .filter_map(|id| ctx.cache.role(*id).map(|r| r.resource().name.clone()))
                     .collect();
-                items.push(format!("ROLES **{}**", names.join(", ")));
+                items.push(format!("RÔLES **{}**", names.join(", ")));
             }
             let line = items.join(", ");
             if self.config.main_server_ids.len() == 1 {
@@ -1073,14 +1089,14 @@ impl Modmail {
         let previous = store::closed_thread_count(&self.db, &user.id.to_string()).await?;
         if previous > 0 {
             header.push_str(&format!(
-                "\n\nThis user has **{previous}** previous modmail threads. Use `{}logs` to see them.",
+                "\n\nCet utilisateur a **{previous}** ticket(s) précédent(s). Utilise `{}logs` pour les voir.",
                 self.config.prefix
             ));
         }
         let notes = store::notes_by_user(&self.db, &user.id.to_string()).await?;
         if !notes.is_empty() {
             header.push_str(&format!(
-                "\n\nThis user has **{}** notes. Use `{}notes` to see them.",
+                "\n\nCet utilisateur a **{}** note(s). Utilise `{}notes` pour les voir.",
                 notes.len(),
                 self.config.prefix
             ));

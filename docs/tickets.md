@@ -4,7 +4,8 @@ Les membres écrivent au bot **en message privé** ; un salon de ticket s'ouvre 
 staff y répond avec des commandes texte. Même configuration, mêmes commandes et même base que
 [modmailbot](https://github.com/Dragory/modmailbot).
 
-Le module est **désactivé** tant qu'il n'y a ni `config.ini` ni variable `MM_*`.
+Le module est **désactivé** tant qu'il n'y a ni `config.ini` ni variable `MM_*`. Tous les messages du bot
+(utilisateurs, salons de tickets, salon de logs) sont en français ; le log texte brut garde le format modmailbot.
 
 ## Mise en place
 
