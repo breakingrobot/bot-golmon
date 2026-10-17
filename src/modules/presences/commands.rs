@@ -199,7 +199,7 @@ async fn create(ix: &Ix, options: &Options) -> Result<()> {
     let channel_id = config.presence_channel_id.as_deref().and_then(parse_id).or(ix.channel_id());
     let Some(channel_id) = channel_id else {
         return ix
-            .reply(Reply::ephemeral("Salon des présences introuvable ou inaccessible. Vérifie `/presence config`."))
+            .reply(Reply::ephemeral("Salon des présences introuvable ou inaccessible. Vérifie `/config presence`."))
             .await;
     };
 
@@ -279,7 +279,7 @@ pub async fn config(ix: &Ix, options: &Options) -> Result<()> {
     }
 
     service::upsert_config(&ix.ctx.db, &guild_id.to_string(), update).await?;
-    ix.reply(Reply::ephemeral("Configuration mise à jour. `/presence config` sans option pour la consulter.")).await
+    ix.reply(Reply::ephemeral("Configuration mise à jour. `/config presence` sans option pour la consulter.")).await
 }
 
 /// Fiche de présence d'un membre (`/presence stats joueur`, clic droit « Présences du membre »).

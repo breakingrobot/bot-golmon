@@ -95,6 +95,10 @@ Sous l'en-tête de chaque nouveau ticket :
 
 Seul le staff peut utiliser les boutons.
 
+Au clic droit (*Applications*) : **Ouvrir un ticket** sur un membre (staff) et **Signaler au staff** sur un
+message (tout le monde : le message est transmis dans le ticket de la personne qui signale). Voir
+[Modules → Actions au clic droit](modules.md#actions-au-clic-droit).
+
 ## Commandes du staff
 
 Dans le salon d'un ticket :

@@ -21,7 +21,7 @@ forme d'image Docker.
 1. **Créer le bot** sur le portail Discord, activer les intents et l'inviter : [docs/discord.md](docs/discord.md).
 2. **Déployer** l'image (Northflank ou Docker) avec un volume sur `/app/data` et le port `8890` public :
    [docs/deploiement.md](docs/deploiement.md), qui contient une checklist complète.
-3. **Configurer les modules** sur Discord (`/presence config`, `/recrue config`…) : [docs/modules.md](docs/modules.md).
+3. **Configurer les modules** sur Discord (`/config presence`, `/config recrue`…) : [docs/modules.md](docs/modules.md).
 
 Le bot crée ses bases et déploie ses slash commands tout seul au démarrage.
 

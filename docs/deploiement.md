@@ -14,7 +14,7 @@ Toutes ses données sont dans **`/app/data`** : un seul volume à monter.
 5. Tickets (facultatif) : variables `MM_*` : [Tickets](tickets.md).
 6. Après le déploiement, dans les logs du service : `connecté à Discord`, `commandes déployées sur la
    guilde …` et `serveur web démarré`. Puis ouvrir `WEB_URL` et se connecter.
-7. Sur Discord, configurer chaque module avec sa commande `config` : [Modules](modules.md).
+7. Sur Discord, configurer chaque module avec `/config <module>` : [Modules](modules.md).
 
 ## Northflank
 

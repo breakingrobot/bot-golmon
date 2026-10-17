@@ -5,6 +5,7 @@
 | « DISCORD_TOKEN manquant » ou erreur 401 | Token absent ou régénéré : mettre à jour `DISCORD_TOKEN`. |
 | `Disallowed intents` au démarrage | Intent privilégié non activé ([Discord](discord.md#application-et-token)). |
 | Les slash commands n'apparaissent pas | Invitation sans `applications.commands`, ou `DISCORD_GUILD_IDS` vide (jusqu'à une heure). Recharger Discord (Ctrl+R). |
+| `/config` ou `/gestion` invisible | Normal sans « Gérer le serveur » / « Gérer les messages ». Pour l'ouvrir à un rôle : *Paramètres du serveur → Intégrations*. |
 | Le bot quitte un serveur dès qu'il le rejoint | Serveur absent de `DISCORD_GUILD_IDS`. |
 | « Rôle d'absence non appliqué » | « Gérer les rôles » manquante, ou rôle d'absence au-dessus de celui du bot. |
 | Effectif ou ping des présences vide | *Server Members Intent* désactivé. |
@@ -20,6 +21,6 @@
 | Tickets en forum : « Missing Permissions » | Le bot n'a pas *Gérer les fils* / *Envoyer des messages dans les fils* sur le forum. |
 | `config.ini` ignoré dans Docker | Le fichier doit être sur le volume et indiqué par `MODMAIL_CONFIG=/app/data/config.ini`. |
 | Tout le monde est déconnecté du site | Token du bot régénéré : la clé des sessions en dépend. Se reconnecter. |
-| Tableau de bord figé | Message supprimé ou salon inaccessible : relancer la commande `config` du module. |
+| Tableau de bord figé | Message supprimé ou salon inaccessible : relancer `/config <module>`. |
 
 Plus de détails dans les logs avec `RUST_LOG=debug`.

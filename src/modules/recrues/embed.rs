@@ -61,7 +61,7 @@ pub fn build_dashboard(session: &Session) -> Embed {
     if session.entries.is_empty() {
         return builder
             .description(
-                "Aucune recrue cette semaine. Vérifie le rôle recrue avec `/recrue config`, ou ajoute quelqu'un via `/recrue ajouter`.",
+                "Aucune recrue cette semaine. Vérifie le rôle recrue avec `/config recrue`, ou ajoute quelqu'un via `/recrue ajouter`.",
             )
             .build();
     }

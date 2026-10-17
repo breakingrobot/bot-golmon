@@ -57,12 +57,12 @@ pub async fn ensure_channel(ctx: &Ctx, guild_id: Id<GuildMarker>, user_id: Id<Us
     let config = service::get_config(&ctx.db, &guild).await?;
     let Some(config) = config else {
         return Ok(EnsureChannel::Failed(
-            "Aucune catégorie configurée pour les salons des recrues (`/recrue config`).".to_owned(),
+            "Aucune catégorie configurée pour les salons des recrues (`/config recrue`).".to_owned(),
         ));
     };
     let Some(category_id) = config.category_id.as_deref().and_then(parse_id) else {
         return Ok(EnsureChannel::Failed(
-            "Aucune catégorie configurée pour les salons des recrues (`/recrue config`).".to_owned(),
+            "Aucune catégorie configurée pour les salons des recrues (`/config recrue`).".to_owned(),
         ));
     };
 

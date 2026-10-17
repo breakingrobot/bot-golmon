@@ -164,7 +164,7 @@ pub async fn config(ix: &Ix, options: &Options, guild_id: Id<GuildMarker>) -> Re
     service::upsert_config(&ix.ctx.db, &guild_id.to_string(), update).await?;
     service::ensure_current_session(&ix.ctx, guild_id).await?;
     service::sync_dashboard(&ix.ctx, guild_id).await?;
-    ix.edit_text("Configuration mise à jour. `/recrue config` sans option pour la consulter.").await
+    ix.edit_text("Configuration mise à jour. `/config recrue` sans option pour la consulter.").await
 }
 
 async fn liste(ix: &Ix, guild_id: Id<GuildMarker>) -> Result<()> {
@@ -173,7 +173,7 @@ async fn liste(ix: &Ix, guild_id: Id<GuildMarker>) -> Result<()> {
     };
     let Some(channel) = config.and_then(|c| c.dashboard_channel_id) else {
         return ix
-            .reply(Reply::ephemeral("Aucun salon d'avis configuré. Utilise `/recrue config salon:#salon`."))
+            .reply(Reply::ephemeral("Aucun salon d'avis configuré. Utilise `/config recrue salon:#salon`."))
             .await;
     };
     ix.defer(true).await?;

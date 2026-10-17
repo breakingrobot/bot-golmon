@@ -1,13 +1,24 @@
-# Configurer les modules
+# Configurer et utiliser les modules
 
-Chaque module se configure **une fois par serveur** avec sa sous-commande `config` ; sans option, elle
-affiche la configuration actuelle. La modifier demande **Gérer le serveur**. Les heures saisies sont en
-**heure de Paris** ; les dates affichées s'adaptent au fuseau de chacun.
+## Les commandes
+
+| Commande | Pour qui | Contenu |
+|---|---|---|
+| `/config <module>` | « Gérer le serveur » | Réglages de chaque module, **une fois par serveur**. Sans option, affiche la configuration actuelle. |
+| `/gestion …` | « Gérer les messages » | Actions de staff : votes forcés, annulations, planning des présences, blocklist, panneau des absences… |
+| `/presence`, `/absence`, `/transaction`, `/vehicle`, `/recrue`, `/numero` | Tout le monde | Utilisation courante. |
+| Clic droit → *Applications* | Voir [plus bas](#actions-au-clic-droit) | Raccourcis sur un membre ou un message. |
+
+`/config` et `/gestion` n'apparaissent qu'aux membres qui ont la permission. Pour les ouvrir à un rôle
+précis (ex. les gradés) : *Paramètres du serveur → Intégrations → le bot → la commande*. Les permissions
+restent vérifiées à l'exécution.
+
+Les heures saisies sont en **heure de Paris** ; les dates affichées s'adaptent au fuseau de chacun.
 
 ## Présences
 
 ```
-/presence config role:@Membres absence_role:@Absent channel:#présences reminder_channel:#rappels absence_channel:#absences
+/config presence role:@Membres absence_role:@Absent channel:#présences reminder_channel:#rappels absence_channel:#absences
 ```
 
 | Option | Rôle |
@@ -27,9 +38,21 @@ Utilisation :
 - Automatique, toutes les 5 minutes : clôture à l'heure de l'événement ; rappel des non-répondants au
   plus toutes les 3 h ; pose et retrait du rôle d'absence.
 - `/presence ping`, `close`, `changes` (historique des changements d'avis), `stats [joueur]` (fiche ou
-  classement), `forcevote` (staff : saisir la réponse d'un membre, y compris sur une présence close 🔒),
-  `cancel` (supprime une présence), `reset` (efface toutes les statistiques).
-- **Blocklist** : `/presence blocklist add membre raison` : jamais pingé, absent d'office. `remove`, `list`.
+  classement).
+- Staff : `/gestion presence forcevote` (saisir la réponse d'un membre, y compris sur une présence
+  close 🔒), `annuler` (supprime une présence), `reset` (efface toutes les statistiques, « Gérer le
+  serveur »).
+- **Blocklist** : `/gestion blocklist ajouter membre raison` : jamais pingé, absent d'office. `retirer`, `liste`.
+
+### Présences récurrentes
+
+```
+/gestion presence planifier jour:mercredi heure:21:00 [titre] [description] [publication:24]
+```
+
+La présence est publiée automatiquement chaque semaine, `publication` heures avant l'événement (24 par
+défaut), dans le salon des présences, avec le ping habituel. `/gestion presence planning` liste les
+plannings, `deplanifier` en supprime un (les présences déjà publiées restent).
 
 ## Absences
 
@@ -39,8 +62,15 @@ Utilisation :
 
 Une date couvre la journée entière. Le rôle d'absence est posé dès le début de la période et retiré à la
 fin (ou à la fin de la dernière absence si plusieurs se chevauchent). Les présences ouvertes de la
-période passent en **Absent**. `/absence end [membre]` termine une absence, `/absence list` les liste.
-Déclarer ou clore l'absence d'un autre membre demande **Gérer les messages**.
+période passent en **Absent**. Déclarer ou clore l'absence d'un autre membre demande **Gérer les messages**.
+
+- `/absence end [membre]` termine l'absence en cours, ou **annule** la prochaine si elle n'a pas commencé.
+- `/absence list` liste les absences en cours.
+- L'annonce publiée dans le salon des absences est **supprimée automatiquement** quand l'absence se
+  termine ou est annulée : le salon ne montre que les absences d'actualité.
+- **Panneau** : `/gestion absence panneau [salon]` publie un message avec les boutons **Déclarer une
+  absence** (formulaire : motif, dernier jour, premier jour) et **Terminer / annuler mon absence**. Plus
+  simple que la commande pour la plupart des membres.
 
 > Si le rôle ne peut pas être posé (permission « Gérer les rôles » absente, ou rôle placé au-dessus de
 > celui du bot), l'absence est quand même enregistrée et le problème est signalé.
@@ -48,20 +78,21 @@ Déclarer ou clore l'absence d'un autre membre demande **Gérer les messages**.
 ## Transactions
 
 ```
-/transaction config dashboard_channel:#transactions ping_role:@Logistique
+/config transaction dashboard_channel:#transactions ping_role:@Logistique
 ```
 
 - **Tableau de bord** permanent, mis à jour automatiquement : transactions en cours par statut, total
   engagé, dernières terminées. `clear_ping_role:true` retire le rôle mentionné à la création.
 - `/transaction create groupe type:Vente prix:1500` publie la fiche dans le salon courant, avec boutons
   de statut, d'ajout d'objet et de suppression.
-- `add-item`, `status`, `view`, `cancel` sont ouverts à tous ; `delete` demande **Gérer les messages**.
+- `add-item`, `status`, `view`, `cancel` sont ouverts à tous ; la suppression définitive se fait avec
+  `/gestion transaction supprimer`.
   Une transaction **clôturée** n'est plus modifiable.
 
 ## Véhicules
 
 ```
-/vehicle config dashboard_channel:#véhicules
+/config vehicule dashboard_channel:#véhicules
 /vehicle add plaque:D6CS3P0G proprietaire:@Membre-ou-@Rôle [modele]
 ```
 
@@ -73,7 +104,7 @@ normalisées : `d6cs 3p0g` = `D6CS3P0G`.
 ## Recrues
 
 ```
-/recrue config role_recrue:@Recrue role_grade:@Gradé role_lead:@Lead categorie:#Essais salon:#avis-recrues
+/config recrue role_recrue:@Recrue role_grade:@Gradé role_lead:@Lead categorie:#Essais salon:#avis-recrues
 ```
 
 | Option | Rôle |
@@ -92,17 +123,28 @@ normalisées : `d6cs 3p0g` = `D6CS3P0G`.
 - Recevoir le rôle recrue crée un salon `essai-<pseudo>` visible par la recrue, les gradés et les leads.
   Perdre le rôle retire de la liste mais conserve le salon.
 - `/recrue liste`, `avis`, `ajouter`, `retirer`, `salon`, `historique` (gradés) ; `veto poser` / `veto lever`
-  (leads uniquement : « Gérer le serveur » ne donne **pas** le véto) ; `reset` force une nouvelle semaine.
+  (leads uniquement : « Gérer le serveur » ne donne **pas** le véto) ; `/gestion recrue reset` force une nouvelle semaine.
 
 ## Numéros
 
 ```
-/numero config salon:#annuaire
+/config numero salon:#annuaire
 ```
 
 Annuaire permanent avec boutons « Ajouter / modifier mon numéro » et « Retirer mon numéro ». Format :
 `555` + 4 à 6 chiffres (`555-1234` accepté). Un numéro par membre, unique sur le serveur.
 `/numero ajouter numero [membre]` (pour un autre membre : **Gérer le serveur**), `voir`, `supprimer`, `liste`.
+
+## Actions au clic droit
+
+Clic droit sur un membre ou un message → **Applications** :
+
+| Action | Sur | Effet | Visible par défaut |
+|---|---|---|---|
+| Présences du membre | Membre | Sa fiche de présence (comme `/presence stats joueur`) | Tout le monde |
+| Ajouter aux recrues | Membre | L'ajoute aux recrues de la semaine et crée son salon d'essai | « Gérer les messages » (gradés via *Intégrations*) |
+| Ouvrir un ticket | Membre | Ouvre un ticket avec lui (comme `!newthread`) | « Gérer les messages » ; module ticket requis |
+| Signaler au staff | Message | Transmet le message (texte, auteur, lien) dans le ticket de la personne qui signale, ouvert au besoin | Tout le monde ; module ticket requis |
 
 ## Statistiques sur le site
 

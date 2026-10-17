@@ -67,7 +67,7 @@ pub const NOT_LEAD: &str = "Seuls les membres ayant le rôle lead peuvent poser 
 
 /// Contrôle d'accès strictement basé sur les rôles configurés. Volontairement,
 /// « Gérer le serveur » n'ouvre aucun droit ici : un administrateur n'est pas
-/// un lead. Cette permission ne sert qu'à `/recrue config` et `/recrue reset`.
+/// un lead. Cette permission ne sert qu'à `/config recrue` et `/gestion recrue reset`.
 fn has_role(ix: &Ix, role_id: Option<&String>) -> bool {
     role_id.is_some_and(|role| ix.member_roles().iter().any(|r| r.to_string() == *role))
 }
