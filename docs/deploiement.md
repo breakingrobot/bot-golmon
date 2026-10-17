@@ -29,7 +29,9 @@ Toutes ses données sont dans **`/app/data`** : un seul volume à monter.
    l'adresse `https://….code.run` attribuée dans `WEB_URL` (et `MM_URL`). Domaine personnalisé :
    [site web](site-web.md#1-adresse-publique-en-https).
 6. **Health checks** : HTTP, port `8890`, chemin `/healthz`.
-7. **Resources** : le plus petit plan suffit (quelques dizaines de Mo de mémoire).
+7. **Resources** : le plus petit plan suffit. Le bot est réglé pour une petite empreinte mémoire (2 threads,
+   petites connexions SQLite, un seul client HTTP, `MALLOC_ARENA_MAX=2` dans l'image) ; le cache Discord
+   (membres, rôles, salons) grandit avec la taille des serveurs.
 
 Un volume limite le service à **une instance**, ce qui est voulu : un bot Discord ne doit tourner qu'en un
 seul exemplaire. Pour mettre à jour, pousser sur la branche suivie : Northflank reconstruit l'image et
@@ -68,6 +70,7 @@ dans le portail.
 | `DATABASE_URL` | `file:./data/bot.db` | Base SQLite principale. |
 | `DEPLOY_COMMANDS` | `true` | Déployer les slash commands au démarrage. `bot-discord deploy-commands` les déploie puis s'arrête. |
 | `RUST_LOG` | `info` | Détail des logs : `error`, `warn`, `info`, `debug`. Par module : `info,bot_discord::modmail=debug`. |
+| `TOKIO_WORKER_THREADS` | `2` | Threads de travail. 2 suffisent pour un bot ; plus de threads = plus de mémoire. |
 | `MM_*`, `MODMAIL_CONFIG` | — | [Module ticket](tickets.md). |
 
 Les heures saisies dans les commandes sont toujours interprétées en heure de Paris, quel que soit `TZ`.
