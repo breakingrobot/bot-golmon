@@ -42,17 +42,27 @@ Onglet **OAuth2 → URL Generator** : cocher les scopes `bot` et `applications.c
 permissions ci-dessous. Ou utiliser directement ce lien en remplaçant `CLIENT_ID` par l'*Application ID* :
 
 ```
-https://discord.com/oauth2/authorize?client_id=CLIENT_ID&scope=bot+applications.commands&permissions=268692560
+https://discord.com/oauth2/authorize?client_id=CLIENT_ID&scope=bot+applications.commands&permissions=2251800082377808
 ```
 
 | Permission | Utilisée par |
 |---|---|
 | Voir les salons, Envoyer des messages, Intégrer des liens, Joindre des fichiers, Voir l'historique | Tous les modules |
-| Gérer les messages | Suppression des messages de transaction et des commandes de ticket, épinglage |
+| Gérer les messages | Suppression des messages de transaction et des commandes de ticket |
+| Épingler des messages | En-tête des tickets (`pinThreadHeader`) |
 | Gérer les rôles | Rôle d'absence (le rôle du bot doit être **au-dessus** du rôle d'absence) |
 | Gérer les salons | Salons d'essai des recrues, salons de tickets |
 | Mentionner @everyone, @here et tous les rôles | Ping des rôles non mentionnables (transactions, tickets) |
 | Ajouter des réactions | Option `reactOnSeen` des tickets |
+
+Ces permissions sont données au rôle créé automatiquement pour le bot à l'invitation : rien d'autre à
+configurer, sauf deux points :
+
+- **Ordre des rôles** : dans *Paramètres du serveur → Rôles*, placer le rôle du bot **au-dessus** du rôle
+  d'absence, sinon il ne peut pas le poser.
+- **Catégories privées** (salons d'essai des recrues, tickets) : si `@everyone` n'y a pas accès, ajouter le
+  rôle du bot à la catégorie avec *Voir le salon*, *Envoyer des messages*, *Gérer les salons* et
+  *Gérer les permissions*. Les salons d'essai donnent ensuite eux-mêmes l'accès au bot.
 
 ### Récupérer les identifiants
 

@@ -97,6 +97,14 @@ pub async fn ensure_channel(ctx: &Ctx, guild_id: Id<GuildMarker>, user_id: Id<Us
             allow: MEMBER_ALLOW,
             deny: Permissions::empty(),
         },
+        // Sans cette entrée, le refus de @everyone retire au bot l'accès à son propre
+        // salon (sauf s'il est administrateur) : pas de message d'accueil, ni de suppression.
+        PermissionOverwrite {
+            id: ctx.bot_user_id.cast(),
+            kind: PermissionOverwriteType::Member,
+            allow: MEMBER_ALLOW,
+            deny: Permissions::empty(),
+        },
     ];
     for role in [&config.grade_role_id, &config.lead_role_id].into_iter().flatten().filter_map(|r| parse_id(r)) {
         overwrites.push(PermissionOverwrite {
