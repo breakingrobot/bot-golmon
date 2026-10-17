@@ -45,6 +45,7 @@ struct Recruit {
 #[template(path = "stats.html")]
 struct StatsPage {
     layout: Layout,
+    guild_id: String,
     guild_name: String,
     figures: Vec<Figure>,
     attendance: Vec<Attendance>,
@@ -79,6 +80,7 @@ pub async fn guild(State(ctx): State<Context>, viewer: MaybeViewer, uri: Uri, Pa
     match build(&ctx, guild_id).await {
         Ok((figures, attendance, recruits, tickets)) => pages::render(&StatsPage {
             layout: Layout::new(&ctx, format!("Statistiques · {guild_name}"), Some(&viewer), &access, "/stats"),
+            guild_id: guild_id.to_string(),
             guild_name,
             figures,
             attendance,
@@ -200,6 +202,7 @@ mod tests {
     fn renders_stats_page() {
         let page = StatsPage {
             layout: Layout::bare("Statistiques"),
+            guild_id: "123".into(),
             guild_name: "Serveur RP".into(),
             figures: vec![
                 Figure {
@@ -244,6 +247,7 @@ mod tests {
         let html = page.render().unwrap();
         assert!(html.contains("Assiduité aux présences") && html.contains("Véto · Marco"));
         assert!(html.contains("14 min") && html.contains("Pris en charge"));
+        assert!(html.contains("/stats/123/transactions"));
         if let Ok(path) = std::env::var("STATS_PREVIEW_PATH") {
             let html = html.replace(
                 &format!(r#"<link rel="stylesheet" href="/assets/app.css?v={}">"#, crate::web::ASSET_VERSION),

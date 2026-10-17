@@ -10,6 +10,7 @@ pub mod auth;
 pub mod markdown;
 pub mod pages;
 mod stats;
+mod transactions;
 
 use crate::context::{Context, Ctx};
 use axum::{
@@ -148,6 +149,8 @@ pub fn spawn(ctx: Context) {
         .route("/logout", get(auth::logout))
         .route("/stats", get(stats::index))
         .route("/stats/{guild_id}", get(stats::guild))
+        .route("/stats/{guild_id}/transactions", get(transactions::history))
+        .route("/stats/{guild_id}/transactions.csv", get(transactions::export))
         .route("/assets/app.css", get(|| async { asset("text/css; charset=UTF-8", CSS) }))
         .route("/assets/app.js", get(|| async { asset("text/javascript; charset=UTF-8", JS) }))
         .route("/healthz", get(|| async { "ok" }));

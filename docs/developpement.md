@@ -35,6 +35,7 @@ incluse) si la variable correspondante est définie.
 LOG_PREVIEW_PATH=/tmp/log.html cargo test renders_full_log_page
 TICKETS_PREVIEW_PATH=/tmp/tickets.html cargo test renders_tickets_page
 STATS_PREVIEW_PATH=/tmp/stats.html cargo test renders_stats_page
+TRANSACTIONS_PREVIEW_PATH=/tmp/transactions.html cargo test renders_transactions_page
 ```
 
 **Markdown Discord** : `src/web/markdown.rs`, testé par `cargo test markdown`.

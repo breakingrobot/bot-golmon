@@ -110,7 +110,7 @@ pub fn login_href(next: &str) -> String {
     format!("/login?next={query}")
 }
 
-fn url_encode(value: &str) -> String {
+pub(crate) fn url_encode(value: &str) -> String {
     value
         .bytes()
         .map(|b| match b {

@@ -1,0 +1,141 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="flex flex-wrap items-end justify-between gap-4">
+  <div>
+    <a href="/stats/{{ guild_id }}" class="text-sm font-medium text-ink-muted hover:text-ink">← {{ guild_name }}</a>
+    <h1 class="mt-1 text-2xl font-semibold tracking-tight text-ink">Transactions</h1>
+    <p class="mt-1 text-sm text-ink-muted">Historique{% if filtered %} filtré{% endif %} · {{ total }} transaction{{ self.plural(*total) }}</p>
+  </div>
+  <a href="{{ csv_href }}" download class="rounded-lg border border-line bg-surface px-3 py-1.5 text-sm font-medium text-ink hover:border-line-strong">Exporter en CSV</a>
+</div>
+
+<form method="get" action="/stats/{{ guild_id }}/transactions" class="mt-6 grid gap-3 rounded-card border border-line bg-surface p-4 sm:grid-cols-2 lg:grid-cols-6">
+  <label class="flex flex-col gap-1 text-xs font-medium text-ink-subtle lg:col-span-2">
+    Groupe
+    <input name="groupe" value="{{ groupe }}" type="search" autocomplete="off" placeholder="Nom du groupe"
+           class="rounded-lg border border-line bg-surface px-3 py-2 text-sm font-normal text-ink placeholder:text-ink-subtle focus:border-accent">
+  </label>
+  <label class="flex flex-col gap-1 text-xs font-medium text-ink-subtle">
+    Statut
+    <select name="statut" class="rounded-lg border border-line bg-surface px-3 py-2 text-sm font-normal text-ink">
+      {% for choice in statuts %}
+      <option value="{{ choice.value }}" {% if choice.active %}selected{% endif %}>{{ choice.label }}</option>
+      {% endfor %}
+    </select>
+  </label>
+  <label class="flex flex-col gap-1 text-xs font-medium text-ink-subtle">
+    Type
+    <select name="type" class="rounded-lg border border-line bg-surface px-3 py-2 text-sm font-normal text-ink">
+      {% for choice in types %}
+      <option value="{{ choice.value }}" {% if choice.active %}selected{% endif %}>{{ choice.label }}</option>
+      {% endfor %}
+    </select>
+  </label>
+  <label class="flex flex-col gap-1 text-xs font-medium text-ink-subtle">
+    Du
+    <input name="du" value="{{ du }}" type="date" class="rounded-lg border border-line bg-surface px-3 py-2 text-sm font-normal text-ink">
+  </label>
+  <label class="flex flex-col gap-1 text-xs font-medium text-ink-subtle">
+    Au
+    <input name="au" value="{{ au }}" type="date" class="rounded-lg border border-line bg-surface px-3 py-2 text-sm font-normal text-ink">
+  </label>
+  <div class="flex items-center gap-3 sm:col-span-2 lg:col-span-6">
+    <button type="submit" class="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-on-accent hover:bg-accent/90">Filtrer</button>
+    {% if filtered %}<a href="/stats/{{ guild_id }}/transactions" class="text-sm font-medium text-ink-muted hover:text-ink">Réinitialiser</a>{% endif %}
+    <span class="ml-auto text-xs text-ink-subtle">Dates en heure de Paris, bornes incluses.</span>
+  </div>
+</form>
+
+<dl class="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+  {% for figure in figures %}
+  <div class="rounded-card border border-line bg-surface px-4 py-3">
+    <dt class="text-xs font-medium tracking-wide text-ink-subtle uppercase">{{ figure.label }}</dt>
+    <dd class="mt-1 text-xl font-semibold whitespace-nowrap tabular-nums {{ figure.tone }}">{{ figure.value }}</dd>
+    {% if let Some(hint) = figure.hint %}<dd class="text-xs text-ink-muted">{{ hint }}</dd>{% endif %}
+  </div>
+  {% endfor %}
+</dl>
+
+<section class="mt-10">
+  <h2 class="text-lg font-semibold text-ink">Par mois</h2>
+  <p class="mt-1 text-sm text-ink-muted">Montants hors transactions annulées{% if months_hidden > 0 %} · {{ months_hidden }} mois plus anciens non affichés{% endif %}.</p>
+  {% if months.is_empty() %}
+  <p class="mt-4 text-sm text-ink-muted">Aucune transaction.</p>
+  {% else %}
+  <div class="mt-4 overflow-x-auto rounded-card border border-line bg-surface">
+    <table class="w-full text-left text-sm">
+      <thead class="border-b border-line text-xs tracking-wide text-ink-subtle uppercase">
+        <tr>
+          <th class="px-4 py-2 font-medium">Mois</th>
+          <th class="px-4 py-2 text-right font-medium">Achats</th>
+          <th class="px-4 py-2 text-right font-medium">Ventes</th>
+          <th class="px-4 py-2 text-right font-medium">Solde</th>
+          <th class="px-4 py-2 text-right font-medium">Nombre</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-line">
+        {% for month in months %}
+        <tr>
+          <td class="px-4 py-2 font-medium whitespace-nowrap text-ink">{{ month.label }}</td>
+          <td class="px-4 py-2 text-right whitespace-nowrap tabular-nums text-ink-muted">{{ month.achats }}</td>
+          <td class="px-4 py-2 text-right whitespace-nowrap tabular-nums text-ink-muted">{{ month.ventes }}</td>
+          <td class="px-4 py-2 text-right font-medium whitespace-nowrap tabular-nums {{ month.solde_tone }}">{{ month.solde }}</td>
+          <td class="px-4 py-2 text-right tabular-nums text-ink-muted">{{ month.count }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+</section>
+
+<section class="mt-10">
+  <h2 class="text-lg font-semibold text-ink">Détail</h2>
+  {% if rows.is_empty() %}
+  <p class="mt-4 rounded-card border border-dashed border-line-strong px-6 py-12 text-center text-ink-muted">Aucune transaction trouvée.</p>
+  {% else %}
+  <ul class="mt-4 divide-y divide-line overflow-hidden rounded-card border border-line bg-surface">
+    {% for row in rows %}
+    <li>
+      <details class="group">
+        <summary class="flex cursor-pointer list-none flex-wrap items-center gap-x-4 gap-y-1 px-4 py-3 hover:bg-surface-sunken sm:px-5">
+          <span class="text-ink-subtle transition-transform group-open:rotate-90" aria-hidden="true">›</span>
+          <span class="w-32 text-sm whitespace-nowrap tabular-nums text-ink-muted">{{ row.date }}</span>
+          <span class="min-w-0 flex-1 font-medium text-ink">{{ row.groupe }}</span>
+          <span class="flex w-full flex-wrap items-center gap-2 sm:w-72">
+            <span class="inline-flex w-14 justify-center rounded-full py-0.5 text-xs font-medium {{ row.type_classes }}">{{ row.type_label }}</span>
+            <span class="inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium {{ row.status_classes }}">{{ row.status_label }}</span>
+          </span>
+          <span class="w-28 text-right font-medium whitespace-nowrap tabular-nums text-ink">{{ row.prix }}</span>
+          <span class="w-16 text-sm text-ink-muted">{{ row.items.len() }} objet{{ self.plural(row.items.len()) }}</span>
+          <span class="w-28 truncate text-sm text-ink-muted">{{ row.creator }}</span>
+        </summary>
+        <div class="border-t border-line bg-surface-sunken px-4 py-3 text-sm sm:px-5">
+          {% if row.items.is_empty() %}
+          <p class="text-ink-muted">Aucun objet.</p>
+          {% else %}
+          <ul class="space-y-1">
+            {% for item in row.items %}
+            <li class="flex flex-wrap gap-x-3">
+              <span class="text-ink">{{ item.nom }} × {{ item.quantite }}</span>
+              {% if let Some(prix) = item.prix_unitaire %}<span class="tabular-nums text-ink-muted">{{ prix }} l'unité</span>{% endif %}
+            </li>
+            {% endfor %}
+          </ul>
+          {% endif %}
+        </div>
+      </details>
+    </li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+
+  {% if pages > 1 %}
+  <nav class="mt-6 flex items-center justify-between text-sm" aria-label="Pagination">
+    {% if let Some(href) = previous_href %}<a href="{{ href }}" class="font-medium text-accent hover:underline">← Précédent</a>{% else %}<span></span>{% endif %}
+    <span class="text-ink-muted">Page {{ page }} sur {{ pages }}</span>
+    {% if let Some(href) = next_href %}<a href="{{ href }}" class="font-medium text-accent hover:underline">Suivant →</a>{% else %}<span></span>{% endif %}
+  </nav>
+  {% endif %}
+</section>
+{% endblock %}
