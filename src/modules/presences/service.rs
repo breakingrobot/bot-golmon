@@ -40,6 +40,8 @@ pub struct ConfigUpdate {
     pub absence_channel_id: Option<String>,
     pub report_channel_id: Option<String>,
     pub alert_threshold: Option<i64>,
+    /// Arrête le rapport hebdomadaire (efface le salon du rapport).
+    pub disable_report: bool,
 }
 
 impl ConfigUpdate {
@@ -51,6 +53,7 @@ impl ConfigUpdate {
             && self.absence_channel_id.is_none()
             && self.report_channel_id.is_none()
             && self.alert_threshold.is_none()
+            && !self.disable_report
     }
 }
 
@@ -64,7 +67,7 @@ pub async fn upsert_config(db: &SqlitePool, guild_id: &str, update: ConfigUpdate
              "presenceChannelId" = COALESCE(excluded."presenceChannelId", "presenceChannelId"),
              "reminderChannelId" = COALESCE(excluded."reminderChannelId", "reminderChannelId"),
              "absenceChannelId" = COALESCE(excluded."absenceChannelId", "absenceChannelId"),
-             "reportChannelId" = COALESCE(excluded."reportChannelId", "reportChannelId"),
+             "reportChannelId" = CASE WHEN ? THEN NULL ELSE COALESCE(excluded."reportChannelId", "reportChannelId") END,
              "alertThreshold" = COALESCE(excluded."alertThreshold", "alertThreshold"),
              "updatedAt" = excluded."updatedAt""#,
     )
@@ -77,6 +80,7 @@ pub async fn upsert_config(db: &SqlitePool, guild_id: &str, update: ConfigUpdate
     .bind(update.report_channel_id)
     .bind(update.alert_threshold)
     .bind(DbTime::now())
+    .bind(update.disable_report)
     .execute(db)
     .await?;
     Ok(())

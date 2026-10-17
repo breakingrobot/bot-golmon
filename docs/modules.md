@@ -30,6 +30,7 @@ Les heures saisies sont en **heure de Paris** ; les dates affichées s'adaptent 
 | `absence_channel` | Salon où sont annoncées les absences déclarées. |
 | `rapport_salon` | Salon du [rapport hebdomadaire](#rapport-hebdomadaire) d'assiduité (non défini : pas de rapport). |
 | `seuil_alerte` | Taux de présence (1–100 %, **50** par défaut) sous lequel un membre est signalé dans le rapport. |
+| `rapport_desactiver` | `true` arrête le rapport hebdomadaire. |
 
 Utilisation :
 

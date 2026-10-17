@@ -249,4 +249,20 @@ mod tests {
         db.close().await;
         let _ = std::fs::remove_dir_all(dir);
     }
+
+    #[tokio::test]
+    async fn presence_report_can_be_disabled() {
+        let (db, dir) = temp_db().await;
+        let update = |report: Option<&str>, disable: bool| presences::ConfigUpdate {
+            report_channel_id: report.map(str::to_owned),
+            disable_report: disable,
+            ..Default::default()
+        };
+        presences::upsert_config(&db, "g1", update(Some("c9"), false)).await.unwrap();
+        presences::upsert_config(&db, "g1", update(None, true)).await.unwrap();
+        let config = presences::get_config(&db, "g1").await.unwrap().unwrap();
+        assert!(config.report_channel_id.is_none());
+        db.close().await;
+        let _ = std::fs::remove_dir_all(dir);
+    }
 }

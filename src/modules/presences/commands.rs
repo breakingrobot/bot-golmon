@@ -26,7 +26,8 @@ use twilight_model::{
     id::{Id, marker::UserMarker},
 };
 use twilight_util::builder::command::{
-    ChannelBuilder, CommandBuilder, IntegerBuilder, RoleBuilder, StringBuilder, SubCommandBuilder, UserBuilder,
+    BooleanBuilder, ChannelBuilder, CommandBuilder, IntegerBuilder, RoleBuilder, StringBuilder, SubCommandBuilder,
+    UserBuilder,
 };
 
 fn presence_option(description: &str, required: bool) -> StringBuilder {
@@ -83,6 +84,7 @@ pub fn config_subcommand() -> SubCommandBuilder {
                 .min_value(1)
                 .max_value(100),
         )
+        .option(BooleanBuilder::new("rapport_desactiver", "Arrête le rapport d'assiduité du lundi"))
 }
 
 /// Sous-commandes de `/gestion presence` (staff).
@@ -264,6 +266,7 @@ pub async fn config(ix: &Ix, options: &Options) -> Result<()> {
         absence_channel_id: options.channel("absence_channel").map(|id| id.to_string()),
         report_channel_id: options.channel("rapport_salon").map(|id| id.to_string()),
         alert_threshold: options.integer("seuil_alerte").map(|value| value.clamp(1, 100)),
+        disable_report: options.boolean("rapport_desactiver") == Some(true),
     };
 
     // Sans aucune option, la commande sert à consulter la configuration.
