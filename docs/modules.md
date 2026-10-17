@@ -105,6 +105,6 @@ Annuaire permanent avec boutons « Ajouter / modifier mon numéro » et « Retir
 ## Statistiques sur le site
 
 Les membres ayant **Gérer le serveur** retrouvent sur le site du bot (`/stats`, après
-[connexion Discord](deploiement.md#connexion-discord)) : assiduité de chaque membre aux présences, absences
+[connexion Discord](site-web.md#2-connexion-discord)) : assiduité de chaque membre aux présences, absences
 en cours, recrues de la semaine avec leurs avis et vétos, transactions en cours, véhicules, et l'activité des
 tickets si le module est configuré.

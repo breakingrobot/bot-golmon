@@ -2,8 +2,12 @@
 
 Retour à la [mise en place des tickets](tickets.md).
 
-Toutes les options de modmailbot sont reconnues, avec les mêmes valeurs par défaut. Les booléens
-acceptent `true/false`, `on/off`, `yes/no`, `1/0`. Les durées s'écrivent `1h30m`, `2d`, `15m`.
+Toutes les options de modmailbot sont reconnues, avec les mêmes valeurs par défaut, sauf les textes (en
+français) et les chemins de fichiers (sous `data/`, le volume). Les booléens acceptent `true/false`,
+`on/off`, `yes/no`, `1/0`. Les durées s'écrivent `1h30m`, `2d`, `15m`.
+
+En variable d'environnement : `MM_` + nom de l'option en majuscules (`closeMessage` → `MM_CLOSE_MESSAGE`),
+voir [Variables ou config.ini](tickets.md#variables-ou-configini).
 
 <details>
 <summary><b>Serveurs, accès et apparence</b></summary>

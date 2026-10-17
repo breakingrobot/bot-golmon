@@ -207,10 +207,10 @@
 @layer components {
   /* Jauge d'assiduité : couleurs des tokens selon le seuil (low/high/optimum). */
   .meter {
-    @apply appearance-none overflow-hidden rounded-full bg-surface-sunken;
+    @apply appearance-none overflow-hidden rounded-full bg-surface-sunken bg-none;
   }
   .meter::-webkit-meter-bar {
-    @apply rounded-full border-0 bg-surface-sunken;
+    @apply rounded-full border-0 bg-surface-sunken bg-none;
   }
   .meter::-webkit-meter-optimum-value {
     @apply bg-staff;

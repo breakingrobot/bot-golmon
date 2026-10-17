@@ -1,67 +1,39 @@
 # Déploiement
 
-Au démarrage, le bot crée ou met à jour sa base, déploie les slash commands puis se connecte à Discord.
+Le bot est livré sous forme d'image Docker (`Dockerfile` à la racine). Au démarrage, il crée ou met à jour
+ses bases, déploie les slash commands, se connecte à Discord et démarre son [site web](site-web.md).
 Toutes ses données sont dans **`/app/data`** : un seul volume à monter.
+
+## Checklist de mise en production
+
+1. Application Discord créée, intents activés, bot invité : [Discord](discord.md).
+2. Service Northflank avec le volume `/app/data` et le port `8890` public : [ci-dessous](#northflank).
+3. Variables renseignées (au minimum `DISCORD_TOKEN`, `DISCORD_GUILD_IDS`, `WEB_URL`,
+   `DISCORD_CLIENT_SECRET`) : [variables](#variables-denvironnement).
+4. Redirection OAuth2 `<WEB_URL>/auth/callback` ajoutée dans le portail Discord : [site web](site-web.md#2-connexion-discord).
+5. Tickets (facultatif) : variables `MM_*` : [Tickets](tickets.md).
+6. Après le déploiement, dans les logs du service : `connecté à Discord`, `commandes déployées sur la
+   guilde …` et `serveur web démarré`. Puis ouvrir `WEB_URL` et se connecter.
+7. Sur Discord, configurer chaque module avec sa commande `config` : [Modules](modules.md).
 
 ## Northflank
 
-1. **Create new → Service → Combined service**.
+1. **Create new → Service → Combined service** (build et exécution dans le même service).
 2. **Repository** : ce dépôt et la branche à déployer. **Build type** : *Dockerfile*, chemin `/Dockerfile`,
    contexte `/`.
-3. **Environment variables** : `DISCORD_TOKEN` et `DISCORD_GUILD_IDS` au minimum ([variables](#variables-denvironnement)).
-   Mettre le token dans un *Secret group*.
-4. **Volumes → Add volume** : chemin de montage **`/app/data`**, la plus petite taille suffit.
-5. **Ports & DNS → Add port** : port `8890`, protocole **HTTP**, **Publicly expose** coché (voir
-   [site web](#site-web-et-https)). *Health check* : HTTP, port `8890`, chemin `/healthz`.
-6. **Resources** : le plus petit plan suffit.
-7. Déployer, puis vérifier dans **Logs** : `connecté à Discord` et `serveur web démarré`.
+3. **Environment variables** : voir [l'exemple complet](#exemple-complet). Créer un *Secret group* pour
+   `DISCORD_TOKEN` et `DISCORD_CLIENT_SECRET` et le lier au service.
+4. **Volumes → Add volume** : chemin de montage **`/app/data`**, la plus petite taille suffit (les bases
+   pèsent quelques Mo).
+5. **Ports & DNS → Add port** : port `8890`, protocole **HTTP**, **Publicly expose** coché. Reporter
+   l'adresse `https://….code.run` attribuée dans `WEB_URL` (et `MM_URL`). Domaine personnalisé :
+   [site web](site-web.md#1-adresse-publique-en-https).
+6. **Health checks** : HTTP, port `8890`, chemin `/healthz`.
+7. **Resources** : le plus petit plan suffit (quelques dizaines de Mo de mémoire).
 
-Un volume limite le service à une instance, ce qui est voulu : un bot Discord ne tourne qu'en un exemplaire.
-Pour mettre à jour, pousser sur la branche suivie : Northflank reconstruit et redéploie.
-
-## Site web et HTTPS
-
-Le bot sert un petit site sur le port `8890` : logs et recherche des tickets, statistiques du staff,
-statistiques des serveurs, et `/healthz` pour la plateforme. Il parle HTTP simple ; le HTTPS est assuré
-par Northflank, qui termine le TLS devant le service.
-
-1. Port `8890` exposé publiquement en **HTTP** (étape 5 ci-dessus).
-2. Northflank attribue une adresse `https://….code.run` avec un certificat valide. La mettre dans
-   `WEB_URL`, sans `/` final (et dans `MM_URL` si le module ticket est utilisé).
-
-**Domaine personnalisé** (ex. `bot.mon-domaine.fr`) :
-
-1. **Team settings → Domains → Add domain**, puis créer chez le registraire l'enregistrement DNS demandé
-   pour la vérification.
-2. Ajouter le sous-domaine, créer l'enregistrement `CNAME` indiqué, puis le lier au port `8890` du service.
-3. Le certificat Let's Encrypt est généré automatiquement. Mettre `WEB_URL=https://bot.mon-domaine.fr`.
-
-Hors Northflank, placer un reverse proxy devant le port 8890 (par exemple Caddy :
-`bot.mon-domaine.fr { reverse_proxy localhost:8890 }`, certificat automatique).
-
-### Connexion Discord
-
-Les pages sont réservées aux personnes connectées avec leur compte Discord :
-
-| Page | Accès |
-|---|---|
-| `/logs`, `/logs/<id>`, `/logs/staff` | Staff des tickets (`inboxServerPermission` sur le serveur inbox) |
-| `/stats/<serveur>` | Membres ayant « Gérer le serveur » |
-
-Pour l'activer :
-
-1. Portail développeur Discord → l'application → **OAuth2** : **Reset Secret**, copier le *Client Secret*
-   dans `DISCORD_CLIENT_SECRET` (dans le *Secret group*).
-2. Même page, **Redirects → Add Redirect** : `https://<WEB_URL>/auth/callback` (l'adresse exacte de
-   `WEB_URL` suivie de `/auth/callback`), puis **Save Changes**.
-3. Redéployer et ouvrir `WEB_URL` : bouton **Se connecter**.
-
-La session dure 7 jours. Les droits sont vérifiés à chaque page : retirer un rôle coupe l'accès
-immédiatement.
-
-**Sans `DISCORD_CLIENT_SECRET`**, les logs restent lisibles par leur lien (non devinable, comme dans
-modmailbot) et les autres pages sont désactivées. À éviter en production : un lien de log transféré
-suffit alors pour le lire.
+Un volume limite le service à **une instance**, ce qui est voulu : un bot Discord ne doit tourner qu'en un
+seul exemplaire. Pour mettre à jour, pousser sur la branche suivie : Northflank reconstruit l'image et
+redéploie ; les migrations s'appliquent au démarrage.
 
 ## Docker
 
@@ -71,47 +43,78 @@ docker run -d --name bot-discord --restart unless-stopped \
   --env-file .env -v bot-data:/app/data -p 8890:8890 bot-discord
 ```
 
-`-p 8890:8890` expose le site web (logs, statistiques, `/healthz`).
-
 ## En local
 
 Prérequis : [Rust](https://rustup.rs) stable.
 
 ```bash
-cp .env.example .env      # renseigner DISCORD_TOKEN et DISCORD_GUILD_IDS
+cp .env.example .env      # renseigner au moins DISCORD_TOKEN et DISCORD_GUILD_IDS
 cargo run --release
 ```
+
+Les données sont alors dans `./data`, le site sur <http://localhost:8890>. Pour tester la connexion
+Discord en local : `WEB_URL=http://localhost:8890` et la redirection `http://localhost:8890/auth/callback`
+dans le portail.
 
 ## Variables d'environnement
 
 | Variable | Défaut | Description |
 |---|---|---|
-| `DISCORD_TOKEN` | — | **Requis.** Token du bot. |
+| `DISCORD_TOKEN` | — | **Requis.** Token du bot ([Discord](discord.md#application-et-token)). |
 | `DISCORD_GUILD_IDS` | *(vide)* | Serveurs autorisés, séparés par des virgules. Le bot quitte les autres serveurs et y déploie ses commandes immédiatement. Vide : aucune restriction, commandes globales (jusqu'à une heure de propagation). **À renseigner en production.** |
+| `WEB_URL` | `MM_URL` | Adresse publique du site, sans `/` final. |
+| `DISCORD_CLIENT_SECRET` | — | Active la [connexion Discord](site-web.md#2-connexion-discord) du site. |
+| `PORT` | `8890` | Port du site (l'option `port` du module ticket a priorité). |
 | `DATABASE_URL` | `file:./data/bot.db` | Base SQLite principale. |
 | `DEPLOY_COMMANDS` | `true` | Déployer les slash commands au démarrage. `bot-discord deploy-commands` les déploie puis s'arrête. |
-| `RUST_LOG` | `info` | Détail des logs : `error`, `warn`, `info`, `debug`. |
-| `WEB_URL` | `MM_URL` | Adresse publique du site, sans `/` final (ex. `https://bot.mon-domaine.fr`). |
-| `DISCORD_CLIENT_SECRET` | — | Active la [connexion Discord](#connexion-discord) du site. |
-| `PORT` | `8890` | Port du site web (l'option `port` du module ticket a priorité). |
+| `RUST_LOG` | `info` | Détail des logs : `error`, `warn`, `info`, `debug`. Par module : `info,bot_discord::modmail=debug`. |
 | `MM_*`, `MODMAIL_CONFIG` | — | [Module ticket](tickets.md). |
 
-Les heures sont toujours interprétées en heure de Paris, quel que soit `TZ`.
+Les heures saisies dans les commandes sont toujours interprétées en heure de Paris, quel que soit `TZ`.
+
+### Exemple complet
+
+Bot avec site web et tickets (les identifiants s'obtiennent par clic droit → *Copier l'identifiant*, voir
+[Discord](discord.md#copier-un-identifiant)) :
+
+```bash
+# Secret group
+DISCORD_TOKEN=…
+DISCORD_CLIENT_SECRET=…
+
+# Bot et site web
+DISCORD_GUILD_IDS=111111111111111111
+WEB_URL=https://bot.mon-domaine.fr
+
+# Tickets
+MM_MAIN_SERVER_ID=111111111111111111
+MM_INBOX_SERVER_ID=111111111111111111
+MM_LOG_CHANNEL_ID=222222222222222222
+MM_NEW_THREAD_CATEGORY_ID=333333333333333333
+MM_INBOX_SERVER_PERMISSION=444444444444444444
+MM_MENTION_ROLE=444444444444444444
+MM_URL=https://bot.mon-domaine.fr
+MM_CLOSE_MESSAGE=Ce ticket est fermé. Écris-nous à nouveau si besoin.
+```
 
 ## Contenu de `/app/data`
 
 | Fichier | Contenu |
 |---|---|
-| `bot.db` | Base principale |
-| `modmail.sqlite` | Base des tickets |
+| `bot.db` | Base principale (présences, transactions, véhicules, recrues, numéros, prises en charge des tickets) |
+| `modmail.sqlite` | Base des tickets, au schéma de modmailbot |
 | `logs/`, `attachments/` | Seulement avec `logStorage = attachment` ou `attachmentStorage = local` |
+| `config.ini` | Facultatif : configuration des tickets si `MODMAIL_CONFIG=/app/data/config.ini` |
+
+Sauvegarder le volume (snapshots de volume Northflank) suffit à tout sauvegarder.
 
 ## Reprendre les données de l'ancien bot (TypeScript)
 
 Copier son fichier `dev.db` dans le volume `/app/data` **avant le premier démarrage**. Le bot le renomme
-en `bot.db` et le met à jour sans perte (tables `Prospect*` renommées en `Recrue*`, dates normalisées).
+en `bot.db` et le met à jour sans perte : tables `Prospect*` renommées en `Recrue*` (avis, vétos et salons
+d'essai conservés), dates normalisées.
 
 - `/prospect` est remplacée par `/recrue` (option `role_prospect` → `role_recrue`) ;
 - les messages déjà publiés (présences, tableaux de bord, avis de la semaine) restent fonctionnels.
 
-Pour reprendre une installation modmailbot, voir [Tickets](tickets.md#reprendre-une-installation-modmailbot).
+Pour reprendre une installation modmailbot : [Tickets](tickets.md#reprendre-une-installation-modmailbot).

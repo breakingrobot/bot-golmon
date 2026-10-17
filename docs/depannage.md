@@ -11,11 +11,15 @@
 | « Création du salon impossible » (recrues) | « Gérer les salons » manquante, catégorie supprimée ou pleine (50 salons). |
 | Aucune réaction aux messages privés ni aux `!commandes` | Module ticket non configuré (`module ticket désactivé` dans les logs) ou *Message Content Intent* désactivé. |
 | `!reply` ne fait rien | Auteur non reconnu comme staff : vérifier `inboxServerPermission`. |
-| Liens de logs injoignables | `MM_URL`/`WEB_URL` non défini ou port 8890 non public ([site web](deploiement.md#site-web-et-https)). |
+| Liens de logs injoignables | `MM_URL`/`WEB_URL` non défini ou port 8890 non public ([site web](site-web.md#1-adresse-publique-en-https)). |
+| Le site ne répond pas, ou health check en échec | Port `8890` non exposé en HTTP, ou `PORT`/`port` modifié sans adapter le port Northflank. Vérifier `serveur web démarré` dans les logs. |
 | « Connexion non configurée » sur le site | `DISCORD_CLIENT_SECRET` ou `WEB_URL` manquant. |
 | Discord affiche « redirect_uri invalide » | Redirection `<WEB_URL>/auth/callback` absente du portail (OAuth2 → Redirects), ou `WEB_URL` différent de l'adresse réelle. |
 | « Accès refusé » après connexion | Compte hors du staff des tickets (`inboxServerPermission`) ou sans « Gérer le serveur ». |
 | Boutons du ticket sans effet | Membre hors du staff, ou ticket déjà fermé. |
+| Tickets en forum : « Missing Permissions » | Le bot n'a pas *Gérer les fils* / *Envoyer des messages dans les fils* sur le forum. |
+| `config.ini` ignoré dans Docker | Le fichier doit être sur le volume et indiqué par `MODMAIL_CONFIG=/app/data/config.ini`. |
+| Tout le monde est déconnecté du site | Token du bot régénéré : la clé des sessions en dépend. Se reconnecter. |
 | Tableau de bord figé | Message supprimé ou salon inaccessible : relancer la commande `config` du module. |
 
 Plus de détails dans les logs avec `RUST_LOG=debug`.

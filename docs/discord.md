@@ -8,6 +8,8 @@
 3. Toujours dans **Bot**, section *Privileged Gateway Intents* :
    - **Server Members Intent** : toujours ;
    - **Message Content Intent** : seulement avec le [module ticket](tickets.md).
+4. Onglet **OAuth2** : *Client Secret* et redirection du site web, voir
+   [Site web → Connexion Discord](site-web.md#2-connexion-discord).
 
 ## Inviter le bot
 

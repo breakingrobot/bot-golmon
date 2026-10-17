@@ -189,3 +189,54 @@ pub async fn staff(State(ctx): State<Context>, viewer: MaybeViewer, uri: Uri) ->
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn renders_tickets_page() {
+        let row = |number: i64, user: &str, status: i64, exchanges: i64, claimed: Option<&str>| {
+            let (status_label, status_classes) = status_badge(status);
+            Row {
+                href: format!("/logs/{number}"),
+                number,
+                user_name: user.into(),
+                user_id: "106391128718245888".into(),
+                status_label,
+                status_classes,
+                opened_iso: "2026-10-16T21:40:00+00:00".into(),
+                opened_display: "16/10/2026 21:40 UTC".into(),
+                exchanges,
+                claimed_by: claimed.map(Into::into),
+            }
+        };
+        let page = TicketsPage {
+            layout: Layout::bare("Tickets"),
+            query: String::new(),
+            filters: vec![
+                Filter { label: "Tous", value: "", active: true },
+                Filter { label: "Ouverts", value: "open", active: false },
+            ],
+            rows: vec![
+                row(44, "Lina", thread_status::OPEN, 3, None),
+                row(43, "Hugo", thread_status::SUSPENDED, 12, Some("Marco")),
+                row(42, "Elodie", thread_status::CLOSED, 7, Some("Golmon")),
+            ],
+            total: 3,
+            page: 1,
+            pages: 1,
+            previous_href: None,
+            next_href: None,
+        };
+        let html = page.render().unwrap();
+        assert!(html.contains("Elodie") && html.contains("🙋 Marco") && html.contains("Suspendu"));
+        if let Ok(path) = std::env::var("TICKETS_PREVIEW_PATH") {
+            let html = html.replace(
+                &format!(r#"<link rel="stylesheet" href="/assets/app.css?v={}">"#, crate::web::ASSET_VERSION),
+                &format!("<style>{}</style>", crate::web::CSS),
+            );
+            std::fs::write(path, html).unwrap();
+        }
+    }
+}

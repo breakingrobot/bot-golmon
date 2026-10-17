@@ -28,5 +28,13 @@ déjà déployée.
 cd web && npm ci && npm run build   # régénère web/dist/app.css, embarqué à la compilation
 ```
 
-**Aperçu d'une page de log** sans Discord : `LOG_PREVIEW_PATH=/tmp/log.html cargo test renders_full_log_page`
-écrit une page d'exemple (feuille de style incluse).
+**Aperçu des pages** sans Discord : les tests de rendu écrivent une page d'exemple (feuille de style
+incluse) si la variable correspondante est définie.
+
+```bash
+LOG_PREVIEW_PATH=/tmp/log.html cargo test renders_full_log_page
+TICKETS_PREVIEW_PATH=/tmp/tickets.html cargo test renders_tickets_page
+STATS_PREVIEW_PATH=/tmp/stats.html cargo test renders_stats_page
+```
+
+**Markdown Discord** : `src/web/markdown.rs`, testé par `cargo test markdown`.
