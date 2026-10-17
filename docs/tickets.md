@@ -25,7 +25,13 @@ Le module est **désactivé** tant qu'il n'y a ni `config.ini` ni variable `MM_*
    MM_CLOSE_MESSAGE=Ce ticket est fermé. Écris-nous à nouveau si besoin.
    ```
 
-4. Exposer le port `8890` en HTTPS : [Déploiement → HTTPS](deploiement.md#https-module-ticket).
+4. Exposer le site web en HTTPS et activer la connexion Discord :
+   [Déploiement → Site web](deploiement.md#site-web-et-https).
+
+**Fils de forum** : avec `MM_NEW_THREAD_FORUM_ID=<id d'un salon forum>` (à la place de la catégorie), chaque
+ticket est une publication du forum. Plus de limite de 50 salons par catégorie, et à la fermeture le fil est
+archivé et verrouillé au lieu d'être supprimé : l'historique reste consultable sur Discord. `!move` n'est
+alors pas disponible.
 
 **Nom des variables** : `MM_` + option en majuscules, mots séparés par `_` (`closeMessage` →
 `MM_CLOSE_MESSAGE`). Option imbriquée : `__` (`commandAliases.mv` → `MM_COMMAND_ALIASES__MV`). Liste :
@@ -33,9 +39,18 @@ Le module est **désactivé** tant qu'il n'y a ni `config.ini` ni variable `MM_*
 
 Toutes les options : [Options des tickets](tickets-options.md).
 
+## Boutons du ticket
+
+Sous l'en-tête de chaque nouveau ticket :
+
+- **Prendre en charge** : le ticket est attribué à la personne qui clique (affiché sur le bouton et dans
+  la liste web). Un autre membre du staff peut le reprendre ; recliquer libère le ticket.
+- **Répondre** / **Répondre anonymement** : fenêtre de saisie, la réponse part comme un `!r` / `!ar`.
+- **Fermer** : demande confirmation, avec ou sans prévenir l'utilisateur.
+
 ## Commandes du staff
 
-Dans un salon de ticket :
+Les commandes texte restent disponibles. Dans un salon de ticket :
 
 | Commande | Effet |
 |---|---|
@@ -57,13 +72,18 @@ Partout sur le serveur inbox : `!newthread <id>`, `!logs <id>`, `!block <id>`, `
 
 Un message du staff qui n'est pas une commande reste **interne**, sauf avec `alwaysReply`.
 
-## Logs
+## Site web
 
-À la fermeture, le salon de logs reçoit le lien `MM_URL/logs/<id>` : une page lisible (clair/sombre,
-mobile) avec les échanges, notes internes, modifications et pièces jointes. Filtres **Échanges seulement**
-et **Détails techniques**, et **Texte brut** au format modmailbot.
+Avec la [connexion Discord](deploiement.md#connexion-discord), le staff des tickets accède à :
 
-Le lien n'est pas devinable, mais toute personne qui l'a peut lire le log.
+- **`/logs`** : tous les tickets, avec recherche (pseudo, identifiant, n° de ticket ou texte d'un
+  message), filtre par statut et prise en charge ;
+- **`/logs/<id>`** : le log d'un ticket, lien envoyé dans le salon de logs à la fermeture. Tout le
+  markdown Discord est rendu (titres, citations, listes, spoilers, émojis, horodatages dans le fuseau du
+  lecteur, mentions avec les vrais noms). Filtres **Échanges seulement** et **Détails techniques**,
+  **Texte brut** au format modmailbot ;
+- **`/logs/staff`** : sur 30 jours, tickets créés, fermés et sans réponse, délai médian de première
+  réponse, et par membre du staff : réponses, tickets, prises en charge, délai moyen de première réponse.
 
 ## Reprendre une installation modmailbot
 

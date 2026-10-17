@@ -31,6 +31,7 @@ acceptent `true/false`, `on/off`, `yes/no`, `1/0`. Les durées s'écrivent `1h30
 | Option | Défaut | Description |
 |---|---|---|
 | `newThreadCategoryId` | — | Catégorie des nouveaux tickets. |
+| `newThreadForumId` | — | **Propre à ce bot.** Salon forum : les tickets y sont ouverts en fils (remplace la catégorie). |
 | `categoryAutomation.newThreadFromServer.<idServeur>` | — | Catégorie selon le serveur d'origine (plusieurs serveurs principaux). |
 | `mentionRole` | `none` | Mention à chaque nouveau ticket : identifiant de rôle, `here`, `everyone` ou `none`. |
 | `responseMessage` | message anglais | Réponse automatique au premier message. |

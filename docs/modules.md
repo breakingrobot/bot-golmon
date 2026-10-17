@@ -101,3 +101,10 @@ normalisées : `d6cs 3p0g` = `D6CS3P0G`.
 Annuaire permanent avec boutons « Ajouter / modifier mon numéro » et « Retirer mon numéro ». Format :
 `555` + 4 à 6 chiffres (`555-1234` accepté). Un numéro par membre, unique sur le serveur.
 `/numero ajouter numero [membre]` (pour un autre membre : **Gérer le serveur**), `voir`, `supprimer`, `liste`.
+
+## Statistiques sur le site
+
+Les membres ayant **Gérer le serveur** retrouvent sur le site du bot (`/stats`, après
+[connexion Discord](deploiement.md#connexion-discord)) : assiduité de chaque membre aux présences, absences
+en cours, recrues de la semaine avec leurs avis et vétos, transactions en cours, véhicules, et l'activité des
+tickets si le module est configuré.

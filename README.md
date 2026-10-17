@@ -19,9 +19,9 @@ Le bot crée sa base et déploie ses slash commands tout seul au démarrage.
 | Page | Contenu |
 |---|---|
 | [Discord](docs/discord.md) | Application, token, intents, invitation et permissions |
-| [Déploiement](docs/deploiement.md) | Northflank, HTTPS, Docker, variables d'environnement, reprise des données |
+| [Déploiement](docs/deploiement.md) | Northflank, site web, HTTPS, connexion Discord, Docker, variables |
 | [Modules](docs/modules.md) | Présences, absences, transactions, véhicules, recrues, numéros |
-| [Tickets](docs/tickets.md) | Module modmail : mise en place, commandes, logs |
+| [Tickets](docs/tickets.md) | Module modmail : mise en place, boutons, commandes, site web des logs |
 | [Options des tickets](docs/tickets-options.md) | Toutes les options modmailbot reconnues |
 | [Dépannage](docs/depannage.md) | Problèmes fréquents |
 | [Développement](docs/developpement.md) | Compiler, tester, structure du code |

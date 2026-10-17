@@ -14,7 +14,7 @@
 Remplacer `CLIENT_ID` par l'*Application ID* (onglet **General Information**) :
 
 ```
-https://discord.com/oauth2/authorize?client_id=CLIENT_ID&scope=bot+applications.commands&permissions=2251800082377808
+https://discord.com/oauth2/authorize?client_id=CLIENT_ID&scope=bot+applications.commands&permissions=2252092140153936
 ```
 
 Le rôle créé pour le bot reçoit ces permissions :
@@ -26,6 +26,7 @@ Le rôle créé pour le bot reçoit ces permissions :
 | Épingler des messages | En-tête des tickets (`pinThreadHeader`) |
 | Gérer les rôles | Rôle d'absence |
 | Gérer les salons | Salons d'essai des recrues, salons de tickets |
+| Gérer les fils, Envoyer des messages dans les fils | Tickets en fils de forum (`newThreadForumId`) |
 | Mentionner @everyone, @here et tous les rôles | Ping des rôles non mentionnables |
 | Ajouter des réactions | Option `reactOnSeen` des tickets |
 
@@ -35,6 +36,8 @@ Deux réglages restent à faire à la main :
   d'absence.
 - **Catégories privées** (essais des recrues, tickets) : si `@everyone` ne les voit pas, y ajouter le rôle
   du bot avec *Voir le salon*, *Envoyer des messages*, *Gérer les salons* et *Gérer les permissions*.
+  Pour un **forum de tickets**, même chose sur le forum, avec *Gérer les fils* et *Envoyer des messages
+  dans les fils*.
 
 ## Copier un identifiant
 
