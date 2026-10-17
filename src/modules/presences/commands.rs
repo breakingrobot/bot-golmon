@@ -73,6 +73,15 @@ pub fn config_subcommand() -> SubCommandBuilder {
             ChannelBuilder::new("absence_channel", "Salon où annoncer les absences")
                 .channel_types([ChannelType::GuildText]),
         )
+        .option(
+            ChannelBuilder::new("rapport_salon", "Salon du rapport d'assiduité du lundi (sans salon : pas de rapport)")
+                .channel_types([ChannelType::GuildText]),
+        )
+        .option(
+            IntegerBuilder::new("seuil_alerte", "Rapport : taux de présence sur 4 semaines sous lequel alerter (%)")
+                .min_value(1)
+                .max_value(100),
+        )
 }
 
 /// Sous-commandes de `/gestion presence` (staff).
@@ -252,15 +261,12 @@ pub async fn config(ix: &Ix, options: &Options) -> Result<()> {
         presence_channel_id: options.channel("channel").map(|id| id.to_string()),
         reminder_channel_id: options.channel("reminder_channel").map(|id| id.to_string()),
         absence_channel_id: options.channel("absence_channel").map(|id| id.to_string()),
+        report_channel_id: options.channel("rapport_salon").map(|id| id.to_string()),
+        alert_threshold: options.integer("seuil_alerte").map(|value| value.clamp(1, 100)),
     };
-    let is_read = update.default_role_id.is_none()
-        && update.absence_role_id.is_none()
-        && update.presence_channel_id.is_none()
-        && update.reminder_channel_id.is_none()
-        && update.absence_channel_id.is_none();
 
     // Sans aucune option, la commande sert à consulter la configuration.
-    if is_read {
+    if update.is_empty() {
         let config = service::get_config(&ix.ctx.db, &guild_id.to_string()).await?;
         let get =
             |f: fn(&super::model::PresenceConfig) -> Option<&String>| config.as_ref().and_then(f).map(String::as_str);
@@ -271,7 +277,27 @@ pub async fn config(ix: &Ix, options: &Options) -> Result<()> {
             .field(field("Rôle d'absence", describe(get(|c| c.absence_role_id.as_ref()), 'r'), false))
             .field(field("Salon des présences", describe(get(|c| c.presence_channel_id.as_ref()), 'c'), false))
             .field(field("Salon des rappels", describe(get(|c| c.reminder_channel_id.as_ref()), 'c'), false))
-            .field(field("Salon des absences", describe(get(|c| c.absence_channel_id.as_ref()), 'c'), false));
+            .field(field("Salon des absences", describe(get(|c| c.absence_channel_id.as_ref()), 'c'), false))
+            .field(field(
+                "Rapport d'assiduité (lundi 09:00)",
+                match config.as_ref().and_then(|c| c.last_report_at.filter(|_| c.report_channel_id.is_some())) {
+                    Some(last) => format!(
+                        "{} · dernier envoi <t:{}:R>",
+                        describe(get(|c| c.report_channel_id.as_ref()), 'c'),
+                        last.unix()
+                    ),
+                    None => describe(get(|c| c.report_channel_id.as_ref()), 'c'),
+                },
+                false,
+            ))
+            .field(field(
+                "Seuil d'alerte du rapport",
+                format!(
+                    "{} % sur 4 semaines",
+                    config.as_ref().map_or(super::model::DEFAULT_ALERT_THRESHOLD, |c| c.alert_threshold())
+                ),
+                false,
+            ));
         if get(|c| c.default_role_id.as_ref()).is_none() {
             embed = embed.description("⚠️ Le rôle ciblé est obligatoire pour créer des présences.");
         }

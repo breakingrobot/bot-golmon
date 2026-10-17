@@ -55,6 +55,19 @@ pub struct PresenceConfig {
     pub presence_channel_id: Option<String>,
     pub reminder_channel_id: Option<String>,
     pub absence_channel_id: Option<String>,
+    /// Salon du rapport hebdomadaire d'assiduité (absent : pas de rapport).
+    pub report_channel_id: Option<String>,
+    /// Seuil d'alerte du rapport, en % (défaut : [`DEFAULT_ALERT_THRESHOLD`]).
+    pub alert_threshold: Option<i64>,
+    pub last_report_at: Option<DbTime>,
+}
+
+pub const DEFAULT_ALERT_THRESHOLD: i64 = 50;
+
+impl PresenceConfig {
+    pub fn alert_threshold(&self) -> i64 {
+        self.alert_threshold.unwrap_or(DEFAULT_ALERT_THRESHOLD)
+    }
 }
 
 #[derive(Clone, Debug, FromRow)]

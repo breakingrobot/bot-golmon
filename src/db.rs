@@ -134,4 +134,112 @@ mod tests {
         db.close().await;
         let _ = std::fs::remove_dir_all(dir);
     }
+
+    #[tokio::test]
+    async fn presence_report_gathers_window_and_claims_once() {
+        use crate::modules::presences::report;
+        use chrono::{TimeZone, Utc};
+
+        let (db, dir) = temp_db().await;
+        let at = |m: u32, d: u32, h: u32, min: u32| DbTime(Utc.with_ymd_and_hms(2026, m, d, h, min, 0).unwrap());
+        // Fenêtre de 4 semaines du rapport du lundi 17/08/2026.
+        let window = report::report_window(Utc.with_ymd_and_hms(2026, 8, 17, 7, 0, 0).unwrap());
+        assert_eq!((window.alert_start, window.end), (at(7, 19, 22, 0), at(8, 16, 22, 0)));
+
+        for (id, guild, date, closed) in [
+            ("in0", "g1", at(7, 19, 22, 0), true), // lundi 20/07 00:00 à Paris : inclus
+            ("in1", "g1", at(8, 12, 19, 0), true),
+            ("edge", "g1", at(8, 16, 22, 0), true), // lundi 17/08 00:00 : semaine en cours, exclu
+            ("open", "g1", at(8, 13, 19, 0), false),
+            ("other", "g2", at(8, 12, 19, 0), true),
+        ] {
+            sqlx::query(
+                r#"INSERT INTO "Presence" ("id", "guildId", "channelId", "titre", "eventDate", "roleId", "createdById", "createdAt", "closedAt")
+                   VALUES (?, ?, 'c1', ?, ?, 'r1', 'u0', ?, ?)"#,
+            )
+            .bind(id)
+            .bind(guild)
+            .bind(format!("Titre {id}"))
+            .bind(date)
+            .bind(date)
+            .bind(closed.then_some(date))
+            .execute(&db)
+            .await
+            .unwrap();
+        }
+        for (presence, user, status) in [
+            ("in1", "u1", ResponseStatus::Present),
+            ("in1", "u2", ResponseStatus::Absent),
+            ("open", "u1", ResponseStatus::Present),
+            ("other", "u1", ResponseStatus::Present),
+            ("edge", "u1", ResponseStatus::Retard),
+        ] {
+            assert!(presences::register_response(&db, presence, user, status, None).await.unwrap());
+        }
+        for (id, user, starts, ends, ended) in [
+            ("a1", "u1", at(7, 24, 0, 0), at(8, 13, 0, 0), None),
+            ("a2", "u2", at(8, 1, 0, 0), at(8, 30, 0, 0), Some(at(8, 5, 0, 0))), // terminée plus tôt
+            ("a3", "u3", at(8, 10, 0, 0), at(8, 20, 0, 0), Some(at(8, 1, 0, 0))), // annulée avant son début
+            ("a4", "u4", at(6, 1, 0, 0), at(7, 1, 0, 0), None),                  // avant la fenêtre
+            ("a5", "u5", at(8, 20, 0, 0), at(8, 25, 0, 0), None),                // après la fenêtre
+        ] {
+            sqlx::query(
+                r#"INSERT INTO "Absence" ("id", "guildId", "userId", "motif", "startsAt", "endsAt", "createdById", "endedAt")
+                   VALUES (?, 'g1', ?, 'Vacances', ?, ?, 'u0', ?)"#,
+            )
+            .bind(id)
+            .bind(user)
+            .bind(starts)
+            .bind(ends)
+            .bind(ended)
+            .execute(&db)
+            .await
+            .unwrap();
+        }
+
+        let data = report::gather(&db, "g1", window.alert_start, window.end).await.unwrap();
+        let ids: Vec<&str> = data.presences.iter().map(|p| p.id.as_str()).collect();
+        assert_eq!(ids, vec!["in0", "in1"]);
+        assert_eq!(data.presences[1].titre, "Titre in1");
+        assert_eq!(data.presences[1].event_date, at(8, 12, 19, 0));
+        let responses: Vec<(&str, &str, &str)> =
+            data.responses.iter().map(|r| (r.presence_id.as_str(), r.user_id.as_str(), r.status.as_str())).collect();
+        assert_eq!(responses, vec![("in1", "u1", "PRESENT"), ("in1", "u2", "ABSENT")]);
+        let absences: Vec<(&str, DbTime, DbTime)> =
+            data.absences.iter().map(|a| (a.user_id.as_str(), a.starts_at, a.ends_at)).collect();
+        assert_eq!(absences, vec![("u1", at(7, 24, 0, 0), at(8, 13, 0, 0)), ("u2", at(8, 1, 0, 0), at(8, 5, 0, 0))]);
+
+        // Envoi réservé une seule fois par semaine, et seulement avec un salon.
+        let this_week = week_start(Utc::now());
+        assert!(!report::claim_report(&db, "g1", this_week).await.unwrap());
+        presences::upsert_config(
+            &db,
+            "g1",
+            presences::ConfigUpdate { report_channel_id: Some("c9".to_owned()), ..Default::default() },
+        )
+        .await
+        .unwrap();
+        let config = presences::get_config(&db, "g1").await.unwrap().unwrap();
+        assert_eq!((config.report_channel_id.as_deref(), config.alert_threshold()), (Some("c9"), 50));
+        presences::upsert_config(
+            &db,
+            "g1",
+            presences::ConfigUpdate { alert_threshold: Some(70), ..Default::default() },
+        )
+        .await
+        .unwrap();
+        let config = presences::get_config(&db, "g1").await.unwrap().unwrap();
+        assert_eq!((config.report_channel_id.as_deref(), config.alert_threshold()), (Some("c9"), 70));
+
+        assert_eq!(report::pending_guilds(&db, this_week).await.unwrap(), vec!["g1".to_owned()]);
+        assert!(report::claim_report(&db, "g1", this_week).await.unwrap());
+        assert!(!report::claim_report(&db, "g1", this_week).await.unwrap());
+        assert!(report::pending_guilds(&db, this_week).await.unwrap().is_empty());
+        // La semaine suivante, l'envoi redevient possible.
+        let next_week = DbTime(this_week.0 + chrono::Duration::weeks(1));
+        assert!(report::claim_report(&db, "g1", next_week).await.unwrap());
+
+        db.close().await;
+        let _ = std::fs::remove_dir_all(dir);
+    }
 }

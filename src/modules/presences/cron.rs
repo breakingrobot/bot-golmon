@@ -1,5 +1,6 @@
 //! Tâches périodiques des présences (toutes les 5 minutes) : clôture, rappels
-//! des non-répondants et rôle d'absence.
+//! des non-répondants, rôle d'absence, présences planifiées et rapport
+//! d'assiduité du lundi.
 
 use super::{absences, service};
 use crate::{
@@ -25,6 +26,7 @@ pub fn spawn(ctx: Context) {
             reminder_sweep(&ctx).await;
             absence_sweep(&ctx).await;
             super::planning::sweep(&ctx).await;
+            super::report::sweep(&ctx).await;
         }
     });
     tracing::info!("cron des présences démarré (contrôle toutes les 5 min, rappels espacés de 3 h)");

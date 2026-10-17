@@ -155,7 +155,12 @@ pub fn resolve_event_date(date_label: Option<&str>, time_label: &str) -> Option<
 pub fn week_start(reference: DateTime<Utc>) -> DbTime {
     let local = reference.with_timezone(&TIMEZONE).date_naive();
     let monday = local - Duration::days(i64::from(local.weekday().num_days_from_monday()));
-    DbTime(paris_to_utc(monday.and_time(NaiveTime::MIN)).expect("minuit existe toujours à Paris"))
+    paris_midnight(monday)
+}
+
+/// Minuit (heure de Paris) du jour donné, exprimé en UTC.
+pub fn paris_midnight(day: NaiveDate) -> DbTime {
+    DbTime(paris_to_utc(day.and_time(NaiveTime::MIN)).expect("minuit existe toujours à Paris"))
 }
 
 #[cfg(test)]

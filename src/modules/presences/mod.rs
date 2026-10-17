@@ -7,4 +7,5 @@ pub mod embed;
 pub mod interactions;
 pub mod model;
 pub mod planning;
+pub mod report;
 pub mod service;
