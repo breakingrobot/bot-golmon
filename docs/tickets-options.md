@@ -63,6 +63,9 @@ voir [Variables ou config.ini](tickets.md#variables-ou-configini).
 | `autoAlert` / `autoAlertDelay` | `false` / `2m` | Alerte automatique du modérateur après sa réponse. |
 | `closeMessage` | — | Message envoyé à l'utilisateur à la fermeture. |
 | `allowUserClose` | `false` | L'utilisateur peut fermer avec `!close` en message privé. |
+| `autoCloseInactive` | — (désactivé) | **Propre à ce bot.** Durée sans échange avec l'utilisateur (ex. `7d`) au bout de laquelle il est averti et la fermeture du ticket programmée. Voir [Fermeture des tickets inactifs](tickets.md#fermeture-des-tickets-inactifs). |
+| `autoCloseWarning` | `24h` | **Propre à ce bot.** Délai entre l'avertissement et la fermeture automatique. |
+| `autoCloseMessage` | « Ton ticket est inactif depuis {inactive}. Il sera fermé dans {delay} sans nouvelle réponse de ta part. » | **Propre à ce bot.** Avertissement envoyé à l'utilisateur (`{inactive}`, `{delay}`). |
 | `allowSuspend` | `true` | Commandes `!suspend` / `!unsuspend`. |
 | `allowMove` / `syncPermissionsOnMove` | `false` / `true` | Commande `!move` (et alignement des permissions sur la catégorie). |
 | `allowBlock` | `true` | Commandes de blocage. |

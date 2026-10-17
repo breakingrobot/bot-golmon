@@ -6,6 +6,7 @@
 //! JavaScript ne sont pas pris en charge.
 
 mod attachments;
+mod auto_close;
 pub mod buttons;
 mod commands;
 mod config;
@@ -132,6 +133,22 @@ impl Modmail {
             }
         });
 
+        // Tickets inactifs (`autoCloseInactive`) : une vérification par minute suffit.
+        if self.config.auto_close_inactive_ms.is_some() {
+            let inactivity = Arc::clone(&ctx);
+            tokio::spawn(async move {
+                let mut ticker = tokio::time::interval(Duration::from_secs(60));
+                ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+                loop {
+                    ticker.tick().await;
+                    let modmail = inactivity.modmail.as_ref().expect("module ticket");
+                    if let Err(error) = modmail.warn_inactive_threads(&inactivity).await {
+                        tracing::error!(?error, "fermeture des tickets inactifs");
+                    }
+                }
+            });
+        }
+
         let startup = Arc::clone(&ctx);
         tokio::spawn(async move {
             // Le temps que les guildes arrivent dans le cache.
@@ -191,18 +208,23 @@ impl Modmail {
                 let _ = self.send_system_message_to_user(ctx, &thread, message, true).await;
             }
             self.close_thread(ctx, &thread, false, silent).await?;
-            self.send_close_notification(
-                ctx,
-                &thread,
-                &format!(
+            let body = if Self::is_auto_close(ctx, &thread) {
+                format!(
+                    "Ticket modmail n°{} avec {} ({}) fermé automatiquement pour inactivité",
+                    thread.number(),
+                    thread.user_name,
+                    thread.user_id
+                )
+            } else {
+                format!(
                     "Ticket modmail n°{} avec {} ({}) fermé comme programmé par {}",
                     thread.number(),
                     thread.user_name,
                     thread.user_id,
                     thread.scheduled_close_name.clone().unwrap_or_default()
-                ),
-            )
-            .await?;
+                )
+            };
+            self.send_close_notification(ctx, &thread, &body).await?;
         }
         Ok(())
     }
