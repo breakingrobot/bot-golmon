@@ -1,0 +1,44 @@
+[package]
+name = "bot-golmon"
+version = "2.0.0"
+edition = "2024"
+rust-version = "1.88"
+description = "Bot Discord : présences, transactions, véhicules, recrues, numéros et tickets (modmail)"
+publish = false
+
+[dependencies]
+# Discord — Twilight : briques séparées, cache filtrable, événements filtrés avant désérialisation.
+twilight-gateway = { version = "0.17.1", default-features = false, features = ["rustls-webpki-roots", "twilight-http", "zstd"] }
+twilight-http = { version = "0.17.1", default-features = false, features = ["rustls-webpki-roots", "decompression"] }
+twilight-model = "0.17.1"
+twilight-cache-inmemory = { version = "0.17.1", features = ["permission-calculator"] }
+twilight-util = { version = "0.17.0", features = ["builder", "snowflake"] }
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
+
+tokio = { version = "1.47", features = ["macros", "rt-multi-thread", "signal", "time", "sync", "fs", "net"] }
+sqlx = { version = "0.8.6", default-features = false, features = ["runtime-tokio", "sqlite", "macros", "migrate", "chrono"] }
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls-webpki-roots", "json", "http2"] }
+axum = { version = "0.8", default-features = false, features = ["http1", "tokio", "query", "tracing"] }
+
+chrono = { version = "0.4.41", default-features = false, features = ["std", "clock", "serde"] }
+chrono-tz = "0.10"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+anyhow = "1"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
+dotenvy = "0.15"
+regex = "1"
+deunicode = "1.6"
+rand = "0.9"
+uuid = { version = "1", features = ["v4"] }
+futures-util = { version = "0.3", default-features = false, features = ["std"] }
+askama = "0.16"
+
+[dev-dependencies]
+tokio = { version = "1.47", features = ["macros", "rt-multi-thread", "test-util"] }
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+strip = true

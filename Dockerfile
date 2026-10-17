@@ -1,23 +1,49 @@
-FROM node:22-bookworm-slim
+# syntax=docker/dockerfile:1
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    python3 make g++ openssl ca-certificates \
+# --- 1. Feuille de style des pages de logs (Tailwind CSS v4) -----------------
+FROM node:22-trixie-slim AS css
+WORKDIR /build/web
+COPY web/package.json web/package-lock.json ./
+RUN npm ci --no-audit --no-fund
+COPY web/src ./src
+# Les classes utilisées sont lues dans les templates et le code du module ticket.
+COPY templates /build/templates
+COPY src/modmail /build/src/modmail
+RUN npx tailwindcss -i src/logs.css -o dist/logs.css --minify
+
+# --- 2. Compilation du bot ---------------------------------------------------
+FROM rust:1.97-slim-trixie AS build
+WORKDIR /build
+
+# Les dépendances sont compilées dans une couche à part : elle reste en cache
+# tant que Cargo.toml / Cargo.lock ne changent pas.
+COPY Cargo.toml Cargo.lock ./
+RUN mkdir src && echo "fn main() {}" > src/main.rs \
+    && cargo build --release --locked \
+    && rm -rf src target/release/deps/bot_golmon* target/release/bot-golmon*
+
+COPY migrations ./migrations
+COPY templates ./templates
+COPY web/src ./web/src
+COPY --from=css /build/web/dist ./web/dist
+COPY src ./src
+RUN cargo build --release --locked
+
+# --- 3. Image d'exécution ----------------------------------------------------
+FROM debian:trixie-slim
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates tzdata \
     && rm -rf /var/lib/apt/lists/*
 
-RUN npm install -g pnpm
-
 WORKDIR /app
+COPY --from=build /build/target/release/bot-golmon /usr/local/bin/bot-golmon
 
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
-RUN pnpm install --frozen-lockfile
+ENV TZ=Europe/Paris \
+    RUST_LOG=info
+# Serveur web des logs de tickets (seulement si le module ticket est configuré).
+EXPOSE 8890
 
-COPY . .
-RUN pnpm exec prisma generate
-RUN pnpm build
-
-ENV NODE_ENV=production
-ENV TZ=Europe/Paris
-
-RUN chmod +x ./docker-entrypoint.sh
-
-ENTRYPOINT ["./docker-entrypoint.sh"]
+# Les migrations de la base sont appliquées par le bot à chaque démarrage.
+# Exécution en root comme l'image précédente, pour rester compatible avec les
+# volumes déjà montés (base existante sous /app/prisma).
+ENTRYPOINT ["bot-golmon"]
