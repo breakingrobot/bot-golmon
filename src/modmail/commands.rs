@@ -472,11 +472,7 @@ impl Modmail {
     async fn cmd_close(&self, c: &Call<'_>) -> Result<()> {
         let is_dm = c.msg.guild_id.is_none();
         let mut silent = false;
-        let suppress_system_messages;
-        let closed_by;
-        let thread;
-
-        if is_dm {
+        let (suppress_system_messages, closed_by, thread) = if is_dm {
             // Fermeture par l'utilisateur lui-même (si `allowUserClose`).
             if !self.config.allow_user_close || store::is_blocked(&self.db, &c.msg.author.id.to_string()).await? {
                 return Ok(());
@@ -487,9 +483,7 @@ impl Modmail {
             // Même file que les messages privés : pas de course entre le relais et la fermeture.
             let _queue = self.dm_queue.lock().await;
             self.post_system_message(c.ctx, &found, "Thread closed by user, closing...").await?;
-            suppress_system_messages = true;
-            closed_by = "the user".to_owned();
-            thread = found;
+            (true, "the user".to_owned(), found)
         } else {
             if c.msg.guild_id != Some(self.config.inbox_server_id) || !self.is_staff(c.ctx, c.msg) {
                 return Ok(());
@@ -544,10 +538,8 @@ impl Modmail {
                 return self.post_system_message(c.ctx, &found, &response).await.map(drop);
             }
 
-            suppress_system_messages = false;
-            closed_by = c.author_name();
-            thread = found;
-        }
+            (false, c.author_name(), found)
+        };
 
         if let (Some(message), false) = (&self.config.close_message, silent) {
             let _ = self.send_system_message_to_user(c.ctx, &thread, message, true).await;
