@@ -1,6 +1,12 @@
-node_modules
-dist
-.env
 .git
-prisma/dev.db
-prisma/dev.db-journal
+target
+web/node_modules
+web/dist
+.env
+config.ini
+prisma
+db
+logs
+attachments
+*.db
+*.sqlite

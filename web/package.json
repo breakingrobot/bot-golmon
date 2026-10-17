@@ -1,0 +1,13 @@
+{
+  "name": "bot-golmon-web",
+  "private": true,
+  "description": "Feuille de style des pages web du bot (logs de tickets), compilée avec Tailwind CSS v4.",
+  "scripts": {
+    "build": "tailwindcss -i src/logs.css -o dist/logs.css --minify",
+    "watch": "tailwindcss -i src/logs.css -o dist/logs.css --watch"
+  },
+  "devDependencies": {
+    "@tailwindcss/cli": "4.3.3",
+    "tailwindcss": "4.3.3"
+  }
+}

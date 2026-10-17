@@ -1,0 +1,145 @@
+//! Déclaration des slash commands et aiguillage des interactions.
+
+use crate::{
+    context::{Context, Ctx},
+    discord::{interaction::Ix, options::Options},
+    modules::{phones, presences, recrues, transactions, vehicles},
+    util::ids::decode_custom_id,
+};
+use anyhow::Result;
+use twilight_model::application::{
+    command::Command,
+    interaction::{
+        Interaction, InteractionData, InteractionType,
+        modal::{ModalInteractionComponent, ModalInteractionData},
+    },
+};
+
+pub fn definitions() -> Vec<Command> {
+    vec![
+        presences::commands::presence_definition(),
+        presences::commands::absence_definition(),
+        transactions::commands::definition(),
+        vehicles::commands::definition(),
+        recrues::commands::definition(),
+        phones::commands::definition(),
+    ]
+}
+
+/// Enregistre les commandes : par guilde si une liste blanche est définie
+/// (disponibles immédiatement), sinon globalement.
+pub async fn deploy(ctx: &Ctx) -> Result<()> {
+    let commands = definitions();
+    let client = ctx.interaction();
+    if ctx.config.guild_whitelist.is_empty() {
+        client.set_global_commands(&commands).await?;
+        tracing::info!(count = commands.len(), "commandes déployées globalement (aucune liste blanche)");
+    } else {
+        for guild_id in &ctx.config.guild_whitelist {
+            client.set_guild_commands(*guild_id, &commands).await?;
+            tracing::info!(count = commands.len(), %guild_id, "commandes déployées sur la guilde");
+        }
+    }
+    Ok(())
+}
+
+pub async fn dispatch(ctx: Context, interaction: Interaction) {
+    let is_autocomplete = interaction.kind == InteractionType::ApplicationCommandAutocomplete;
+    let ix = Ix::new(ctx, interaction);
+    if let Err(error) = route(&ix).await {
+        tracing::error!(error = ?error, "erreur lors du traitement d'une interaction");
+        if !is_autocomplete {
+            // L'interaction a pu expirer ou déjà recevoir une réponse : rien à faire.
+            let _ = ix.notify("Une erreur est survenue.").await;
+        }
+    }
+}
+
+async fn route(ix: &Ix) -> Result<()> {
+    let Some(data) = ix.interaction.data.as_ref() else {
+        return Ok(());
+    };
+
+    match (ix.interaction.kind, data) {
+        (InteractionType::ApplicationCommand, InteractionData::ApplicationCommand(command)) => {
+            let options = Options::parse(command);
+            match command.name.as_str() {
+                "presence" => presences::commands::handle_presence(ix, &options).await,
+                "absence" => presences::commands::handle_absence(ix, &options).await,
+                "transaction" => transactions::commands::handle(ix, &options).await,
+                "vehicle" => vehicles::commands::handle(ix, &options).await,
+                "recrue" => recrues::commands::handle(ix, &options).await,
+                "numero" => phones::commands::handle(ix, &options).await,
+                _ => Ok(()),
+            }
+        }
+        (InteractionType::ApplicationCommandAutocomplete, InteractionData::ApplicationCommand(command)) => {
+            let options = Options::parse(command);
+            match command.name.as_str() {
+                "presence" => presences::commands::autocomplete(ix, &options).await,
+                "transaction" => transactions::commands::autocomplete(ix, &options).await,
+                "vehicle" => vehicles::commands::autocomplete(ix, &options).await,
+                _ => ix.autocomplete(Vec::new()).await,
+            }
+        }
+        (InteractionType::MessageComponent, InteractionData::MessageComponent(component)) => {
+            let Some(custom_id) = decode_custom_id(&component.custom_id) else {
+                return Ok(());
+            };
+            match custom_id.namespace {
+                "presence" => presences::interactions::button(ix, &custom_id).await,
+                "transaction" => transactions::interactions::button(ix, &custom_id).await,
+                "numero" => phones::interactions::button(ix, &custom_id).await,
+                // « prospect » : messages publiés avant le renommage du module.
+                "recrue" | "prospect" => recrues::interactions::select(ix, &custom_id, &component.values).await,
+                _ => Ok(()),
+            }
+        }
+        (InteractionType::ModalSubmit, InteractionData::ModalSubmit(modal)) => {
+            let Some(custom_id) = decode_custom_id(&modal.custom_id) else {
+                return Ok(());
+            };
+            match (custom_id.namespace, custom_id.action) {
+                ("presence", "retard-modal") => presences::interactions::retard_modal(ix, custom_id.id, modal).await,
+                ("transaction", "additem-modal") => {
+                    transactions::interactions::add_item_modal(ix, custom_id.id, modal).await
+                }
+                ("recrue" | "prospect", "vote-modal" | "veto-modal") => {
+                    recrues::interactions::modal(ix, custom_id.action, custom_id.id, modal).await
+                }
+                ("numero", "add-modal") => phones::interactions::add_modal(ix, modal).await,
+                _ => Ok(()),
+            }
+        }
+        _ => Ok(()),
+    }
+}
+
+fn find_component<'a>(
+    components: &'a [ModalInteractionComponent],
+    custom_id: &str,
+) -> Option<&'a ModalInteractionComponent> {
+    components.iter().find_map(|component| match component {
+        ModalInteractionComponent::Label(label) => find_component(std::slice::from_ref(&label.component), custom_id),
+        ModalInteractionComponent::ActionRow(row) => find_component(&row.components, custom_id),
+        ModalInteractionComponent::TextInput(input) if input.custom_id == custom_id => Some(component),
+        ModalInteractionComponent::StringSelect(select) if select.custom_id == custom_id => Some(component),
+        _ => None,
+    })
+}
+
+/// Valeur d'un champ texte de modal (`""` si absent).
+pub fn modal_text(modal: &ModalInteractionData, custom_id: &str) -> String {
+    match find_component(&modal.components, custom_id) {
+        Some(ModalInteractionComponent::TextInput(input)) => input.value.clone(),
+        _ => String::new(),
+    }
+}
+
+/// Valeurs choisies dans un menu déroulant de modal.
+pub fn modal_select(modal: &ModalInteractionData, custom_id: &str) -> Vec<String> {
+    match find_component(&modal.components, custom_id) {
+        Some(ModalInteractionComponent::StringSelect(select)) => select.values.clone(),
+        _ => Vec::new(),
+    }
+}
