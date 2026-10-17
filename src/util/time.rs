@@ -200,7 +200,7 @@ mod tests {
     }
 
     #[test]
-    fn parses_iso_days_as_paris_midnight() {
+    fn parses_iso_days_as_paris_day_start() {
         let day = parse_iso_day("2026-10-25").unwrap();
         // Jour du passage à l'heure d'hiver : minuit est encore en UTC+2.
         assert_eq!(paris_day_start(day).to_db_string(), "2026-10-24T22:00:00.000Z");

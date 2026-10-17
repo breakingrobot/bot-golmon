@@ -18,7 +18,7 @@ Les heures saisies sont en **heure de Paris** ; les dates affichées s'adaptent 
 ## Présences
 
 ```
-/config presence role:@Membres absence_role:@Absent channel:#présences reminder_channel:#rappels absence_channel:#absences
+/config presence role:@Membres absence_role:@Absent channel:#présences reminder_channel:#rappels absence_channel:#absences rapport_salon:#staff-assiduité seuil_alerte:50
 ```
 
 | Option | Rôle |
@@ -28,6 +28,8 @@ Les heures saisies sont en **heure de Paris** ; les dates affichées s'adaptent 
 | `channel` | Salon où sont publiées les présences (défaut : salon de la commande). |
 | `reminder_channel` | Salon des rappels automatiques (défaut : salon de la présence). |
 | `absence_channel` | Salon où sont annoncées les absences déclarées. |
+| `rapport_salon` | Salon du [rapport hebdomadaire](#rapport-hebdomadaire) d'assiduité (non défini : pas de rapport). |
+| `seuil_alerte` | Taux de présence (1–100 %, **50** par défaut) sous lequel un membre est signalé dans le rapport. |
 
 Utilisation :
 
@@ -43,6 +45,24 @@ Utilisation :
   close 🔒), `annuler` (supprime une présence), `reset` (efface toutes les statistiques, « Gérer le
   serveur »).
 - **Blocklist** : `/gestion blocklist ajouter membre raison` : jamais pingé, absent d'office. `retirer`, `liste`.
+
+### Rapport hebdomadaire
+
+Si `rapport_salon` est défini, le bot y publie **chaque lundi à 09:00** (heure de Paris) le bilan de la
+semaine écoulée (lundi → dimanche), une seule fois par semaine ; s'il était hors ligne à 09:00, il
+l'envoie dès son retour, le lundi même. Le rapport ne pingue personne. Il contient :
+
+- les présences clôturées de la semaine (présents, absents, retards, sans réponse) ;
+- le **taux de présence** de la semaine (présents ÷ attendus ; un retard ne compte pas comme présent,
+  comme dans `/presence stats`) et son évolution en points par rapport à la semaine précédente ;
+- le **top 3** des membres les plus présents ;
+- **⚠️ Sous le seuil** : les membres du rôle (hors bots et blocklist) dont le taux sur les **4 dernières
+  semaines** est inférieur à `seuil_alerte`. Ceux dont les absences déclarées couvrent plus de la moitié
+  des présences de la période restent listés, marqués *(absence déclarée)*.
+
+Les attendus d'une présence sont les membres actuels du rôle déjà arrivés sur le serveur à sa date, plus
+ceux qui y ont répondu. Une semaine sans présence clôturée est signalée telle quelle ; s'il n'y en a eu
+aucune depuis 4 semaines, le rapport n'est pas envoyé.
 
 ### Présences récurrentes
 

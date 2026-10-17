@@ -38,18 +38,34 @@ pub struct ConfigUpdate {
     pub presence_channel_id: Option<String>,
     pub reminder_channel_id: Option<String>,
     pub absence_channel_id: Option<String>,
+    pub report_channel_id: Option<String>,
+    pub alert_threshold: Option<i64>,
+}
+
+impl ConfigUpdate {
+    pub fn is_empty(&self) -> bool {
+        self.default_role_id.is_none()
+            && self.absence_role_id.is_none()
+            && self.presence_channel_id.is_none()
+            && self.reminder_channel_id.is_none()
+            && self.absence_channel_id.is_none()
+            && self.report_channel_id.is_none()
+            && self.alert_threshold.is_none()
+    }
 }
 
 pub async fn upsert_config(db: &SqlitePool, guild_id: &str, update: ConfigUpdate) -> Result<()> {
     sqlx::query(
-        r#"INSERT INTO "PresenceConfig" ("guildId", "defaultRoleId", "absenceRoleId", "presenceChannelId", "reminderChannelId", "absenceChannelId", "updatedAt")
-           VALUES (?, ?, ?, ?, ?, ?, ?)
+        r#"INSERT INTO "PresenceConfig" ("guildId", "defaultRoleId", "absenceRoleId", "presenceChannelId", "reminderChannelId", "absenceChannelId", "reportChannelId", "alertThreshold", "updatedAt")
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
            ON CONFLICT ("guildId") DO UPDATE SET
              "defaultRoleId" = COALESCE(excluded."defaultRoleId", "defaultRoleId"),
              "absenceRoleId" = COALESCE(excluded."absenceRoleId", "absenceRoleId"),
              "presenceChannelId" = COALESCE(excluded."presenceChannelId", "presenceChannelId"),
              "reminderChannelId" = COALESCE(excluded."reminderChannelId", "reminderChannelId"),
              "absenceChannelId" = COALESCE(excluded."absenceChannelId", "absenceChannelId"),
+             "reportChannelId" = COALESCE(excluded."reportChannelId", "reportChannelId"),
+             "alertThreshold" = COALESCE(excluded."alertThreshold", "alertThreshold"),
              "updatedAt" = excluded."updatedAt""#,
     )
     .bind(guild_id)
@@ -58,6 +74,8 @@ pub async fn upsert_config(db: &SqlitePool, guild_id: &str, update: ConfigUpdate
     .bind(update.presence_channel_id)
     .bind(update.reminder_channel_id)
     .bind(update.absence_channel_id)
+    .bind(update.report_channel_id)
+    .bind(update.alert_threshold)
     .bind(DbTime::now())
     .execute(db)
     .await?;
