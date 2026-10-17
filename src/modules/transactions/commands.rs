@@ -3,6 +3,7 @@ use super::{
     model::{Status, TYPE_CHOICES},
     service::{self, NewTransaction},
 };
+use crate::modules::audit::{self, Action, Entry};
 use crate::{
     discord::{
         embed::EmbedBuilder,
@@ -253,6 +254,15 @@ pub async fn delete(ix: &Ix, options: &Options, guild: &str) -> Result<()> {
     }
     service::delete(&ix.ctx.db, guild, &id).await?;
     service::sync_dashboard(&ix.ctx, guild).await?;
+    audit::record(
+        ix,
+        Entry::new(
+            Action::TransactionDelete,
+            None,
+            format!("{} — {} — {} $ ({})", transaction.groupe, transaction.kind, transaction.prix, transaction.statut),
+        ),
+    )
+    .await;
     ix.edit_text("Transaction supprimée définitivement de la base de données.").await
 }
 

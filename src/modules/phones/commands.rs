@@ -1,4 +1,5 @@
 use super::{INVALID_FORMAT, format, is_valid, normalize, service};
+use crate::modules::audit::{self, Action, Entry};
 use crate::{
     discord::{
         embed::EmbedBuilder,
@@ -111,6 +112,9 @@ async fn ajouter(ix: &Ix, options: &Options, guild: &str) -> Result<()> {
         return ix.edit_text(service::NUMBER_TAKEN).await;
     }
     service::sync_dashboard(&ix.ctx, guild).await?;
+    if let Some(id) = forced.filter(|id| *id != ix.user_id()) {
+        audit::record(ix, Entry::new(Action::PhoneSetFor, Some(id.to_string()), format(&numero))).await;
+    }
     ix.edit_text(match forced {
         Some(id) => format!("Numéro `{}` enregistré pour {}.", format(&numero), options.user_name(id)),
         None => format!("Numéro enregistré : `{}`", format(&numero)),
@@ -138,6 +142,9 @@ async fn supprimer(ix: &Ix, options: &Options, guild: &str) -> Result<()> {
     ix.defer(true).await?;
     if service::remove(&ix.ctx.db, guild, &target.to_string()).await? {
         service::sync_dashboard(&ix.ctx, guild).await?;
+        if target != ix.user_id() {
+            audit::record(ix, Entry::new(Action::PhoneRemovedFor, Some(target.to_string()), String::new())).await;
+        }
         ix.edit_text("Numéro supprimé avec succès.").await
     } else {
         ix.edit_text("Aucun numéro enregistré pour ce membre.").await

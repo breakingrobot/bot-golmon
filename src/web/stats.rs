@@ -45,6 +45,7 @@ struct Recruit {
 #[template(path = "stats.html")]
 struct StatsPage {
     layout: Layout,
+    guild_id: String,
     guild_name: String,
     figures: Vec<Figure>,
     attendance: Vec<Attendance>,
@@ -79,6 +80,7 @@ pub async fn guild(State(ctx): State<Context>, viewer: MaybeViewer, uri: Uri, Pa
     match build(&ctx, guild_id).await {
         Ok((figures, attendance, recruits, tickets)) => pages::render(&StatsPage {
             layout: Layout::new(&ctx, format!("Statistiques · {guild_name}"), Some(&viewer), &access, "/stats"),
+            guild_id: guild_id.to_string(),
             guild_name,
             figures,
             attendance,
@@ -200,6 +202,7 @@ mod tests {
     fn renders_stats_page() {
         let page = StatsPage {
             layout: Layout::bare("Statistiques"),
+            guild_id: "1".into(),
             guild_name: "Serveur RP".into(),
             figures: vec![
                 Figure {

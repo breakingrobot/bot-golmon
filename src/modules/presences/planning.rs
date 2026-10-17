@@ -2,6 +2,7 @@
 //! Paris) publie automatiquement la présence quelques heures avant l'événement.
 
 use super::service::{self, NewPresence};
+use crate::modules::audit::{self, Action, Entry};
 use crate::{
     context::Ctx,
     discord::{
@@ -149,6 +150,7 @@ pub async fn handle_admin(ix: &Ix, options: &Options) -> Result<()> {
                     )
                 })
                 .unwrap_or_default();
+            audit::record(ix, Entry::new(Action::PresenceSchedule, None, schedule.summary())).await;
             ix.reply(Reply::ephemeral(format!("Présence planifiée : {}.{next}", schedule.summary()))).await
         }
         "planning" => {
@@ -173,6 +175,9 @@ pub async fn handle_admin(ix: &Ix, options: &Options) -> Result<()> {
                 .execute(&ix.ctx.db)
                 .await?
                 .rows_affected();
+            if deleted > 0 {
+                audit::record(ix, Entry::new(Action::PresenceUnschedule, None, String::new())).await;
+            }
             ix.reply(Reply::ephemeral(if deleted > 0 {
                 "Présence planifiée supprimée. Les présences déjà publiées restent en place."
             } else {

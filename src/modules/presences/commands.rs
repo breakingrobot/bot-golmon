@@ -4,6 +4,7 @@ use super::{
     model::ResponseStatus,
     service::{self, ConfigUpdate, NewPresence},
 };
+use crate::modules::audit::{self, Action, Entry};
 use crate::{
     discord::{
         embed::{EmbedBuilder, EmbedBuilderExt as _, footer},
@@ -417,6 +418,15 @@ async fn force_vote(ix: &Ix, options: &Options) -> Result<()> {
         service::sync_message(&ix.ctx, &presence.id).await?;
     }
     let suffix = if changed { "" } else { " (déjà le cas, rien changé)" };
+    audit::record(
+        ix,
+        Entry::new(
+            Action::PresenceForceVote,
+            Some(target.to_string()),
+            format!("**{}** pour « {} »{suffix}", status.display(), presence.titre),
+        ),
+    )
+    .await;
     ix.edit_text(format!("<@{target}> défini sur **{}** pour « {} »{suffix}.", status.display(), presence.titre)).await
 }
 
@@ -455,6 +465,15 @@ async fn cancel(ix: &Ix, options: &Options) -> Result<()> {
         messages::delete_quietly(&ix.ctx, channel_id, message_id).await;
     }
     service::delete_presence(&ix.ctx.db, &presence.id).await?;
+    audit::record(
+        ix,
+        Entry::new(
+            Action::PresenceCancel,
+            None,
+            format!("« {} » (<t:{}:F>)", presence.titre, presence.event_date.unix()),
+        ),
+    )
+    .await;
     ix.edit_text("Présence annulée et supprimée.").await
 }
 
@@ -515,6 +534,7 @@ async fn reset(ix: &Ix) -> Result<()> {
     }
     ix.defer(true).await?;
     service::reset_guild(&ix.ctx.db, &guild_id.to_string()).await?;
+    audit::record(ix, Entry::new(Action::PresenceReset, None, String::new())).await;
     ix.edit_text("Toutes les statistiques et historiques de présences ont été réinitialisés avec succès.").await
 }
 
@@ -569,6 +589,15 @@ async fn blocklist_command(ix: &Ix, options: &Options) -> Result<()> {
                 &ix.user_id().to_string(),
             )
             .await?;
+            audit::record(
+                ix,
+                Entry::new(
+                    Action::BlocklistAdd,
+                    Some(member.to_string()),
+                    options.string("raison").unwrap_or_default(),
+                ),
+            )
+            .await;
             ix.reply(Reply::ephemeral(format!(
                 "<@{member}> ne sera plus pingé pour les présences et sera marqué absent d'office."
             )))
@@ -576,6 +605,9 @@ async fn blocklist_command(ix: &Ix, options: &Options) -> Result<()> {
         }
         "retirer" => {
             let removed = blocklist::remove(&ix.ctx.db, &guild, &member.to_string()).await?;
+            if removed {
+                audit::record(ix, Entry::new(Action::BlocklistRemove, Some(member.to_string()), String::new())).await;
+            }
             ix.reply(Reply::ephemeral(if removed {
                 format!("<@{member}> retiré de la blocklist.")
             } else {
@@ -703,6 +735,17 @@ pub(super) async fn declare_absence(ix: &Ix, form: AbsenceForm) -> Result<()> {
             declared.role.reason.unwrap_or_else(|| "raison inconnue".to_owned())
         )
     };
+    if for_someone_else {
+        audit::record(
+            ix,
+            Entry::new(
+                Action::AbsenceDeclaredFor,
+                Some(target.to_string()),
+                format!("Du <t:{}:d> au <t:{}:d> — {motif}", starts_at.unix(), ends_at.unix()),
+            ),
+        )
+        .await;
+    }
     ix.edit(
         Reply::text(format!("Absence enregistrée jusqu'au <t:{}:d>.{presence_note}{role_note}", ends_at.unix()))
             .with_embed(embed),
@@ -744,6 +787,10 @@ pub(super) async fn end_absence(ix: &Ix, target: Id<UserMarker>) -> Result<()> {
     } else {
         format!("\n⚠️ Rôle non retiré : {}.", role.reason.unwrap_or_else(|| "raison inconnue".to_owned()))
     };
+    if target != ix.user_id() {
+        audit::record(ix, Entry::new(Action::AbsenceEndedFor, Some(target.to_string()), format!("Absence {verb}")))
+            .await;
+    }
     ix.edit_text(format!("Absence de <@{target}> {verb}.{note}")).await
 }
 

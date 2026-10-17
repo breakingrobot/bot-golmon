@@ -11,7 +11,10 @@ use super::{
     interaction::{GUILD_ONLY, Ix, Reply},
     options::Options,
 };
-use crate::modules::{phones, presences, recrues, transactions, vehicles};
+use crate::modules::{
+    audit::{self, Action, Entry},
+    phones, presences, recrues, transactions, vehicles,
+};
 use anyhow::Result;
 use twilight_model::{
     application::{
@@ -31,6 +34,7 @@ pub fn config_definition() -> Command {
         .option(vehicles::commands::config_subcommand())
         .option(recrues::commands::config_subcommand())
         .option(phones::commands::config_subcommand())
+        .option(audit::config_subcommand())
         .build()
 }
 
@@ -63,14 +67,21 @@ pub async fn handle_config(ix: &Ix, options: &Options) -> Result<()> {
         return ix.reply(Reply::ephemeral(GUILD_ONLY)).await;
     };
     let guild = guild_id.to_string();
-    match options.sub() {
+    let result = match options.sub() {
         "presence" => presences::commands::config(ix, options).await,
         "transaction" => transactions::commands::config(ix, options, &guild).await,
         "vehicule" => vehicles::commands::config(ix, options, &guild).await,
         "recrue" => recrues::commands::config(ix, options, guild_id).await,
         "numero" => phones::commands::config(ix, options, &guild).await,
+        "journal" => audit::config(ix, options).await,
         _ => Ok(()),
+    };
+    // Sans option, la commande ne fait qu'afficher : rien à journaliser.
+    let summary = options.summary();
+    if result.is_ok() && !summary.is_empty() && ix.has_permission(Permissions::MANAGE_GUILD) {
+        audit::record(ix, Entry::new(Action::Config, None, format!("**{}** — {summary}", options.sub()))).await;
     }
+    result
 }
 
 pub async fn handle_gestion(ix: &Ix, options: &Options) -> Result<()> {

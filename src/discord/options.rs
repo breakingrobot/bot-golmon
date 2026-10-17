@@ -120,6 +120,29 @@ impl Options {
         }
     }
 
+    /// Options saisies, lisibles (« salon : #… »), pour le journal du staff.
+    pub fn summary(&self) -> String {
+        self.values
+            .iter()
+            .map(|(name, value)| {
+                let shown = match value {
+                    CommandOptionValue::String(v) => v.clone(),
+                    CommandOptionValue::Integer(v) => v.to_string(),
+                    CommandOptionValue::Number(v) => v.to_string(),
+                    CommandOptionValue::Boolean(v) => if *v { "oui" } else { "non" }.to_owned(),
+                    CommandOptionValue::User(id) => format!("<@{id}>"),
+                    CommandOptionValue::Role(id) => format!("<@&{id}>"),
+                    CommandOptionValue::Channel(id) => format!("<#{id}>"),
+                    CommandOptionValue::Mentionable(id) => format!("<@{id}>"),
+                    _ => return String::new(),
+                };
+                format!("{name} : {shown}")
+            })
+            .filter(|s| !s.is_empty())
+            .collect::<Vec<_>>()
+            .join(", ")
+    }
+
     /// Discord indique dans `resolved` si l'identifiant mentionné est un rôle.
     pub fn mentionable(&self, name: &str) -> Option<Mentionable> {
         let id: Id<GenericMarker> = match self.get(name)? {

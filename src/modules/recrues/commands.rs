@@ -5,6 +5,7 @@ use super::{
     is_grade, is_lead,
     service::{self, ConfigUpdate, RecrueConfig},
 };
+use crate::modules::audit::{self, Action, Entry};
 use crate::{
     discord::{
         embed::{EmbedBuilder, footer},
@@ -210,6 +211,7 @@ pub async fn add_member(
         }
         EnsureChannel::Failed(reason) => format!(" ⚠️ Salon non créé — {reason}"),
     };
+    audit::record(ix, Entry::new(Action::RecrueAdd, Some(membre.to_string()), String::new())).await;
     ix.edit_text(format!("{name} figure désormais dans la liste des recrues de la semaine.{channel_note}")).await
 }
 
@@ -224,6 +226,9 @@ async fn retirer(ix: &Ix, options: &Options, guild_id: Id<GuildMarker>) -> Resul
     let session = service::ensure_current_session(&ix.ctx, guild_id).await?;
     let removed = service::remove_entry(&ix.ctx.db, &session.id, &membre.to_string()).await?;
     service::sync_dashboard(&ix.ctx, guild_id).await?;
+    if removed {
+        audit::record(ix, Entry::new(Action::RecrueRemove, Some(membre.to_string()), String::new())).await;
+    }
     ix.edit_text(if removed {
         format!("{name} ne figure plus dans la liste de la semaine (son salon privé est conservé).")
     } else {
@@ -305,6 +310,7 @@ pub async fn reset(ix: &Ix, guild_id: Id<GuildMarker>) -> Result<()> {
     ix.defer(true).await?;
     let session = service::ensure_current_session(&ix.ctx, guild_id).await?;
     service::sync_dashboard(&ix.ctx, guild_id).await?;
+    audit::record(ix, Entry::new(Action::RecrueReset, None, String::new())).await;
     ix.edit_text(format!(
         "Semaine en cours : {} recrue(s). Les semaines précédentes restent consultables via `/recrue historique`.",
         session.entries.len()
@@ -330,6 +336,7 @@ async fn veto_poser(ix: &Ix, options: &Options, guild_id: Id<GuildMarker>) -> Re
     ix.defer(true).await?;
     service::set_veto(&ix.ctx.db, &entry.id, &ix.user_id().to_string(), &motif).await?;
     service::sync_dashboard(&ix.ctx, guild_id).await?;
+    audit::record(ix, Entry::new(Action::VetoSet, Some(membre.to_string()), motif.clone())).await;
     ix.edit_text(format!("⛔ Véto posé sur {name}.")).await
 }
 
@@ -347,5 +354,6 @@ async fn veto_lever(ix: &Ix, options: &Options, guild_id: Id<GuildMarker>) -> Re
     ix.defer(true).await?;
     service::clear_veto(&ix.ctx.db, &entry.id).await?;
     service::sync_dashboard(&ix.ctx, guild_id).await?;
+    audit::record(ix, Entry::new(Action::VetoLifted, Some(membre.to_string()), String::new())).await;
     ix.edit_text(format!("Véto levé sur {name}.")).await
 }

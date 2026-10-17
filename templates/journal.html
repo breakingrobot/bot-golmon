@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block content %}
+<a href="{{ back_href }}" class="text-sm font-medium text-accent hover:underline">← Statistiques</a>
+<div class="mt-2 flex flex-wrap items-end justify-between gap-4">
+  <div>
+    <h1 class="text-2xl font-semibold tracking-tight text-ink">Journal du staff</h1>
+    <p class="mt-1 text-sm text-ink-muted">{{ guild_name }} · {{ total }} action{% if total > 1 %}s{% endif %}</p>
+  </div>
+  <form method="get" class="flex gap-2">
+    <label class="sr-only" for="action">Action</label>
+    <select id="action" name="action" class="rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink">
+      {% for filter in filters %}
+      <option value="{{ filter.value }}" {% if filter.active %}selected{% endif %}>{{ filter.label }}</option>
+      {% endfor %}
+    </select>
+    <button type="submit" class="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-on-accent hover:bg-accent/90">Filtrer</button>
+  </form>
+</div>
+
+{% if rows.is_empty() %}
+<p class="mt-6 rounded-card border border-dashed border-line-strong px-6 py-12 text-center text-ink-muted">Aucune action enregistrée.</p>
+{% else %}
+<ol class="mt-6 divide-y divide-line overflow-hidden rounded-card border border-line bg-surface">
+  {% for row in rows %}
+  <li class="px-4 py-3 sm:px-5">
+    <div class="flex flex-wrap items-center gap-x-3 gap-y-1">
+      <span class="font-medium text-ink">{{ row.label }}</span>
+      {% if let Some(target) = row.target %}<span class="text-sm text-ink-muted">→ {{ target }}</span>{% endif %}
+      <time datetime="{{ row.time_iso }}" data-local class="ml-auto text-sm text-ink-subtle">{{ row.time_display }}</time>
+    </div>
+    <p class="mt-0.5 text-sm text-ink-muted">par <span class="font-medium text-ink">{{ row.actor }}</span></p>
+    {% if !row.details_html.is_empty() %}<div class="message-body mt-1 text-ink">{{ row.details_html|safe }}</div>{% endif %}
+  </li>
+  {% endfor %}
+</ol>
+{% endif %}
+
+{% if pages > 1 %}
+<nav class="mt-6 flex items-center justify-between text-sm" aria-label="Pagination">
+  {% if let Some(href) = previous_href %}<a href="{{ href }}" class="font-medium text-accent hover:underline">← Plus récentes</a>{% else %}<span></span>{% endif %}
+  <span class="text-ink-muted">Page {{ page }} sur {{ pages }}</span>
+  {% if let Some(href) = next_href %}<a href="{{ href }}" class="font-medium text-accent hover:underline">Plus anciennes →</a>{% else %}<span></span>{% endif %}
+</nav>
+{% endif %}
+{% endblock %}

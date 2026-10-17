@@ -135,6 +135,17 @@ Annuaire permanent avec boutons « Ajouter / modifier mon numéro » et « Retir
 `555` + 4 à 6 chiffres (`555-1234` accepté). Un numéro par membre, unique sur le serveur.
 `/numero ajouter numero [membre]` (pour un autre membre : **Gérer le serveur**), `voir`, `supprimer`, `liste`.
 
+## Journal du staff
+
+Les actions sensibles sont enregistrées : configuration modifiée (`/config`), votes forcés, présences
+annulées ou planifiées, statistiques réinitialisées, blocklist, absences déclarées ou clôturées **pour un
+autre membre**, transactions supprimées, recrues ajoutées ou retirées, vétos, numéros modifiés pour un
+autre membre.
+
+- Sur le site : `/stats/<serveur>/journal`, filtrable par action (« Gérer le serveur »).
+- Sur Discord, en option : `/config journal salon:#journal-staff` publie chaque action dans ce salon
+  (mentions affichées, jamais notifiées). `/config journal desactiver:true` arrête la publication.
+
 ## Actions au clic droit
 
 Clic droit sur un membre ou un message → **Applications** :

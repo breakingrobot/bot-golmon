@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block content %}
 <h1 class="text-2xl font-semibold tracking-tight text-ink">{{ guild_name }}</h1>
-<p class="mt-1 text-sm text-ink-muted">Statistiques du serveur</p>
+<p class="mt-1 text-sm text-ink-muted">Statistiques du serveur · <a href="/stats/{{ guild_id }}/journal" class="font-medium text-accent hover:underline">Journal du staff</a></p>
 
 <dl class="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3">
   {% for figure in figures %}

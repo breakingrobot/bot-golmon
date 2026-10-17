@@ -10,6 +10,7 @@ serveurs. Il démarre toujours, même sans module ticket, ne serait-ce que pour 
 | `/logs/<id>` | Log d'un ticket | Staff des tickets (ou lien seul, voir plus bas) |
 | `/logs/staff` | Statistiques du staff sur 30 jours | Staff des tickets |
 | `/stats/<serveur>` | Statistiques d'un serveur | « Gérer le serveur » sur ce serveur |
+| `/stats/<serveur>/journal` | [Journal du staff](modules.md#journal-du-staff) | « Gérer le serveur » sur ce serveur |
 | `/healthz` | Répond `ok` (health check de la plateforme) | Tout le monde |
 
 Le **staff des tickets** est défini par l'option `inboxServerPermission` sur le serveur inbox
