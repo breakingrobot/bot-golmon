@@ -14,17 +14,24 @@ pub async fn open(path: &Path, max_connections: u32) -> Result<SqlitePool> {
         .journal_mode(SqliteJournalMode::Wal)
         .synchronous(SqliteSynchronous::Normal)
         .foreign_keys(true)
-        .busy_timeout(Duration::from_secs(10));
+        .busy_timeout(Duration::from_secs(10))
+        // Bases de quelques Mo : 1 Mo de cache de pages par connexion suffit
+        // (2 Mo par défaut), et moins de requêtes préparées gardées en mémoire.
+        .pragma("cache_size", "-1024")
+        .statement_cache_capacity(32);
 
     SqlitePoolOptions::new()
         .max_connections(max_connections)
+        // Connexions inutilisées refermées : leur cache est rendu au système.
+        .min_connections(1)
+        .idle_timeout(Duration::from_secs(5 * 60))
         .connect_with(options)
         .await
         .with_context(|| format!("ouverture de la base {}", path.display()))
 }
 
 pub async fn open_main(path: &Path) -> Result<SqlitePool> {
-    let pool = open(path, 4).await?;
+    let pool = open(path, 3).await?;
     sqlx::migrate!("./migrations").run(&pool).await.context("migrations de la base principale")?;
     Ok(pool)
 }

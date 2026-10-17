@@ -86,27 +86,29 @@ fn parse_vehicle(value: &Value) -> Option<ApiVehicle> {
 
 impl VehicleApi {
     pub fn new() -> Self {
-        let client = reqwest::Client::builder()
-            .timeout(TIMEOUT)
-            .user_agent(concat!("bot-discord/", env!("CARGO_PKG_VERSION")))
-            .build()
-            .expect("client HTTP");
+        let client = crate::util::http::client();
         Self { client, cache: Mutex::new(HashMap::new()), in_flight: Mutex::new(HashMap::new()) }
     }
 
     async fn request(client: reqwest::Client, plate: String) -> Lookup {
-        let response =
-            match client.get(API_URL).query(&[("plate", &plate)]).header("accept", "application/json").send().await {
-                Ok(response) => response,
-                Err(error) => {
-                    tracing::warn!(%plate, %error, "consultation API échouée");
-                    return Lookup::Error(if error.is_timeout() {
-                        "délai dépassé".to_owned()
-                    } else {
-                        error.to_string()
-                    });
-                }
-            };
+        let response = match client
+            .get(API_URL)
+            .timeout(TIMEOUT)
+            .query(&[("plate", &plate)])
+            .header("accept", "application/json")
+            .send()
+            .await
+        {
+            Ok(response) => response,
+            Err(error) => {
+                tracing::warn!(%plate, %error, "consultation API échouée");
+                return Lookup::Error(if error.is_timeout() {
+                    "délai dépassé".to_owned()
+                } else {
+                    error.to_string()
+                });
+            }
+        };
         // 404 = plaque inconnue, ce n'est pas une panne.
         if response.status() == reqwest::StatusCode::NOT_FOUND {
             return Lookup::NotFound;

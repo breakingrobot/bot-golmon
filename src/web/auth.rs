@@ -216,11 +216,13 @@ pub async fn callback(State(ctx): State<Context>, headers: HeaderMap, Query(quer
 }
 
 async fn exchange(ctx: &Ctx, code: &str) -> anyhow::Result<DiscordUser> {
-    let client = reqwest::Client::new();
+    let client = crate::util::http::client();
+    let timeout = std::time::Duration::from_secs(15);
     let secret = ctx.config.web.client_secret.as_deref().unwrap_or_default();
     let redirect_uri = redirect_uri(ctx).unwrap_or_default();
     let token: TokenResponse = client
         .post("https://discord.com/api/v10/oauth2/token")
+        .timeout(timeout)
         .basic_auth(ctx.application_id.to_string(), Some(secret))
         .form(&[("grant_type", "authorization_code"), ("code", code), ("redirect_uri", &redirect_uri)])
         .send()
@@ -230,6 +232,7 @@ async fn exchange(ctx: &Ctx, code: &str) -> anyhow::Result<DiscordUser> {
         .await?;
     Ok(client
         .get("https://discord.com/api/v10/users/@me")
+        .timeout(timeout)
         .bearer_auth(token.access_token)
         .send()
         .await?

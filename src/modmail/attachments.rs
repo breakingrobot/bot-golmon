@@ -31,7 +31,14 @@ impl Modmail {
     async fn download(&self, url: &str) -> Result<Vec<u8>> {
         let mut last_error = None;
         for _ in 0..3 {
-            match self.http.get(url).send().await.and_then(reqwest::Response::error_for_status) {
+            match self
+                .http
+                .get(url)
+                .timeout(std::time::Duration::from_secs(60))
+                .send()
+                .await
+                .and_then(reqwest::Response::error_for_status)
+            {
                 Ok(response) => return Ok(response.bytes().await?.to_vec()),
                 Err(error) => {
                     tracing::warn!(%error, "téléchargement de pièce jointe échoué, nouvel essai");

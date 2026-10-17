@@ -81,7 +81,7 @@ impl Modmail {
         Ok(Some(Self {
             config,
             db,
-            http: reqwest::Client::builder().timeout(Duration::from_secs(60)).build()?,
+            http: crate::util::http::client(),
             dm_queue: tokio::sync::Mutex::new(()),
             creation_lock: tokio::sync::Mutex::new(()),
             dm_channels: Mutex::new(HashMap::new()),

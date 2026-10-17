@@ -39,8 +39,11 @@ RUN apt-get update \
 WORKDIR /app
 COPY --from=build /build/target/release/bot-discord /usr/local/bin/bot-discord
 
+# MALLOC_ARENA_MAX : la glibc crée une arène mémoire par thread, qui gonfle la
+# mémoire résidente sans gain pour un bot ; deux suffisent.
 ENV TZ=Europe/Paris \
-    RUST_LOG=info
+    RUST_LOG=info \
+    MALLOC_ARENA_MAX=2
 # Serveur web des logs de tickets (seulement si le module ticket est configuré).
 EXPOSE 8890
 
