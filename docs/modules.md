@@ -6,7 +6,7 @@
 |---|---|---|
 | `/config <module>` | « Gérer le serveur » | Réglages de chaque module, **une fois par serveur**. Sans option, affiche la configuration actuelle. |
 | `/gestion …` | « Gérer les messages » | Actions de staff : votes forcés, annulations, planning des présences, blocklist, panneau des absences… |
-| `/presence`, `/absence`, `/transaction`, `/vehicle`, `/recrue`, `/numero`, `/cotisation` | Tout le monde | Utilisation courante. |
+| `/presence`, `/absence`, `/transaction`, `/vehicle`, `/recrue`, `/numero`, `/cotisation`, `/contact` | Tout le monde | Utilisation courante. |
 | Clic droit → *Applications* | Voir [plus bas](#actions-au-clic-droit) | Raccourcis sur un membre ou un message. |
 
 `/config` et `/gestion` n'apparaissent qu'aux membres qui ont la permission. Pour les ouvrir à un rôle
@@ -178,12 +178,42 @@ annonce chaque nouvelle cotisation dans un salon ; `sans_annonce:true` arrête l
 
 Sur le site : `/cotisations` (ou `/stats/<serveur>/cotisations`), voir [Site web](site-web.md#cotisations).
 
+## Contacts
+
+Répertoire des autres groupes, entreprises et personnes du jeu, avec leur relation au groupe :
+🟢 **allié**, ⚪ **neutre** ou 🔴 **hostile**. Chaque contact a une description publique et, en option, un
+téléphone ; les gradés et leads y ajoutent des **notes réservées au staff**.
+
+```
+/contact ajouter nom:"Garage Benny's" type:Entreprise relation:Allié [telephone:555-0142] [description:…]
+```
+
+| Commande | Pour qui | Effet |
+|---|---|---|
+| `voir contact` | Tout le monde | Fiche du contact (type, relation, téléphone, description), en privé. Les gradés et leads y voient aussi les 10 dernières notes du staff (auteur et date). |
+| `liste [relation] [type]` | Tout le monde | Tous les contacts, groupés par relation, en privé. |
+| `ajouter nom type relation [telephone] [description]` | Gradés, leads, « Gérer le serveur » | Ajoute un contact. Nom unique sur le serveur (sans tenir compte des majuscules), 80 caractères au plus ; description 500 au plus. |
+| `modifier contact [nom] [type] [relation] [telephone] [description]` | Gradés, leads, « Gérer le serveur » | Change les champs indiqués ; `-` efface le téléphone ou la description. |
+| `supprimer contact` | Gradés, leads, « Gérer le serveur » | Supprime le contact et toutes ses notes. |
+| `note contact texte` | Gradés, leads, « Gérer le serveur » | Ajoute une note du staff (1000 caractères au plus), jamais montrée aux autres membres. |
+
+Le contact se choisit dans la liste proposée par Discord (le nom exact fonctionne aussi). Ajouts,
+modifications (avec l'ancienne et la nouvelle relation), suppressions et notes sont inscrits au
+[journal du staff](#journal-du-staff).
+
+`/config contact salon:#…` publie un **répertoire permanent** dans un salon, groupé par relation et mis à
+jour à chaque changement ; il ne montre jamais les notes du staff. `sans_annuaire:true` le retire.
+
+Sur le site : `/contacts` (ou `/stats/<serveur>/contacts`), avec les notes, voir
+[Site web](site-web.md#contacts).
+
 ## Journal du staff
 
 Les actions sensibles sont enregistrées : configuration modifiée (`/config`), votes forcés, présences
 annulées ou planifiées, statistiques réinitialisées, blocklist, absences déclarées ou clôturées **pour un
 autre membre**, transactions supprimées, recrues ajoutées ou retirées, vétos, numéros modifiés pour un
-autre membre, cotisations déclarées pour un autre membre ou supprimées.
+autre membre, cotisations déclarées pour un autre membre ou supprimées, contacts ajoutés, modifiés ou
+supprimés et notes du staff sur les contacts.
 
 - Sur le site : `/stats/<serveur>/journal`, filtrable par action (« Gérer le serveur »).
 - Sur Discord, en option : `/config journal salon:#journal-staff` publie chaque action dans ce salon

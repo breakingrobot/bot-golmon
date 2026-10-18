@@ -7,6 +7,7 @@
 //! par leur lien non devinable, comme dans modmailbot.
 
 pub mod auth;
+mod contacts;
 mod cotisations;
 mod journal;
 pub mod markdown;
@@ -42,7 +43,7 @@ pub struct Access {
     pub tickets: bool,
     /// Serveurs dont elle peut voir les statistiques (« Gérer le serveur »).
     pub guilds: Vec<(Id<GuildMarker>, String)>,
-    /// Serveurs dont elle peut voir les cotisations : « Gérer le serveur », ou
+    /// Serveurs dont elle peut voir les cotisations et les contacts : « Gérer le serveur », ou
     /// rôle gradé / lead du module recrues.
     pub officer_guilds: Vec<(Id<GuildMarker>, String)>,
 }
@@ -178,6 +179,8 @@ pub fn spawn(ctx: Context) {
         .route("/cotisations", get(cotisations::index))
         .route("/stats/{guild_id}/cotisations", get(cotisations::page))
         .route("/stats/{guild_id}/cotisations.csv", get(cotisations::export))
+        .route("/contacts", get(contacts::index))
+        .route("/stats/{guild_id}/contacts", get(contacts::page))
         .route("/stats/{guild_id}/transactions", get(transactions::history))
         .route("/stats/{guild_id}/transactions.csv", get(transactions::export))
         .route("/assets/app.css", get(|| async { asset("text/css; charset=UTF-8", CSS) }))

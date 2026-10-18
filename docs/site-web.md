@@ -11,6 +11,7 @@ serveurs. Il démarre toujours, même sans module ticket, ne serait-ce que pour 
 | `/logs/staff` | Statistiques du staff sur 30 jours | Staff des tickets |
 | `/stats/<serveur>` | Statistiques d'un serveur | « Gérer le serveur » sur ce serveur |
 | `/stats/<serveur>/cotisations` | [Cotisations](#cotisations) : totaux, classement, détail, export CSV | Gradés et leads (rôles de `/config recrue`), « Gérer le serveur » |
+| `/stats/<serveur>/contacts` | [Contacts](#contacts) : répertoire filtrable, notes du staff | Gradés et leads (rôles de `/config recrue`), « Gérer le serveur » |
 | `/stats/<serveur>/journal` | [Journal du staff](modules.md#journal-du-staff) | « Gérer le serveur » sur ce serveur |
 | `/stats/<serveur>/transactions` | Historique des transactions, export CSV | « Gérer le serveur » sur ce serveur |
 | `/healthz` | Répond `ok` (health check de la plateforme) | Tout le monde |
@@ -120,6 +121,15 @@ Périodes 7 jours, 30 jours, 90 jours, 1 an ou tout ; totaux en argent propre, s
 classement des membres avec leur part ; clic sur un membre pour ne voir que ses cotisations ; détail des
 cotisations (avec qui les a déclarées pour un autre) ; export CSV pour Excel. `/cotisations` mène
 directement au serveur de la personne connectée.
+
+### Contacts
+
+![Contacts](images/contacts.png)
+
+Le répertoire des contacts ([module Contacts](modules.md#contacts)) : nombre d'alliés, de neutres et
+d'hostiles ; filtres par relation, par type et recherche dans le nom ou la description. Un clic sur un
+contact déplie sa description et toutes les **notes du staff**, des plus récentes aux plus anciennes.
+`/contacts` mène directement au serveur de la personne connectée.
 
 ## Sécurité
 
