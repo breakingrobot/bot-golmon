@@ -570,13 +570,13 @@ pub async fn export(
 
 /// Neutralise les formules : Excel exécute une cellule qui commence par `=`,
 /// `+`, `-` ou `@` (et LibreOffice aussi après tabulation ou retour chariot).
-fn neutralize(value: &str) -> String {
+pub(super) fn neutralize(value: &str) -> String {
     if value.starts_with(['=', '+', '-', '@', '\t', '\r']) { format!("'{value}") } else { value.to_owned() }
 }
 
 /// Entoure de guillemets (doublés à l'intérieur) un champ qui contient le
 /// séparateur, un guillemet ou un saut de ligne.
-fn quote(value: &str) -> String {
+pub(super) fn quote(value: &str) -> String {
     if value.contains([';', '"', '\n', '\r']) {
         format!("\"{}\"", value.replace('"', "\"\""))
     } else {
@@ -585,12 +585,12 @@ fn quote(value: &str) -> String {
 }
 
 /// Champ texte libre : neutralisé puis échappé.
-fn text_cell(value: &str) -> String {
+pub(super) fn text_cell(value: &str) -> String {
     quote(&neutralize(value))
 }
 
 /// Nombre lisible par un Excel français : virgule décimale, sans séparateur de milliers.
-fn number_cell(value: f64) -> String {
+pub(super) fn number_cell(value: f64) -> String {
     format_price(value).replace('\u{202f}', "")
 }
 

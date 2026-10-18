@@ -33,6 +33,9 @@ impl Layout {
         if !access.guilds.is_empty() {
             nav.push(NavLink { label: "Statistiques", href: "/stats", active: current == "/stats" });
         }
+        if !access.officer_guilds.is_empty() {
+            nav.push(NavLink { label: "Cotisations", href: "/cotisations", active: current == "/cotisations" });
+        }
         Self {
             title: title.into(),
             nav,
@@ -120,6 +123,8 @@ struct HomePage {
     logged_in: bool,
     tickets: bool,
     guilds: Vec<(String, String)>,
+    /// Serveurs où le compte voit seulement les cotisations (gradé ou lead).
+    cotisation_guilds: Vec<(String, String)>,
 }
 
 pub async fn home(State(ctx): State<Context>, viewer: MaybeViewer, uri: Uri) -> Response {
@@ -133,6 +138,12 @@ pub async fn home(State(ctx): State<Context>, viewer: MaybeViewer, uri: Uri) -> 
         logged_in: viewer.0.is_some(),
         tickets: access.tickets,
         guilds: access.guilds.iter().map(|(id, name)| (id.to_string(), name.clone())).collect(),
+        cotisation_guilds: access
+            .officer_guilds
+            .iter()
+            .filter(|(id, _)| !access.can_view_guild(*id))
+            .map(|(id, name)| (id.to_string(), name.clone()))
+            .collect(),
     };
     render(&page)
 }

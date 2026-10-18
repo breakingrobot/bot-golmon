@@ -7,6 +7,7 @@
 //! par leur lien non devinable, comme dans modmailbot.
 
 pub mod auth;
+mod cotisations;
 mod journal;
 pub mod markdown;
 pub mod pages;
@@ -41,6 +42,9 @@ pub struct Access {
     pub tickets: bool,
     /// Serveurs dont elle peut voir les statistiques (« Gérer le serveur »).
     pub guilds: Vec<(Id<GuildMarker>, String)>,
+    /// Serveurs dont elle peut voir les cotisations : « Gérer le serveur », ou
+    /// rôle gradé / lead du module recrues.
+    pub officer_guilds: Vec<(Id<GuildMarker>, String)>,
 }
 
 impl Access {
@@ -57,19 +61,39 @@ impl Access {
             let Some(roles) = member_roles(ctx, guild_id, user_id).await else {
                 continue;
             };
-            if member_permissions(ctx, guild_id, user_id, &roles).contains(Permissions::MANAGE_GUILD) {
-                let name =
-                    ctx.cache.guild(guild_id).map(|g| g.name().to_owned()).unwrap_or_else(|| guild_id.to_string());
-                access.guilds.push((guild_id, name));
+            let name =
+                || ctx.cache.guild(guild_id).map(|g| g.name().to_owned()).unwrap_or_else(|| guild_id.to_string());
+            let manager = member_permissions(ctx, guild_id, user_id, &roles).contains(Permissions::MANAGE_GUILD);
+            if manager {
+                access.guilds.push((guild_id, name()));
+            }
+            if manager || is_officer(ctx, guild_id, &roles).await {
+                access.officer_guilds.push((guild_id, name()));
             }
         }
         access.guilds.sort_by(|a, b| a.1.cmp(&b.1));
+        access.officer_guilds.sort_by(|a, b| a.1.cmp(&b.1));
         access
     }
 
     pub fn can_view_guild(&self, guild_id: Id<GuildMarker>) -> bool {
         self.guilds.iter().any(|(id, _)| *id == guild_id)
     }
+
+    pub fn is_officer_of(&self, guild_id: Id<GuildMarker>) -> bool {
+        self.officer_guilds.iter().any(|(id, _)| *id == guild_id)
+    }
+}
+
+/// Rôle gradé ou lead configuré dans le module recrues.
+async fn is_officer(ctx: &Ctx, guild_id: Id<GuildMarker>, roles: &[Id<RoleMarker>]) -> bool {
+    let Ok(Some(config)) = crate::modules::recrues::service::get_config(&ctx.db, &guild_id.to_string()).await else {
+        return false;
+    };
+    [config.grade_role_id, config.lead_role_id]
+        .iter()
+        .flatten()
+        .any(|role| roles.iter().any(|r| r.to_string() == *role))
 }
 
 /// Rôles d'un membre : cache, sinon API. `None` si la personne n'est pas membre.
@@ -151,6 +175,9 @@ pub fn spawn(ctx: Context) {
         .route("/stats", get(stats::index))
         .route("/stats/{guild_id}", get(stats::guild))
         .route("/stats/{guild_id}/journal", get(journal::page))
+        .route("/cotisations", get(cotisations::index))
+        .route("/stats/{guild_id}/cotisations", get(cotisations::page))
+        .route("/stats/{guild_id}/cotisations.csv", get(cotisations::export))
         .route("/stats/{guild_id}/transactions", get(transactions::history))
         .route("/stats/{guild_id}/transactions.csv", get(transactions::export))
         .route("/assets/app.css", get(|| async { asset("text/css; charset=UTF-8", CSS) }))

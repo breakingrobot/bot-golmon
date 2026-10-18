@@ -6,7 +6,7 @@
 |---|---|---|
 | `/config <module>` | « Gérer le serveur » | Réglages de chaque module, **une fois par serveur**. Sans option, affiche la configuration actuelle. |
 | `/gestion …` | « Gérer les messages » | Actions de staff : votes forcés, annulations, planning des présences, blocklist, panneau des absences… |
-| `/presence`, `/absence`, `/transaction`, `/vehicle`, `/recrue`, `/numero` | Tout le monde | Utilisation courante. |
+| `/presence`, `/absence`, `/transaction`, `/vehicle`, `/recrue`, `/numero`, `/cotisation` | Tout le monde | Utilisation courante. |
 | Clic droit → *Applications* | Voir [plus bas](#actions-au-clic-droit) | Raccourcis sur un membre ou un message. |
 
 `/config` et `/gestion` n'apparaissent qu'aux membres qui ont la permission. Pour les ouvrir à un rôle
@@ -158,12 +158,32 @@ Annuaire permanent avec boutons « Ajouter / modifier mon numéro » et « Retir
 `555` + 4 à 6 chiffres (`555-1234` accepté). Un numéro par membre, unique sur le serveur.
 `/numero ajouter numero [membre]` (pour un autre membre : **Gérer le serveur**), `voir`, `supprimer`, `liste`.
 
+## Cotisations
+
+Ce que chaque membre rapporte au groupe, en argent **propre** et/ou **sale**.
+
+```
+/cotisation ajouter description:"Vente de pièces" propre:25000 [sale:…] [date:JJ/MM/AAAA] [membre:@…]
+```
+
+| Commande | Pour qui | Effet |
+|---|---|---|
+| `ajouter` | Tout le monde | Déclare une cotisation : description obligatoire, au moins un montant (propre et/ou sale), date du jour par défaut (pas dans le futur). Déclarer pour un autre membre : gradés et leads. |
+| `historique [membre] [jours]` | Tout le monde (soi) ; gradés et leads (les autres) | Dernières cotisations et totaux propre / sale. |
+| `stats [jours] [membre]` | Gradés, leads, « Gérer le serveur » | Totaux du groupe sur toute la période ou les N derniers jours, et classement des membres. |
+| `supprimer` | L'auteur, ou gradés et leads | Supprime une cotisation saisie par erreur (journalisé). |
+
+Les gradés et leads sont ceux des rôles configurés avec `/config recrue`. `/config cotisation salon:#…`
+annonce chaque nouvelle cotisation dans un salon ; `sans_annonce:true` arrête les annonces.
+
+Sur le site : `/cotisations` (ou `/stats/<serveur>/cotisations`), voir [Site web](site-web.md#cotisations).
+
 ## Journal du staff
 
 Les actions sensibles sont enregistrées : configuration modifiée (`/config`), votes forcés, présences
 annulées ou planifiées, statistiques réinitialisées, blocklist, absences déclarées ou clôturées **pour un
 autre membre**, transactions supprimées, recrues ajoutées ou retirées, vétos, numéros modifiés pour un
-autre membre.
+autre membre, cotisations déclarées pour un autre membre ou supprimées.
 
 - Sur le site : `/stats/<serveur>/journal`, filtrable par action (« Gérer le serveur »).
 - Sur Discord, en option : `/config journal salon:#journal-staff` publie chaque action dans ce salon

@@ -34,6 +34,7 @@ pub fn config_definition() -> Command {
         .option(vehicles::commands::config_subcommand())
         .option(recrues::commands::config_subcommand())
         .option(phones::commands::config_subcommand())
+        .option(crate::modules::cotisations::commands::config_subcommand())
         .option(audit::config_subcommand())
         .build()
 }
@@ -74,6 +75,7 @@ pub async fn handle_config(ix: &Ix, options: &Options) -> Result<()> {
         "recrue" => recrues::commands::config(ix, options, guild_id).await,
         "numero" => phones::commands::config(ix, options, &guild).await,
         "journal" => audit::config(ix, options).await,
+        "cotisation" => crate::modules::cotisations::commands::config(ix, options, &guild).await,
         _ => Ok(()),
     };
     // Sans option, la commande ne fait qu'afficher : rien à journaliser.

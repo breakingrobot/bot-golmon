@@ -45,10 +45,12 @@ pub enum Action {
     VetoLifted,
     PhoneSetFor,
     PhoneRemovedFor,
+    CotisationAddFor,
+    CotisationDelete,
 }
 
 impl Action {
-    pub const ALL: [Self; 18] = [
+    pub const ALL: [Self; 20] = [
         Self::Config,
         Self::PresenceForceVote,
         Self::PresenceCancel,
@@ -67,6 +69,8 @@ impl Action {
         Self::VetoLifted,
         Self::PhoneSetFor,
         Self::PhoneRemovedFor,
+        Self::CotisationAddFor,
+        Self::CotisationDelete,
     ];
 
     pub fn code(self) -> &'static str {
@@ -89,6 +93,8 @@ impl Action {
             Self::VetoLifted => "recrue.unveto",
             Self::PhoneSetFor => "numero.set",
             Self::PhoneRemovedFor => "numero.remove",
+            Self::CotisationAddFor => "cotisation.add",
+            Self::CotisationDelete => "cotisation.delete",
         }
     }
 
@@ -116,6 +122,8 @@ impl Action {
             Self::VetoLifted => "⛔ Véto levé",
             Self::PhoneSetFor => "📞 Numéro enregistré pour un membre",
             Self::PhoneRemovedFor => "📞 Numéro supprimé pour un membre",
+            Self::CotisationAddFor => "💰 Cotisation déclarée pour un membre",
+            Self::CotisationDelete => "💰 Cotisation supprimée",
         }
     }
 }

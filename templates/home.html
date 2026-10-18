@@ -9,7 +9,7 @@
 <p class="mt-3 max-w-2xl text-ink-muted">
   Connecte-toi avec Discord pour consulter les tickets et les statistiques auxquels tu as accès.
 </p>
-{% else if !tickets && guilds.is_empty() %}
+{% else if !tickets && guilds.is_empty() && cotisation_guilds.is_empty() %}
 <p class="mt-3 max-w-2xl text-ink-muted">
   Ce compte n'a accès à aucune page : il faut faire partie du staff des tickets, ou avoir « Gérer le serveur ».
 </p>
@@ -26,7 +26,14 @@
     <h2 class="font-semibold text-ink"><a href="/stats/{{ id }}" class="hover:underline">Statistiques · {{ name }}</a></h2>
     <p class="mt-1 text-sm text-ink-muted">Assiduité aux présences, recrues et tickets.</p>
     <a href="/stats/{{ id }}/transactions" class="mt-2 inline-block text-sm font-medium text-accent hover:underline">Historique des transactions →</a>
+    <a href="/stats/{{ id }}/cotisations" class="mt-2 ml-3 inline-block text-sm font-medium text-accent hover:underline">Cotisations →</a>
   </div>
+  {% endfor %}
+  {% for (id, name) in cotisation_guilds %}
+  <a href="/stats/{{ id }}/cotisations" class="rounded-card border border-line bg-surface px-5 py-4 hover:border-line-strong">
+    <h2 class="font-semibold text-ink">Cotisations · {{ name }}</h2>
+    <p class="mt-1 text-sm text-ink-muted">Ce que les membres rapportent au groupe, en propre et en sale.</p>
+  </a>
   {% endfor %}
 </div>
 {% endif %}
