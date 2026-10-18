@@ -6,7 +6,7 @@
 |---|---|---|
 | `/config <module>` | « Gérer le serveur » | Réglages de chaque module, **une fois par serveur**. Sans option, affiche la configuration actuelle. |
 | `/gestion …` | « Gérer les messages » | Actions de staff : votes forcés, annulations, planning des présences, blocklist, panneau des absences… |
-| `/presence`, `/absence`, `/transaction`, `/vehicle`, `/recrue`, `/numero` | Tout le monde | Utilisation courante. |
+| `/presence`, `/absence`, `/transaction`, `/vehicle`, `/recrue`, `/numero`, `/cotisation`, `/contact`, `/coffre` | Tout le monde (`/coffre` : gradés et leads) | Utilisation courante. |
 | Clic droit → *Applications* | Voir [plus bas](#actions-au-clic-droit) | Raccourcis sur un membre ou un message. |
 
 `/config` et `/gestion` n'apparaissent qu'aux membres qui ont la permission. Pour les ouvrir à un rôle
@@ -158,12 +158,92 @@ Annuaire permanent avec boutons « Ajouter / modifier mon numéro » et « Retir
 `555` + 4 à 6 chiffres (`555-1234` accepté). Un numéro par membre, unique sur le serveur.
 `/numero ajouter numero [membre]` (pour un autre membre : **Gérer le serveur**), `voir`, `supprimer`, `liste`.
 
+## Cotisations
+
+Ce que chaque membre rapporte au groupe, en argent **propre** et/ou **sale**.
+
+```
+/cotisation ajouter description:"Vente de pièces" propre:25000 [sale:…] [date:JJ/MM/AAAA] [membre:@…]
+```
+
+| Commande | Pour qui | Effet |
+|---|---|---|
+| `ajouter` | Tout le monde | Déclare une cotisation : description obligatoire, au moins un montant (propre et/ou sale), date du jour par défaut (pas dans le futur). Déclarer pour un autre membre : gradés et leads. |
+| `historique [membre] [jours]` | Tout le monde (soi) ; gradés et leads (les autres) | Dernières cotisations et totaux propre / sale. |
+| `stats [jours] [membre]` | Gradés, leads, « Gérer le serveur » | Totaux du groupe sur toute la période ou les N derniers jours, et classement des membres. |
+| `supprimer` | L'auteur, ou gradés et leads | Supprime une cotisation saisie par erreur (journalisé). |
+
+Les gradés et leads sont ceux des rôles configurés avec `/config recrue`. `/config cotisation salon:#…`
+annonce chaque nouvelle cotisation dans un salon ; `sans_annonce:true` arrête les annonces.
+
+Sur le site : `/cotisations` (ou `/stats/<serveur>/cotisations`), voir [Site web](site-web.md#cotisations).
+
+## Coffres
+
+Le jeu publie chaque dépôt et retrait des coffres de propriété dans un salon Discord (webhook
+« Coffre propriété » : personnage, propriété, objet, quantité, type, heure). Le bot lit ces messages et en
+déduit le **stock** de chaque coffre et l'**historique** de chaque joueur.
+
+**Mise en place**
+
+1. Activer *Message Content Intent* dans le portail Discord (onglet **Bot**), puis redémarrer le bot : sans
+   lui, Discord ne transmet pas le contenu des encadrés.
+2. `/config coffre salon:#logs-coffre` : le salon est suivi, et son historique récent (jusqu'à 5 000
+   messages) est importé tout de suite. Plusieurs salons possibles ; `retirer:true` arrête le suivi.
+3. Facultatif : `/coffre nommer propriete:8740 nom:"Planque du port"` et
+   `/coffre lier id_jeu:340772 membre:@…` (le numéro entre parenthèses après le nom du personnage).
+
+Les messages publiés pendant que le bot était arrêté sont rattrapés à son redémarrage ; un message n'est
+jamais compté deux fois.
+
+| Commande | Effet |
+|---|---|
+| `/coffre stock [propriete]` | Stock par propriété et par objet. |
+| `/coffre historique [propriete] [membre] [objet] [jours]` | Derniers dépôts et retraits (par membre : ses personnages reliés). |
+| `/coffre lier id_jeu membre` | Relie un personnage du jeu à un membre Discord (journalisé). |
+| `/coffre nommer propriete nom` | Nom lisible d'une propriété. |
+
+Réservé aux gradés, leads et « Gérer le serveur ». Le stock est calculé à partir des mouvements lus depuis
+le début du suivi : un objet déjà présent avant peut apparaître en négatif après un retrait.
+
+Sur le site : `/stats/<serveur>/coffres`, voir [Site web](site-web.md#coffres).
+
+## Contacts
+
+Répertoire des autres groupes, entreprises et personnes du jeu, avec leur relation au groupe :
+🟢 **allié**, ⚪ **neutre** ou 🔴 **hostile**. Chaque contact a une description publique et, en option, un
+téléphone ; les gradés et leads y ajoutent des **notes réservées au staff**.
+
+```
+/contact ajouter nom:"Garage Benny's" type:Entreprise relation:Allié [telephone:555-0142] [description:…]
+```
+
+| Commande | Pour qui | Effet |
+|---|---|---|
+| `voir contact` | Tout le monde | Fiche du contact (type, relation, téléphone, description), en privé. Les gradés et leads y voient aussi les 10 dernières notes du staff (auteur et date). |
+| `liste [relation] [type]` | Tout le monde | Tous les contacts, groupés par relation, en privé. |
+| `ajouter nom type relation [telephone] [description]` | Gradés, leads, « Gérer le serveur » | Ajoute un contact. Nom unique sur le serveur (sans tenir compte des majuscules), 80 caractères au plus ; description 500 au plus. |
+| `modifier contact [nom] [type] [relation] [telephone] [description]` | Gradés, leads, « Gérer le serveur » | Change les champs indiqués ; `-` efface le téléphone ou la description. |
+| `supprimer contact` | Gradés, leads, « Gérer le serveur » | Supprime le contact et toutes ses notes. |
+| `note contact texte` | Gradés, leads, « Gérer le serveur » | Ajoute une note du staff (1000 caractères au plus), jamais montrée aux autres membres. |
+
+Le contact se choisit dans la liste proposée par Discord (le nom exact fonctionne aussi). Ajouts,
+modifications (avec l'ancienne et la nouvelle relation), suppressions et notes sont inscrits au
+[journal du staff](#journal-du-staff).
+
+`/config contact salon:#…` publie un **répertoire permanent** dans un salon, groupé par relation et mis à
+jour à chaque changement ; il ne montre jamais les notes du staff. `sans_annuaire:true` le retire.
+
+Sur le site : `/contacts` (ou `/stats/<serveur>/contacts`), avec les notes, voir
+[Site web](site-web.md#contacts).
+
 ## Journal du staff
 
 Les actions sensibles sont enregistrées : configuration modifiée (`/config`), votes forcés, présences
 annulées ou planifiées, statistiques réinitialisées, blocklist, absences déclarées ou clôturées **pour un
 autre membre**, transactions supprimées, recrues ajoutées ou retirées, vétos, numéros modifiés pour un
-autre membre.
+autre membre, cotisations déclarées pour un autre membre ou supprimées, contacts ajoutés, modifiés ou
+supprimés et notes du staff sur les contacts.
 
 - Sur le site : `/stats/<serveur>/journal`, filtrable par action (« Gérer le serveur »).
 - Sur Discord, en option : `/config journal salon:#journal-staff` publie chaque action dans ce salon

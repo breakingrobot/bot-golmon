@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+{% block content %}
+<div>
+  <h1 class="text-2xl font-semibold tracking-tight text-ink">Contacts</h1>
+  <p class="mt-1 text-sm text-ink-muted">{{ guild_name }} · groupes, entreprises et personnes, avec les notes du staff</p>
+</div>
+
+<form method="get" action="/stats/{{ guild_id }}/contacts" class="mt-6 grid gap-3 rounded-card border border-line bg-surface p-4 sm:grid-cols-2 lg:grid-cols-4">
+  <label class="flex flex-col gap-1 text-xs font-medium text-ink-subtle lg:col-span-2">
+    Recherche
+    <input name="q" value="{{ q }}" type="search" autocomplete="off" placeholder="Nom ou description"
+           class="rounded-lg border border-line bg-surface px-3 py-2 text-sm font-normal text-ink placeholder:text-ink-subtle focus:border-accent">
+  </label>
+  <label class="flex flex-col gap-1 text-xs font-medium text-ink-subtle">
+    Relation
+    <select name="relation" class="rounded-lg border border-line bg-surface px-3 py-2 text-sm font-normal text-ink">
+      {% for choice in relations %}
+      <option value="{{ choice.value }}" {% if choice.active %}selected{% endif %}>{{ choice.label }}</option>
+      {% endfor %}
+    </select>
+  </label>
+  <label class="flex flex-col gap-1 text-xs font-medium text-ink-subtle">
+    Type
+    <select name="type" class="rounded-lg border border-line bg-surface px-3 py-2 text-sm font-normal text-ink">
+      {% for choice in kinds %}
+      <option value="{{ choice.value }}" {% if choice.active %}selected{% endif %}>{{ choice.label }}</option>
+      {% endfor %}
+    </select>
+  </label>
+  <div class="flex items-center gap-3 sm:col-span-2 lg:col-span-4">
+    <button type="submit" class="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-on-accent hover:bg-accent/90">Filtrer</button>
+    {% if filtered %}<a href="/stats/{{ guild_id }}/contacts" class="text-sm font-medium text-ink-muted hover:text-ink">Réinitialiser</a>{% endif %}
+    <span class="ml-auto text-xs text-ink-subtle">Notes réservées aux gradés et leads.</span>
+  </div>
+</form>
+
+<dl class="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
+  {% for figure in figures %}
+  <div class="rounded-card border border-line bg-surface px-4 py-3">
+    <dt class="text-xs font-medium tracking-wide text-ink-subtle uppercase">{{ figure.label }}</dt>
+    <dd class="mt-1 text-xl font-semibold tabular-nums {{ figure.tone }}">{{ figure.value }}</dd>
+  </div>
+  {% endfor %}
+</dl>
+
+<section class="mt-10">
+  <h2 class="text-lg font-semibold text-ink">Répertoire</h2>
+  {% if contacts.is_empty() %}
+  <p class="mt-4 text-sm text-ink-muted">{% if filtered %}Aucun contact ne correspond aux filtres.{% else %}Aucun contact : ajoutez-en avec <code>/contact ajouter</code>.{% endif %}</p>
+  {% else %}
+  <ul class="mt-4 divide-y divide-line rounded-card border border-line bg-surface">
+    {% for contact in contacts %}
+    <li>
+      <details class="group">
+        <summary class="flex cursor-pointer list-none flex-wrap items-center gap-x-3 gap-y-1 px-4 py-3 hover:bg-surface-sunken [&::-webkit-details-marker]:hidden">
+          <span class="text-ink-subtle transition-transform group-open:rotate-90" aria-hidden="true">›</span>
+          <span class="font-medium text-ink">{{ contact.name }}</span>
+          <span class="rounded-full px-2 py-0.5 text-xs font-medium {{ contact.badge }}">{{ contact.relation }}</span>
+          <span class="text-sm text-ink-muted">{{ contact.kind }}</span>
+          {% if let Some(phone) = contact.phone %}<span class="font-mono text-sm text-ink-muted">{{ phone }}</span>{% endif %}
+          <span class="ml-auto text-xs text-ink-subtle">{% if contact.notes.len() == 1 %}1 note{% else %}{{ contact.notes.len() }} notes{% endif %}</span>
+        </summary>
+        <div class="space-y-4 border-t border-line bg-surface-sunken px-4 py-4 sm:pl-10">
+          <p class="text-sm text-ink">{% if let Some(description) = contact.description %}{{ description }}{% else %}<span class="text-ink-subtle">Pas de description.</span>{% endif %}</p>
+          <div>
+            <h3 class="text-xs font-medium tracking-wide text-ink-subtle uppercase">Notes du staff</h3>
+            {% if contact.notes.is_empty() %}
+            <p class="mt-2 text-sm text-ink-muted">Aucune note. <code>/contact note</code> pour en ajouter une.</p>
+            {% else %}
+            <ul class="mt-2 space-y-2">
+              {% for note in contact.notes %}
+              <li class="rounded-lg border border-line bg-surface px-3 py-2">
+                <p class="text-xs text-ink-subtle"><span class="font-medium text-ink-muted">{{ note.author }}</span> · {{ note.date }}</p>
+                <p class="mt-1 text-sm whitespace-pre-line text-ink">{{ note.body }}</p>
+              </li>
+              {% endfor %}
+            </ul>
+            {% endif %}
+          </div>
+          <p class="text-xs text-ink-subtle">Fiche mise à jour le {{ contact.updated }}</p>
+        </div>
+      </details>
+    </li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+</section>
+{% endblock %}

@@ -21,6 +21,9 @@ pub struct Ctx {
     pub bot_username: String,
     pub vehicles: VehicleApi,
     pub modmail: Option<Modmail>,
+    /// *Message Content Intent* activé sur l'application : le bot peut lire le
+    /// contenu (et les encadrés) des messages, pour le module coffre.
+    pub message_content: bool,
     /// Un émetteur par shard, pour les commandes gateway (demande de membres).
     pub shard_senders: OnceLock<Vec<MessageSender>>,
 }

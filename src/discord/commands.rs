@@ -23,6 +23,9 @@ pub fn definitions(with_tickets: bool) -> Vec<Command> {
         vehicles::commands::definition(),
         recrues::commands::definition(),
         phones::commands::definition(),
+        crate::modules::cotisations::commands::definition(),
+        crate::modules::coffres::commands::definition(),
+        crate::modules::contacts::commands::definition(),
         super::admin::config_definition(),
         super::admin::gestion_definition(),
     ];
@@ -79,6 +82,9 @@ async fn route(ix: &Ix) -> Result<()> {
                 "vehicle" => vehicles::commands::handle(ix, &options).await,
                 "recrue" => recrues::commands::handle(ix, &options).await,
                 "numero" => phones::commands::handle(ix, &options).await,
+                "cotisation" => crate::modules::cotisations::commands::handle(ix, &options).await,
+                "coffre" => crate::modules::coffres::commands::handle(ix, &options).await,
+                "contact" => crate::modules::contacts::commands::handle(ix, &options).await,
                 "config" => super::admin::handle_config(ix, &options).await,
                 "gestion" => super::admin::handle_gestion(ix, &options).await,
                 _ => Ok(()),
@@ -97,6 +103,9 @@ async fn route(ix: &Ix) -> Result<()> {
                     _ => ix.autocomplete(Vec::new()).await,
                 },
                 "vehicle" => vehicles::commands::autocomplete(ix, &options).await,
+                "cotisation" => crate::modules::cotisations::commands::autocomplete(ix, &options).await,
+                "coffre" => crate::modules::coffres::commands::autocomplete(ix, &options).await,
+                "contact" => crate::modules::contacts::commands::autocomplete(ix, &options).await,
                 _ => ix.autocomplete(Vec::new()).await,
             }
         }

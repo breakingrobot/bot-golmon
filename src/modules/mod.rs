@@ -1,4 +1,7 @@
 pub mod audit;
+pub mod coffres;
+pub mod contacts;
+pub mod cotisations;
 pub mod phones;
 pub mod presences;
 pub mod recrues;

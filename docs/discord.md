@@ -7,7 +7,8 @@
    s'il fuite, le régénérer.
 3. Toujours dans **Bot**, section *Privileged Gateway Intents* :
    - **Server Members Intent** : toujours ;
-   - **Message Content Intent** : seulement avec le [module ticket](tickets.md).
+   - **Message Content Intent** : avec le [module ticket](tickets.md) ou le module [coffres](modules.md#coffres)
+     (lecture des messages du jeu).
 4. Onglet **OAuth2** : *Client Secret* et redirection du site web, voir
    [Site web → Connexion Discord](site-web.md#2-connexion-discord).
 
