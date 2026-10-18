@@ -28,6 +28,7 @@
     <a href="/stats/{{ id }}/transactions" class="mt-2 inline-block text-sm font-medium text-accent hover:underline">Historique des transactions →</a>
     <a href="/stats/{{ id }}/cotisations" class="mt-2 ml-3 inline-block text-sm font-medium text-accent hover:underline">Cotisations →</a>
     <a href="/stats/{{ id }}/coffres" class="mt-2 ml-3 inline-block text-sm font-medium text-accent hover:underline">Coffres →</a>
+    <a href="/stats/{{ id }}/contacts" class="mt-2 ml-3 inline-block text-sm font-medium text-accent hover:underline">Contacts →</a>
   </div>
   {% endfor %}
   {% for (id, name) in cotisation_guilds %}
@@ -35,6 +36,7 @@
     <h2 class="font-semibold text-ink"><a href="/stats/{{ id }}/cotisations" class="hover:underline">Cotisations · {{ name }}</a></h2>
     <p class="mt-1 text-sm text-ink-muted">Ce que les membres rapportent au groupe, en propre et en sale.</p>
     <a href="/stats/{{ id }}/coffres" class="mt-2 inline-block text-sm font-medium text-accent hover:underline">Coffres →</a>
+    <a href="/stats/{{ id }}/contacts" class="mt-2 ml-3 inline-block text-sm font-medium text-accent hover:underline">Répertoire des contacts →</a>
   </div>
   {% endfor %}
 </div>

@@ -12,6 +12,7 @@ serveurs. Il démarre toujours, même sans module ticket, ne serait-ce que pour 
 | `/stats/<serveur>` | Statistiques d'un serveur | « Gérer le serveur » sur ce serveur |
 | `/stats/<serveur>/cotisations` | [Cotisations](#cotisations) : totaux, classement, détail, export CSV | Gradés et leads (rôles de `/config recrue`), « Gérer le serveur » |
 | `/stats/<serveur>/coffres` | [Coffres](#coffres) : stock, activité par joueur, mouvements, export CSV | Gradés et leads, « Gérer le serveur » |
+| `/stats/<serveur>/contacts` | [Contacts](#contacts) : répertoire filtrable, notes du staff | Gradés et leads (rôles de `/config recrue`), « Gérer le serveur » |
 | `/stats/<serveur>/journal` | [Journal du staff](modules.md#journal-du-staff) | « Gérer le serveur » sur ce serveur |
 | `/stats/<serveur>/transactions` | Historique des transactions, export CSV | « Gérer le serveur » sur ce serveur |
 | `/healthz` | Répond `ok` (health check de la plateforme) | Tout le monde |
@@ -128,6 +129,15 @@ directement au serveur de la personne connectée.
 
 Stock de chaque propriété, activité par personnage (déposé, retiré, membre relié), liste des mouvements
 filtrable par propriété, objet, type, joueur et période (24 h, 7, 30, 90 jours ou tout), export CSV.
+
+### Contacts
+
+![Contacts](images/contacts.png)
+
+Le répertoire des contacts ([module Contacts](modules.md#contacts)) : nombre d'alliés, de neutres et
+d'hostiles ; filtres par relation, par type et recherche dans le nom ou la description. Un clic sur un
+contact déplie sa description et toutes les **notes du staff**, des plus récentes aux plus anciennes.
+`/contacts` mène directement au serveur de la personne connectée.
 
 ## Sécurité
 

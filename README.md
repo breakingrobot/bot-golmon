@@ -13,6 +13,7 @@ forme d'image Docker.
 | **Numéros** | Annuaire téléphonique du serveur. |
 | **Coffres** | Stock et historique des coffres de propriété, lus automatiquement dans les messages du jeu. |
 | **Cotisations** | Ce que les membres rapportent au groupe (argent propre et sale), statistiques pour les gradés et leads. |
+| **Contacts** | Répertoire des groupes, entreprises et contacts du jeu (allié, neutre, hostile), notes réservées au staff. |
 | **Tickets** | Modmail compatible [Dragory/modmailbot](https://github.com/Dragory/modmailbot) : tickets par message privé, boutons de prise en charge et de réponse, fils de forum en option. |
 | **Site web** | Logs des tickets lisibles et recherchables, statistiques du staff et des serveurs, connexion Discord. |
 

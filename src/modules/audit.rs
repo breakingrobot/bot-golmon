@@ -48,10 +48,14 @@ pub enum Action {
     CotisationAddFor,
     CotisationDelete,
     CoffreLink,
+    ContactAdd,
+    ContactUpdate,
+    ContactDelete,
+    ContactNote,
 }
 
 impl Action {
-    pub const ALL: [Self; 21] = [
+    pub const ALL: [Self; 25] = [
         Self::Config,
         Self::PresenceForceVote,
         Self::PresenceCancel,
@@ -73,6 +77,10 @@ impl Action {
         Self::CotisationAddFor,
         Self::CotisationDelete,
         Self::CoffreLink,
+        Self::ContactAdd,
+        Self::ContactUpdate,
+        Self::ContactDelete,
+        Self::ContactNote,
     ];
 
     pub fn code(self) -> &'static str {
@@ -98,6 +106,10 @@ impl Action {
             Self::CotisationAddFor => "cotisation.add",
             Self::CotisationDelete => "cotisation.delete",
             Self::CoffreLink => "coffre.link",
+            Self::ContactAdd => "contact.add",
+            Self::ContactUpdate => "contact.update",
+            Self::ContactDelete => "contact.delete",
+            Self::ContactNote => "contact.note",
         }
     }
 
@@ -128,6 +140,10 @@ impl Action {
             Self::CotisationAddFor => "💰 Cotisation déclarée pour un membre",
             Self::CotisationDelete => "💰 Cotisation supprimée",
             Self::CoffreLink => "📦 Personnage relié à un membre",
+            Self::ContactAdd => "📇 Contact ajouté",
+            Self::ContactUpdate => "📇 Contact modifié",
+            Self::ContactDelete => "📇 Contact supprimé",
+            Self::ContactNote => "📝 Note ajoutée sur un contact",
         }
     }
 }

@@ -35,6 +35,7 @@ impl Layout {
         }
         if !access.officer_guilds.is_empty() {
             nav.push(NavLink { label: "Cotisations", href: "/cotisations", active: current == "/cotisations" });
+            nav.push(NavLink { label: "Contacts", href: "/contacts", active: current == "/contacts" });
         }
         Self {
             title: title.into(),
@@ -123,7 +124,7 @@ struct HomePage {
     logged_in: bool,
     tickets: bool,
     guilds: Vec<(String, String)>,
-    /// Serveurs où le compte voit seulement les cotisations (gradé ou lead).
+    /// Serveurs où le compte voit seulement les cotisations et les contacts (gradé ou lead).
     cotisation_guilds: Vec<(String, String)>,
 }
 

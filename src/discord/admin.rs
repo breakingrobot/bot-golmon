@@ -36,6 +36,7 @@ pub fn config_definition() -> Command {
         .option(phones::commands::config_subcommand())
         .option(crate::modules::cotisations::commands::config_subcommand())
         .option(crate::modules::coffres::commands::config_subcommand())
+        .option(crate::modules::contacts::commands::config_subcommand())
         .option(audit::config_subcommand())
         .build()
 }
@@ -78,6 +79,7 @@ pub async fn handle_config(ix: &Ix, options: &Options) -> Result<()> {
         "journal" => audit::config(ix, options).await,
         "cotisation" => crate::modules::cotisations::commands::config(ix, options, &guild).await,
         "coffre" => crate::modules::coffres::commands::config(ix, options, &guild).await,
+        "contact" => crate::modules::contacts::commands::config(ix, options, &guild).await,
         _ => Ok(()),
     };
     // Sans option, la commande ne fait qu'afficher : rien à journaliser.
