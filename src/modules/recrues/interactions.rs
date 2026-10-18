@@ -1,7 +1,7 @@
 use super::{
-    COLOR, MOTIF_MAX_LENGTH, NAMESPACE, NOT_GRADE, NOT_LEAD, VETO_COLOR, Vote,
+    COLOR, MOTIF_MAX_LENGTH, NAMESPACE, VETO_COLOR, Vote,
     embed::{format_entry_detail, format_tally},
-    is_grade, is_lead, service,
+    service,
 };
 use crate::{
     discord::{
@@ -12,6 +12,7 @@ use crate::{
         members::fetch_display_name,
         messages::parse_id,
     },
+    modules::permissions::{self, Perm},
     util::{
         format::{field, mention},
         ids::{CustomId, encode_custom_id},
@@ -67,7 +68,6 @@ pub async fn select(ix: &Ix, custom_id: &CustomId<'_>, values: &[String]) -> Res
         return Ok(());
     };
     let guild = guild_id.to_string();
-    let config = service::get_config(&ix.ctx.db, &guild).await?;
     let Some((entry, session)) = service::get_entry(&ix.ctx.db, &guild, entry_id).await? else {
         return ix.reply(Reply::ephemeral(ENTRY_GONE)).await;
     };
@@ -82,8 +82,8 @@ pub async fn select(ix: &Ix, custom_id: &CustomId<'_>, values: &[String]) -> Res
 
     match custom_id.action {
         "detail" => {
-            if !is_grade(ix, config.as_ref()) {
-                return ix.reply(Reply::ephemeral(NOT_GRADE)).await;
+            if !permissions::require(ix, Perm::RecrueSuivi).await? {
+                return Ok(());
             }
             let embed = EmbedBuilder::new()
                 .title("Avis détaillés")
@@ -94,8 +94,8 @@ pub async fn select(ix: &Ix, custom_id: &CustomId<'_>, values: &[String]) -> Res
             ix.reply(Reply::embed(embed).hidden()).await
         }
         "vote" => {
-            if !is_grade(ix, config.as_ref()) {
-                return ix.reply(Reply::ephemeral(NOT_GRADE)).await;
+            if !permissions::require(ix, Perm::RecrueAvis).await? {
+                return Ok(());
             }
             if session.closed_at.is_some() {
                 return ix.reply(Reply::ephemeral("Cette semaine d'avis est clôturée.")).await;
@@ -104,8 +104,8 @@ pub async fn select(ix: &Ix, custom_id: &CustomId<'_>, values: &[String]) -> Res
             ix.modal(encode_custom_id(NAMESPACE, "vote-modal", &entry.id, None), title, components).await
         }
         "veto" => {
-            if !is_lead(ix, config.as_ref()) {
-                return ix.reply(Reply::ephemeral(NOT_LEAD)).await;
+            if !permissions::require(ix, Perm::RecrueVeto).await? {
+                return Ok(());
             }
             if let Some(by) = &entry.veto_by_id {
                 return ix
@@ -127,7 +127,6 @@ pub async fn modal(ix: &Ix, action: &str, entry_id: &str, modal: &ModalInteracti
         return Ok(());
     };
     let guild = guild_id.to_string();
-    let config = service::get_config(&ix.ctx.db, &guild).await?;
     let Some((entry, _)) = service::get_entry(&ix.ctx.db, &guild, entry_id).await? else {
         return ix.reply(Reply::ephemeral(ENTRY_GONE)).await;
     };
@@ -139,8 +138,8 @@ pub async fn modal(ix: &Ix, action: &str, entry_id: &str, modal: &ModalInteracti
 
     match action {
         "vote-modal" => {
-            if !is_grade(ix, config.as_ref()) {
-                return ix.reply(Reply::ephemeral(NOT_GRADE)).await;
+            if !permissions::require(ix, Perm::RecrueAvis).await? {
+                return Ok(());
             }
             let Some(vote) = modal_select(modal, "choix").first().and_then(|v| Vote::parse(v)) else {
                 return ix.reply(Reply::ephemeral("Vote invalide.")).await;
@@ -159,8 +158,8 @@ pub async fn modal(ix: &Ix, action: &str, entry_id: &str, modal: &ModalInteracti
             .await
         }
         "veto-modal" => {
-            if !is_lead(ix, config.as_ref()) {
-                return ix.reply(Reply::ephemeral(NOT_LEAD)).await;
+            if !permissions::require(ix, Perm::RecrueVeto).await? {
+                return Ok(());
             }
             service::set_veto(&ix.ctx.db, &entry.id, &ix.user_id().to_string(), &motif).await?;
             ix.defer_update().await?;

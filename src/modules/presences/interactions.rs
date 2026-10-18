@@ -6,6 +6,7 @@ use crate::{
         interaction::{GUILD_ONLY, Ix, Reply},
         messages::{self, Mentions, Outgoing},
     },
+    modules::permissions::{self, Perm},
     util::{
         format::chunk_mentions,
         ids::{CustomId, encode_custom_id},
@@ -56,6 +57,9 @@ pub async fn button(ix: &Ix, custom_id: &CustomId<'_>) -> Result<()> {
             .await
         }
         "ping" => {
+            if !permissions::require(ix, Perm::PresenceCreer).await? {
+                return Ok(());
+            }
             ix.defer(true).await?;
             let ids = service::non_respondent_ids(&ix.ctx, &presence).await?;
             if ids.is_empty() {

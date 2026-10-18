@@ -9,9 +9,10 @@
 <p class="mt-3 max-w-2xl text-ink-muted">
   Connecte-toi avec Discord pour consulter les tickets et les statistiques auxquels tu as accès.
 </p>
-{% else if !tickets && guilds.is_empty() && cotisation_guilds.is_empty() %}
+{% else if !tickets && guilds.is_empty() %}
 <p class="mt-3 max-w-2xl text-ink-muted">
-  Ce compte n'a accès à aucune page : il faut faire partie du staff des tickets, ou avoir « Gérer le serveur ».
+  Ce compte n'a accès à aucune page : il faut faire partie du staff des tickets, ou avoir un rôle qui ouvre une
+  page du site (`/config permission` sur Discord).
 </p>
 {% else %}
 <div class="mt-6 grid gap-4 sm:grid-cols-2">
@@ -21,22 +22,14 @@
     <p class="mt-1 text-sm text-ink-muted">Recherche dans les tickets, logs et statistiques du staff.</p>
   </a>
   {% endif %}
-  {% for (id, name) in guilds %}
+  {% for (name, pages) in guilds %}
   <div class="rounded-card border border-line bg-surface px-5 py-4 hover:border-line-strong">
-    <h2 class="font-semibold text-ink"><a href="/stats/{{ id }}" class="hover:underline">Statistiques · {{ name }}</a></h2>
-    <p class="mt-1 text-sm text-ink-muted">Assiduité aux présences, recrues et tickets.</p>
-    <a href="/stats/{{ id }}/transactions" class="mt-2 inline-block text-sm font-medium text-accent hover:underline">Historique des transactions →</a>
-    <a href="/stats/{{ id }}/cotisations" class="mt-2 ml-3 inline-block text-sm font-medium text-accent hover:underline">Cotisations →</a>
-    <a href="/stats/{{ id }}/coffres" class="mt-2 ml-3 inline-block text-sm font-medium text-accent hover:underline">Coffres →</a>
-    <a href="/stats/{{ id }}/contacts" class="mt-2 ml-3 inline-block text-sm font-medium text-accent hover:underline">Contacts →</a>
-  </div>
-  {% endfor %}
-  {% for (id, name) in cotisation_guilds %}
-  <div class="rounded-card border border-line bg-surface px-5 py-4 hover:border-line-strong">
-    <h2 class="font-semibold text-ink"><a href="/stats/{{ id }}/cotisations" class="hover:underline">Cotisations · {{ name }}</a></h2>
-    <p class="mt-1 text-sm text-ink-muted">Ce que les membres rapportent au groupe, en propre et en sale.</p>
-    <a href="/stats/{{ id }}/coffres" class="mt-2 inline-block text-sm font-medium text-accent hover:underline">Coffres →</a>
-    <a href="/stats/{{ id }}/contacts" class="mt-2 ml-3 inline-block text-sm font-medium text-accent hover:underline">Répertoire des contacts →</a>
+    <h2 class="font-semibold text-ink">{{ name }}</h2>
+    <ul class="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm font-medium">
+      {% for (label, href) in pages %}
+      <li><a href="{{ href }}" class="text-accent hover:underline">{{ label }} →</a></li>
+      {% endfor %}
+    </ul>
   </div>
   {% endfor %}
 </div>

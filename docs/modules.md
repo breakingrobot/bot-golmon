@@ -5,15 +5,74 @@
 | Commande | Pour qui | Contenu |
 |---|---|---|
 | `/config <module>` | « Gérer le serveur » | Réglages de chaque module, **une fois par serveur**. Sans option, affiche la configuration actuelle. |
-| `/gestion …` | « Gérer les messages » | Actions de staff : votes forcés, annulations, planning des présences, blocklist, panneau des absences… |
-| `/presence`, `/absence`, `/transaction`, `/vehicle`, `/recrue`, `/numero`, `/cotisation`, `/contact`, `/coffre` | Tout le monde (`/coffre` : gradés et leads) | Utilisation courante. |
+| `/gestion …` | Selon l'action (gradés par défaut) | Actions de staff : votes forcés, annulations, planning des présences, blocklist, panneau des absences… |
+| `/presence`, `/absence`, `/transaction`, `/vehicle`, `/recrue`, `/numero`, `/cotisation`, `/contact`, `/coffre` | Selon l'action, voir [Permissions](#permissions) | Utilisation courante. |
 | Clic droit → *Applications* | Voir [plus bas](#actions-au-clic-droit) | Raccourcis sur un membre ou un message. |
 
-`/config` et `/gestion` n'apparaissent qu'aux membres qui ont la permission. Pour les ouvrir à un rôle
-précis (ex. les gradés) : *Paramètres du serveur → Intégrations → le bot → la commande*. Les permissions
-restent vérifiées à l'exécution.
+`/config` n'apparaît qu'aux membres ayant « Gérer le serveur ». Les autres commandes sont visibles de tous
+et vérifient le niveau de chaque action à l'exécution ([Permissions](#permissions)).
 
 Les heures saisies sont en **heure de Paris** ; les dates affichées s'adaptent au fuseau de chacun.
+
+## Permissions
+
+Chaque action du bot a un **niveau** : tout le monde, membres du groupe, gradés, leads ou « Gérer le
+serveur ». Les niveaux s'emboîtent : un lead peut tout ce que peut un gradé, qui peut tout ce que peut un
+membre.
+
+| Niveau | Qui |
+|---|---|
+| Membres du groupe | Rôle réglé par `/config permission role_membre:@…`. Sans ce réglage, le niveau ne laisse passer que les gradés et au-dessus. |
+| Gradés | Rôle gradé de `/config recrue`, ou permission Discord « Gérer les messages ». |
+| Leads | Rôle lead de `/config recrue`. |
+| « Gérer le serveur » | Permission Discord. Elle ouvre **toutes** les actions, sauf les actions *strictes*. |
+
+Les actions **strictes** (suivi, avis et vétos des recrues) ne regardent que les rôles : ni « Gérer le
+serveur » ni « Gérer les messages » n'y donnent accès.
+
+```
+/config permission                                         ← affiche tous les niveaux (✏️ = modifié)
+/config permission role_membre:@Membres
+/config permission action:contact.ajouter niveau:Tout le monde
+/config permission action:coffre.voir niveau:Leads
+/config permission action:coffre.voir niveau:Par défaut    ← revient au niveau par défaut
+```
+
+L'action se choisit dans la liste proposée par Discord. Changer un niveau demande « Gérer le serveur ».
+Les pages du site suivent les mêmes réglages (`site.stats`, `cotisation.stats`, `coffre.voir`…).
+
+| Action | Module | Ce qu'elle permet | Par défaut |
+|---|---|---|---|
+| `presence.creer` | Présences | Créer, relancer et clôturer une présence | Tout le monde |
+| `presence.stats` | Présences | Statistiques et historique d'une présence | Tout le monde |
+| `presence.gerer` | Présences | Forcer une réponse, annuler une présence, planning | Gradés |
+| `presence.reset` | Présences | Réinitialiser les statistiques de présence | « Gérer le serveur » |
+| `presence.blocklist` | Présences | Ajouter ou retirer un membre de la blocklist | Gradés |
+| `absence.autrui` | Absences | Absence d'un autre membre, panneau des absences | Gradés |
+| `transaction.utiliser` | Transactions | Créer, compléter, changer le statut, annuler | Tout le monde |
+| `transaction.supprimer` | Transactions | Supprimer définitivement une transaction | Gradés |
+| `transaction.historique` | Transactions | Historique et export sur le site | « Gérer le serveur » |
+| `vehicule.utiliser` | Véhicules | Enregistrer, consulter, modifier, retirer un véhicule | Tout le monde |
+| `numero.ajouter_autrui` | Numéros | Enregistrer le numéro d'un autre membre | « Gérer le serveur » |
+| `numero.supprimer_autrui` | Numéros | Supprimer le numéro d'un autre membre | Gradés |
+| `recrue.suivi` | Recrues | Liste, détail et historique des avis, ajout et retrait, salon d'essai *(stricte)* | Gradés |
+| `recrue.avis` | Recrues | Donner un avis sur une recrue *(stricte)* | Gradés |
+| `recrue.veto` | Recrues | Poser ou lever un véto *(stricte)* | Leads |
+| `recrue.reset` | Recrues | Forcer une nouvelle semaine d'avis | « Gérer le serveur » |
+| `cotisation.ajouter` | Cotisations | Déclarer ses cotisations | Tout le monde |
+| `cotisation.gerer` | Cotisations | Cotisations des autres : déclarer, consulter, supprimer | Gradés |
+| `cotisation.stats` | Cotisations | Statistiques (Discord et site) | Gradés |
+| `coffre.voir` | Coffres | Stock et historique (Discord et site) | Gradés |
+| `coffre.gerer` | Coffres | Relier un personnage, nommer une propriété | Gradés |
+| `contact.voir` | Contacts | Consulter le répertoire | Tout le monde |
+| `contact.ajouter` | Contacts | Ajouter un contact | Membres du groupe |
+| `contact.modifier` | Contacts | Modifier ou supprimer un contact | Gradés |
+| `contact.notes` | Contacts | Lire et écrire les notes du staff (Discord et site) | Gradés |
+| `site.stats` | Site | Statistiques du serveur sur le site | « Gérer le serveur » |
+| `site.journal` | Site | Journal du staff sur le site | « Gérer le serveur » |
+
+Déclarer ses propres absences, répondre aux présences, enregistrer ou supprimer son propre numéro et
+supprimer ses propres cotisations restent ouverts à tous.
 
 ## Présences
 
@@ -83,7 +142,7 @@ plannings, `deplanifier` en supprime un (les présences déjà publiées restent
 
 Une date couvre la journée entière. Le rôle d'absence est posé dès le début de la période et retiré à la
 fin (ou à la fin de la dernière absence si plusieurs se chevauchent). Les présences ouvertes de la
-période passent en **Absent**. Déclarer ou clore l'absence d'un autre membre demande **Gérer les messages**.
+période passent en **Absent**. Déclarer ou clore l'absence d'un autre membre : `absence.autrui` (gradés par défaut).
 
 - `/absence end [membre]` termine l'absence en cours, ou **annule** la prochaine si elle n'a pas commencé.
 - `/absence list` liste les absences en cours.
@@ -146,7 +205,7 @@ normalisées : `d6cs 3p0g` = `D6CS3P0G`.
 - Recevoir le rôle recrue crée un salon `essai-<pseudo>` visible par la recrue, les gradés et les leads.
   Perdre le rôle retire de la liste mais conserve le salon.
 - `/recrue liste`, `avis`, `ajouter`, `retirer`, `salon`, `historique` (gradés) ; `veto poser` / `veto lever`
-  (leads uniquement : « Gérer le serveur » ne donne **pas** le véto) ; `/gestion recrue reset` force une nouvelle semaine.
+  (`recrue.veto`, leads par défaut : « Gérer le serveur » ne donne **pas** le véto) ; `/gestion recrue reset` force une nouvelle semaine.
 
 ## Numéros
 
@@ -156,7 +215,7 @@ normalisées : `d6cs 3p0g` = `D6CS3P0G`.
 
 Annuaire permanent avec boutons « Ajouter / modifier mon numéro » et « Retirer mon numéro ». Format :
 `555` + 4 à 6 chiffres (`555-1234` accepté). Un numéro par membre, unique sur le serveur.
-`/numero ajouter numero [membre]` (pour un autre membre : **Gérer le serveur**), `voir`, `supprimer`, `liste`.
+`/numero ajouter numero [membre]` (pour un autre membre : `numero.ajouter_autrui`, « Gérer le serveur » par défaut), `voir`, `supprimer`, `liste`.
 
 ## Cotisations
 
@@ -170,7 +229,7 @@ Ce que chaque membre rapporte au groupe, en argent **propre** et/ou **sale**.
 |---|---|---|
 | `ajouter` | Tout le monde | Déclare une cotisation : description obligatoire, au moins un montant (propre et/ou sale), date du jour par défaut (pas dans le futur). Déclarer pour un autre membre : gradés et leads. |
 | `historique [membre] [jours]` | Tout le monde (soi) ; gradés et leads (les autres) | Dernières cotisations et totaux propre / sale. |
-| `stats [jours] [membre]` | Gradés, leads, « Gérer le serveur » | Totaux du groupe sur toute la période ou les N derniers jours, et classement des membres. |
+| `stats [jours] [membre]` | Gradés (`cotisation.stats`) | Totaux du groupe sur toute la période ou les N derniers jours, et classement des membres. |
 | `supprimer` | L'auteur, ou gradés et leads | Supprime une cotisation saisie par erreur (journalisé). |
 
 Les gradés et leads sont ceux des rôles configurés avec `/config recrue`. `/config cotisation salon:#…`
@@ -203,7 +262,7 @@ jamais compté deux fois.
 | `/coffre lier id_jeu membre` | Relie un personnage du jeu à un membre Discord (journalisé). |
 | `/coffre nommer propriete nom` | Nom lisible d'une propriété. |
 
-Réservé aux gradés, leads et « Gérer le serveur ». Le stock est calculé à partir des mouvements lus depuis
+Réservé aux gradés par défaut (`coffre.voir`, `coffre.gerer`). Le stock est calculé à partir des mouvements lus depuis
 le début du suivi : un objet déjà présent avant peut apparaître en négatif après un retrait.
 
 Sur le site : `/stats/<serveur>/coffres`, voir [Site web](site-web.md#coffres).
@@ -212,7 +271,8 @@ Sur le site : `/stats/<serveur>/coffres`, voir [Site web](site-web.md#coffres).
 
 Répertoire des autres groupes, entreprises et personnes du jeu, avec leur relation au groupe :
 🟢 **allié**, ⚪ **neutre** ou 🔴 **hostile**. Chaque contact a une description publique et, en option, un
-téléphone ; les gradés et leads y ajoutent des **notes réservées au staff**.
+téléphone. Les membres du groupe ajoutent des contacts ; les gradés et leads les modifient et y ajoutent
+des **notes réservées au staff**.
 
 ```
 /contact ajouter nom:"Garage Benny's" type:Entreprise relation:Allié [telephone:555-0142] [description:…]
@@ -222,10 +282,10 @@ téléphone ; les gradés et leads y ajoutent des **notes réservées au staff**
 |---|---|---|
 | `voir contact` | Tout le monde | Fiche du contact (type, relation, téléphone, description), en privé. Les gradés et leads y voient aussi les 10 dernières notes du staff (auteur et date). |
 | `liste [relation] [type]` | Tout le monde | Tous les contacts, groupés par relation, en privé. |
-| `ajouter nom type relation [telephone] [description]` | Gradés, leads, « Gérer le serveur » | Ajoute un contact. Nom unique sur le serveur (sans tenir compte des majuscules), 80 caractères au plus ; description 500 au plus. |
-| `modifier contact [nom] [type] [relation] [telephone] [description]` | Gradés, leads, « Gérer le serveur » | Change les champs indiqués ; `-` efface le téléphone ou la description. |
-| `supprimer contact` | Gradés, leads, « Gérer le serveur » | Supprime le contact et toutes ses notes. |
-| `note contact texte` | Gradés, leads, « Gérer le serveur » | Ajoute une note du staff (1000 caractères au plus), jamais montrée aux autres membres. |
+| `ajouter nom type relation [telephone] [description]` | Membres du groupe (`contact.ajouter`) | Ajoute un contact. Nom unique sur le serveur (sans tenir compte des majuscules), 80 caractères au plus ; description 500 au plus. |
+| `modifier contact [nom] [type] [relation] [telephone] [description]` | Gradés (`contact.modifier`) | Change les champs indiqués ; `-` efface le téléphone ou la description. |
+| `supprimer contact` | Gradés (`contact.modifier`) | Supprime le contact et toutes ses notes. |
+| `note contact texte` | Gradés (`contact.notes`) | Ajoute une note du staff (1000 caractères au plus), jamais montrée aux autres membres. |
 
 Le contact se choisit dans la liste proposée par Discord (le nom exact fonctionne aussi). Ajouts,
 modifications (avec l'ancienne et la nouvelle relation), suppressions et notes sont inscrits au
@@ -245,7 +305,7 @@ autre membre**, transactions supprimées, recrues ajoutées ou retirées, vétos
 autre membre, cotisations déclarées pour un autre membre ou supprimées, contacts ajoutés, modifiés ou
 supprimés et notes du staff sur les contacts.
 
-- Sur le site : `/stats/<serveur>/journal`, filtrable par action (« Gérer le serveur »).
+- Sur le site : `/stats/<serveur>/journal`, filtrable par action (`site.journal`, « Gérer le serveur » par défaut).
 - Sur Discord, en option : `/config journal salon:#journal-staff` publie chaque action dans ce salon
   (mentions affichées, jamais notifiées). `/config journal desactiver:true` arrête la publication.
 
@@ -256,13 +316,13 @@ Clic droit sur un membre ou un message → **Applications** :
 | Action | Sur | Effet | Visible par défaut |
 |---|---|---|---|
 | Présences du membre | Membre | Sa fiche de présence (comme `/presence stats joueur`) | Tout le monde |
-| Ajouter aux recrues | Membre | L'ajoute aux recrues de la semaine et crée son salon d'essai | « Gérer les messages » (gradés via *Intégrations*) |
+| Ajouter aux recrues | Membre | L'ajoute aux recrues de la semaine et crée son salon d'essai | `recrue.suivi` (gradés par défaut) |
 | Ouvrir un ticket | Membre | Ouvre un ticket avec lui (comme `!newthread`) | « Gérer les messages » ; module ticket requis |
 | Signaler au staff | Message | Transmet le message (texte, auteur, lien) dans le ticket de la personne qui signale, ouvert au besoin | Tout le monde ; module ticket requis |
 
 ## Statistiques sur le site
 
-Les membres ayant **Gérer le serveur** retrouvent sur le site du bot (`/stats`, après
+Les membres ayant `site.stats` (« Gérer le serveur » par défaut) retrouvent sur le site du bot (`/stats`, après
 [connexion Discord](site-web.md#2-connexion-discord)) : assiduité de chaque membre aux présences, absences
 en cours, recrues de la semaine avec leurs avis et vétos, transactions en cours, véhicules, et l'activité des
 tickets si le module est configuré.

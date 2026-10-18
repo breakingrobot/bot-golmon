@@ -11,7 +11,7 @@ use crate::{
     },
     modules::{
         audit::{self, Action, Entry},
-        cotisations::is_officer,
+        permissions::{self, Perm},
     },
     util::{
         format::{DESCRIPTION_LIMIT, truncate},
@@ -31,7 +31,6 @@ use twilight_util::builder::command::{
     BooleanBuilder, ChannelBuilder, CommandBuilder, IntegerBuilder, StringBuilder, SubCommandBuilder, UserBuilder,
 };
 
-const NOT_OFFICER: &str = "Réservé aux gradés et leads (ou « Gérer le serveur »).";
 const COLOR: u32 = 0xe67e22;
 
 fn property_option(required: bool) -> StringBuilder {
@@ -40,21 +39,21 @@ fn property_option(required: bool) -> StringBuilder {
 
 pub fn definition() -> Command {
     CommandBuilder::new("coffre", "Coffres des propriétés (lus dans les messages du jeu)", CommandType::ChatInput)
-        .option(SubCommandBuilder::new("stock", "Stock d'un coffre (gradés et leads)").option(property_option(false)))
+        .option(SubCommandBuilder::new("stock", "Stock d'un coffre").option(property_option(false)))
         .option(
-            SubCommandBuilder::new("historique", "Derniers dépôts et retraits (gradés et leads)")
+            SubCommandBuilder::new("historique", "Derniers dépôts et retraits")
                 .option(property_option(false))
                 .option(UserBuilder::new("membre", "Mouvements d'un membre (personnages reliés)"))
                 .option(StringBuilder::new("objet", "Un seul objet").autocomplete(true))
                 .option(IntegerBuilder::new("jours", "Les N derniers jours").min_value(1).max_value(3650)),
         )
         .option(
-            SubCommandBuilder::new("lier", "Relie un personnage du jeu à un membre (gradés et leads)")
+            SubCommandBuilder::new("lier", "Relie un personnage du jeu à un membre")
                 .option(StringBuilder::new("id_jeu", "Identifiant du personnage, ex : 340772").required(true))
                 .option(UserBuilder::new("membre", "Membre Discord").required(true)),
         )
         .option(
-            SubCommandBuilder::new("nommer", "Donne un nom lisible à une propriété (gradés et leads)")
+            SubCommandBuilder::new("nommer", "Donne un nom lisible à une propriété")
                 .option(property_option(true))
                 .option(StringBuilder::new("nom", "Nom affiché, ex : Planque du port").required(true).max_length(80)),
         )
@@ -120,8 +119,9 @@ pub async fn handle(ix: &Ix, options: &Options) -> Result<()> {
     let Some(guild_id) = ix.guild_id() else {
         return ix.reply(Reply::ephemeral(GUILD_ONLY)).await;
     };
-    if !is_officer(ix).await? {
-        return ix.reply(Reply::ephemeral(NOT_OFFICER)).await;
+    let perm = if matches!(options.sub(), "lier" | "nommer") { Perm::CoffreGerer } else { Perm::CoffreVoir };
+    if !permissions::require(ix, perm).await? {
+        return Ok(());
     }
     match options.sub() {
         "stock" => stock(ix, options, guild_id).await,
@@ -271,6 +271,9 @@ pub async fn autocomplete(ix: &Ix, options: &Options) -> Result<()> {
     let Some(guild_id) = ix.guild_id() else {
         return ix.autocomplete(Vec::new()).await;
     };
+    if !permissions::can(ix, Perm::CoffreVoir).await? {
+        return ix.autocomplete(Vec::new()).await;
+    }
     let guild = guild_id.to_string();
     let Some((name, typed)) = options.focused.clone() else {
         return ix.autocomplete(Vec::new()).await;

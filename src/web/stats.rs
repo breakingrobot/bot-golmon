@@ -1,5 +1,5 @@
 //! Statistiques d'un serveur : assiduité aux présences, recrues de la semaine,
-//! activité des modules. Réservé à « Gérer le serveur ».
+//! activité des modules. Accès : `site.stats`.
 
 use super::{
     MaybeViewer,
@@ -8,6 +8,7 @@ use super::{
 use crate::{
     context::{Context, Ctx},
     discord::members,
+    modules::permissions::Perm,
     modules::{presences, recrues},
 };
 use anyhow::Result;
@@ -45,8 +46,9 @@ struct Recruit {
 #[template(path = "stats.html")]
 struct StatsPage {
     layout: Layout,
-    guild_id: String,
     guild_name: String,
+    /// Autres pages du serveur ouvertes à la personne (libellé, adresse).
+    links: Vec<(&'static str, String)>,
     figures: Vec<Figure>,
     attendance: Vec<Attendance>,
     recruits: Vec<Recruit>,
@@ -58,7 +60,7 @@ pub async fn index(State(ctx): State<Context>, viewer: MaybeViewer, uri: Uri) ->
         Ok(found) => found,
         Err(response) => return *response,
     };
-    match access.guilds.as_slice() {
+    match access.guilds_with(Perm::SiteStats).as_slice() {
         [] => pages::forbidden(&ctx, &viewer, &access),
         [(id, _)] => Redirect::to(&format!("/stats/{id}")).into_response(),
         _ => Redirect::to("/").into_response(),
@@ -73,15 +75,15 @@ pub async fn guild(State(ctx): State<Context>, viewer: MaybeViewer, uri: Uri, Pa
     let Some(guild_id) = Id::<GuildMarker>::new_checked(guild_id) else {
         return pages::not_found().await;
     };
-    if !access.can_view_guild(guild_id) {
+    if !access.can(guild_id, Perm::SiteStats) {
         return pages::forbidden(&ctx, &viewer, &access);
     }
-    let guild_name = access.guilds.iter().find(|(id, _)| *id == guild_id).map(|(_, n)| n.clone()).unwrap_or_default();
+    let guild_name = access.guild_name(guild_id);
     match build(&ctx, guild_id).await {
         Ok((figures, attendance, recruits, tickets)) => pages::render(&StatsPage {
             layout: Layout::new(&ctx, format!("Statistiques · {guild_name}"), Some(&viewer), &access, "/stats"),
-            guild_id: guild_id.to_string(),
             guild_name,
+            links: access.pages(guild_id).into_iter().filter(|(label, _)| *label != "Statistiques").collect(),
             figures,
             attendance,
             recruits,
@@ -202,8 +204,11 @@ mod tests {
     fn renders_stats_page() {
         let page = StatsPage {
             layout: Layout::bare("Statistiques"),
-            guild_id: "123".into(),
             guild_name: "Serveur RP".into(),
+            links: vec![
+                ("Transactions", "/stats/123/transactions".into()),
+                ("Journal du staff", "/stats/123/journal".into()),
+            ],
             figures: vec![
                 Figure {
                     label: "Présences clôturées",

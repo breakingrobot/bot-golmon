@@ -106,6 +106,9 @@ async fn route(ix: &Ix) -> Result<()> {
                 "cotisation" => crate::modules::cotisations::commands::autocomplete(ix, &options).await,
                 "coffre" => crate::modules::coffres::commands::autocomplete(ix, &options).await,
                 "contact" => crate::modules::contacts::commands::autocomplete(ix, &options).await,
+                "config" if options.sub() == "permission" => {
+                    crate::modules::permissions::commands::autocomplete(ix, &options).await
+                }
                 _ => ix.autocomplete(Vec::new()).await,
             }
         }

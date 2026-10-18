@@ -16,7 +16,10 @@ pub mod pages;
 mod stats;
 mod transactions;
 
-use crate::context::{Context, Ctx};
+use crate::{
+    context::{Context, Ctx},
+    modules::permissions::{Grants, Holder, Perm},
+};
 use axum::{
     Router,
     http::{HeaderValue, header},
@@ -38,16 +41,30 @@ pub const JS: &str = include_str!("../../web/src/app.js");
 pub const ASSET_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 /// Ce que la personne connectée peut consulter.
-#[derive(Clone, Debug, Default)]
+#[derive(Default)]
 pub struct Access {
     /// Staff des tickets (`inboxServerPermission` sur le serveur inbox).
     pub tickets: bool,
-    /// Serveurs dont elle peut voir les statistiques (« Gérer le serveur »).
-    pub guilds: Vec<(Id<GuildMarker>, String)>,
-    /// Serveurs dont elle peut voir les cotisations et les contacts : « Gérer le serveur », ou
-    /// rôle gradé / lead du module recrues.
-    pub officer_guilds: Vec<(Id<GuildMarker>, String)>,
+    /// Serveurs dont elle est membre, avec ses droits (`/config permission`).
+    pub guilds: Vec<GuildAccess>,
 }
+
+pub struct GuildAccess {
+    pub id: Id<GuildMarker>,
+    pub name: String,
+    grants: Grants,
+}
+
+/// Pages d'un serveur, dans l'ordre d'affichage : permission, libellé, chemin
+/// sous `/stats/<serveur>`.
+const GUILD_PAGES: [(Perm, &str, &str); 6] = [
+    (Perm::SiteStats, "Statistiques", ""),
+    (Perm::TransactionHistorique, "Transactions", "/transactions"),
+    (Perm::CotisationStats, "Cotisations", "/cotisations"),
+    (Perm::CoffreVoir, "Coffres", "/coffres"),
+    (Perm::ContactNotes, "Contacts", "/contacts"),
+    (Perm::Journal, "Journal du staff", "/journal"),
+];
 
 impl Access {
     pub async fn of(ctx: &Ctx, user_id: Id<UserMarker>) -> Self {
@@ -63,39 +80,47 @@ impl Access {
             let Some(roles) = member_roles(ctx, guild_id, user_id).await else {
                 continue;
             };
-            let name =
-                || ctx.cache.guild(guild_id).map(|g| g.name().to_owned()).unwrap_or_else(|| guild_id.to_string());
-            let manager = member_permissions(ctx, guild_id, user_id, &roles).contains(Permissions::MANAGE_GUILD);
-            if manager {
-                access.guilds.push((guild_id, name()));
-            }
-            if manager || is_officer(ctx, guild_id, &roles).await {
-                access.officer_guilds.push((guild_id, name()));
-            }
+            let permissions = member_permissions(ctx, guild_id, user_id, &roles);
+            let holder = Holder {
+                roles: roles.iter().map(ToString::to_string).collect(),
+                manage_guild: permissions.contains(Permissions::MANAGE_GUILD),
+                manage_messages: permissions.contains(Permissions::MANAGE_MESSAGES),
+            };
+            let grants = match Grants::load(&ctx.db, guild_id, holder).await {
+                Ok(grants) => grants,
+                Err(error) => {
+                    tracing::warn!(?error, %guild_id, "droits du site");
+                    continue;
+                }
+            };
+            let name = ctx.cache.guild(guild_id).map(|g| g.name().to_owned()).unwrap_or_else(|| guild_id.to_string());
+            access.guilds.push(GuildAccess { id: guild_id, name, grants });
         }
-        access.guilds.sort_by(|a, b| a.1.cmp(&b.1));
-        access.officer_guilds.sort_by(|a, b| a.1.cmp(&b.1));
+        access.guilds.sort_by(|a, b| a.name.cmp(&b.name));
         access
     }
 
-    pub fn can_view_guild(&self, guild_id: Id<GuildMarker>) -> bool {
-        self.guilds.iter().any(|(id, _)| *id == guild_id)
+    pub fn can(&self, guild_id: Id<GuildMarker>, perm: Perm) -> bool {
+        self.guilds.iter().any(|g| g.id == guild_id && g.grants.can(perm))
     }
 
-    pub fn is_officer_of(&self, guild_id: Id<GuildMarker>) -> bool {
-        self.officer_guilds.iter().any(|(id, _)| *id == guild_id)
+    pub fn guild_name(&self, guild_id: Id<GuildMarker>) -> String {
+        self.guilds.iter().find(|g| g.id == guild_id).map(|g| g.name.clone()).unwrap_or_else(|| guild_id.to_string())
     }
-}
 
-/// Rôle gradé ou lead configuré dans le module recrues.
-async fn is_officer(ctx: &Ctx, guild_id: Id<GuildMarker>, roles: &[Id<RoleMarker>]) -> bool {
-    let Ok(Some(config)) = crate::modules::recrues::service::get_config(&ctx.db, &guild_id.to_string()).await else {
-        return false;
-    };
-    [config.grade_role_id, config.lead_role_id]
-        .iter()
-        .flatten()
-        .any(|role| roles.iter().any(|r| r.to_string() == *role))
+    /// Serveurs où la personne a `perm`.
+    pub fn guilds_with(&self, perm: Perm) -> Vec<(Id<GuildMarker>, String)> {
+        self.guilds.iter().filter(|g| g.grants.can(perm)).map(|g| (g.id, g.name.clone())).collect()
+    }
+
+    /// Pages du serveur ouvertes à la personne : (libellé, adresse).
+    pub fn pages(&self, guild_id: Id<GuildMarker>) -> Vec<(&'static str, String)> {
+        GUILD_PAGES
+            .iter()
+            .filter(|(perm, _, _)| self.can(guild_id, *perm))
+            .map(|(_, label, path)| (*label, format!("/stats/{guild_id}{path}")))
+            .collect()
+    }
 }
 
 /// Rôles d'un membre : cache, sinon API. `None` si la personne n'est pas membre.

@@ -1,4 +1,4 @@
-//! Journal des actions du staff d'un serveur (« Gérer le serveur »).
+//! Journal des actions du staff d'un serveur (accès : `site.journal`).
 
 use super::{
     MaybeViewer, markdown,
@@ -8,6 +8,7 @@ use crate::{
     context::Context,
     discord::members,
     modules::audit::{self, Action},
+    modules::permissions::Perm,
 };
 use askama::Template;
 use axum::{
@@ -71,10 +72,10 @@ pub async fn page(
     let Some(guild_id) = Id::<GuildMarker>::new_checked(guild_id) else {
         return pages::not_found().await;
     };
-    if !access.can_view_guild(guild_id) {
+    if !access.can(guild_id, Perm::Journal) {
         return pages::forbidden(&ctx, &viewer, &access);
     }
-    let guild_name = access.guilds.iter().find(|(id, _)| *id == guild_id).map(|(_, n)| n.clone()).unwrap_or_default();
+    let guild_name = access.guild_name(guild_id);
 
     let action = query.action.as_deref().and_then(Action::from_code);
     let page = query.page.unwrap_or(1).max(1);

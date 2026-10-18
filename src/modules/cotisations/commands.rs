@@ -1,5 +1,5 @@
 use super::{
-    is_officer, money,
+    money,
     service::{self, Filter, NewCotisation, Totals},
 };
 use crate::{
@@ -10,7 +10,10 @@ use crate::{
         messages::{self, Outgoing, parse_id},
         options::Options,
     },
-    modules::audit::{self, Action, Entry},
+    modules::{
+        audit::{self, Action, Entry},
+        permissions::{self, Perm},
+    },
     util::{
         format::{DESCRIPTION_LIMIT, field, truncate, truncate_field},
         time::{DbTime, format_day_label, parse_event_date, today_label},
@@ -28,7 +31,6 @@ use twilight_util::builder::command::{
     BooleanBuilder, ChannelBuilder, CommandBuilder, IntegerBuilder, StringBuilder, SubCommandBuilder, UserBuilder,
 };
 
-const NOT_OFFICER: &str = "Réservé aux gradés et leads (ou « Gérer le serveur »).";
 const COLOR: u32 = 0x2ecc71;
 
 pub fn definition() -> Command {
@@ -47,7 +49,7 @@ pub fn definition() -> Command {
                 .option(IntegerBuilder::new("jours", "Seulement les N derniers jours").min_value(1).max_value(3650)),
         )
         .option(
-            SubCommandBuilder::new("stats", "Statistiques du groupe (gradés et leads)")
+            SubCommandBuilder::new("stats", "Statistiques du groupe")
                 .option(
                     IntegerBuilder::new("jours", "Les N derniers jours (défaut : depuis le début)")
                         .min_value(1)
@@ -122,8 +124,9 @@ fn amounts(propre: i64, sale: i64) -> String {
 async fn add(ix: &Ix, options: &Options, guild_id: Id<GuildMarker>) -> Result<()> {
     let target = options.user("membre").unwrap_or(ix.user_id());
     let for_someone_else = target != ix.user_id();
-    if for_someone_else && !is_officer(ix).await? {
-        return ix.reply(Reply::ephemeral(NOT_OFFICER)).await;
+    let perm = if for_someone_else { Perm::CotisationGerer } else { Perm::CotisationAjouter };
+    if !permissions::require(ix, perm).await? {
+        return Ok(());
     }
     let propre = options.integer("propre").unwrap_or(0);
     let sale = options.integer("sale").unwrap_or(0);
@@ -220,8 +223,8 @@ fn totals_fields(embed: EmbedBuilder, totals: &Totals) -> EmbedBuilder {
 
 async fn history(ix: &Ix, options: &Options, guild_id: Id<GuildMarker>) -> Result<()> {
     let target = options.user("membre").unwrap_or(ix.user_id());
-    if target != ix.user_id() && !is_officer(ix).await? {
-        return ix.reply(Reply::ephemeral(NOT_OFFICER)).await;
+    if target != ix.user_id() && !permissions::require(ix, Perm::CotisationGerer).await? {
+        return Ok(());
     }
     let days = options.integer("jours");
     let guild = guild_id.to_string();
@@ -254,8 +257,8 @@ async fn history(ix: &Ix, options: &Options, guild_id: Id<GuildMarker>) -> Resul
 }
 
 async fn stats(ix: &Ix, options: &Options, guild_id: Id<GuildMarker>) -> Result<()> {
-    if !is_officer(ix).await? {
-        return ix.reply(Reply::ephemeral(NOT_OFFICER)).await;
+    if !permissions::require(ix, Perm::CotisationStats).await? {
+        return Ok(());
     }
     let days = options.integer("jours");
     let guild = guild_id.to_string();
@@ -307,7 +310,7 @@ async fn remove(ix: &Ix, options: &Options, guild_id: Id<GuildMarker>) -> Result
         return ix.reply(Reply::ephemeral("Cotisation introuvable.")).await;
     };
     let own = cotisation.created_by_id == ix.user_id().to_string() || cotisation.user_id == ix.user_id().to_string();
-    let officer = is_officer(ix).await?;
+    let officer = permissions::can(ix, Perm::CotisationGerer).await?;
     if !own && !officer {
         return ix.reply(Reply::ephemeral("Tu ne peux supprimer que tes propres cotisations.")).await;
     }
@@ -338,8 +341,9 @@ pub async fn autocomplete(ix: &Ix, options: &Options) -> Result<()> {
     let Some(guild_id) = ix.guild_id() else {
         return ix.autocomplete(Vec::new()).await;
     };
-    // Les officiers voient toutes les cotisations récentes, les membres les leurs.
-    let user_id = if is_officer(ix).await? { None } else { Some(ix.user_id().to_string()) };
+    // Les gradés voient toutes les cotisations récentes, les membres les leurs.
+    let user_id =
+        if permissions::can(ix, Perm::CotisationGerer).await? { None } else { Some(ix.user_id().to_string()) };
     let query = options.focused.as_ref().map(|(_, v)| v.to_lowercase()).unwrap_or_default();
     let rows =
         service::list(&ix.ctx.db, &guild_id.to_string(), &Filter { user_id, ..Default::default() }, 100, 0).await?;

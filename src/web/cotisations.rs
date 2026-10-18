@@ -1,5 +1,5 @@
 //! Cotisations d'un serveur : totaux propre / sale, classement des membres,
-//! détail et export CSV. Accès : gradés, leads et « Gérer le serveur ».
+//! détail et export CSV. Accès : `cotisation.stats`.
 
 use super::{
     Access, MaybeViewer, Viewer,
@@ -13,6 +13,7 @@ use crate::{
         money,
         service::{self, Cotisation, Filter, Totals},
     },
+    modules::permissions::Perm,
     util::time::{DbTime, format_day_label},
 };
 use askama::Template;
@@ -159,20 +160,20 @@ async fn authorize(
     let Some(guild_id) = Id::<GuildMarker>::new_checked(guild_id) else {
         return Err(Box::new(pages::not_found().await));
     };
-    if !access.is_officer_of(guild_id) {
+    if !access.can(guild_id, Perm::CotisationStats) {
         return Err(Box::new(pages::forbidden(ctx, &viewer, &access)));
     }
-    let name = access.officer_guilds.iter().find(|(id, _)| *id == guild_id).map(|(_, n)| n.clone()).unwrap_or_default();
+    let name = access.guild_name(guild_id);
     Ok((viewer, access, guild_id, name))
 }
 
-/// `/cotisations` : le serveur de l'officier, ou l'accueil s'il en a plusieurs.
+/// `/cotisations` : le serveur de la personne, ou l'accueil s'il en a plusieurs.
 pub async fn index(State(ctx): State<Context>, viewer: MaybeViewer, uri: Uri) -> Response {
     let (viewer, access) = match pages::require_viewer(&ctx, viewer, uri.path()).await {
         Ok(found) => found,
         Err(response) => return *response,
     };
-    match access.officer_guilds.as_slice() {
+    match access.guilds_with(Perm::CotisationStats).as_slice() {
         [] => pages::forbidden(&ctx, &viewer, &access),
         [(id, _)] => Redirect::to(&format!("/stats/{id}/cotisations")).into_response(),
         _ => Redirect::to("/").into_response(),

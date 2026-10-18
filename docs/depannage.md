@@ -5,7 +5,8 @@
 | « DISCORD_TOKEN manquant » ou erreur 401 | Token absent ou régénéré : mettre à jour `DISCORD_TOKEN`. |
 | `Disallowed intents` au démarrage | Intent privilégié non activé ([Discord](discord.md#application-et-token)). |
 | Les slash commands n'apparaissent pas | Invitation sans `applications.commands`, ou `DISCORD_GUILD_IDS` vide (jusqu'à une heure). Recharger Discord (Ctrl+R). |
-| `/config` ou `/gestion` invisible | Normal sans « Gérer le serveur » / « Gérer les messages ». Pour l'ouvrir à un rôle : *Paramètres du serveur → Intégrations*. |
+| `/config` invisible | Normal sans « Gérer le serveur ». Les autres commandes sont visibles de tous ; qui peut faire quoi se règle avec `/config permission`. |
+| « … est réservé aux gradés et leads » | Niveau de l'action (`/config permission` sans option pour tout voir). Vérifier aussi les rôles gradé / lead de `/config recrue` et le rôle membre de `/config permission`. |
 | Le bot quitte un serveur dès qu'il le rejoint | Serveur absent de `DISCORD_GUILD_IDS`. |
 | « Rôle d'absence non appliqué » | « Gérer les rôles » manquante, ou rôle d'absence au-dessus de celui du bot. |
 | Effectif ou ping des présences vide | *Server Members Intent* désactivé. |
@@ -16,7 +17,7 @@
 | Le site ne répond pas, ou health check en échec | Port `8890` non exposé en HTTP, ou `PORT`/`port` modifié sans adapter le port Northflank. Vérifier `serveur web démarré` dans les logs. |
 | « Connexion non configurée » sur le site | `DISCORD_CLIENT_SECRET` ou `WEB_URL` manquant. |
 | Discord affiche « redirect_uri invalide » | Redirection `<WEB_URL>/auth/callback` absente du portail (OAuth2 → Redirects), ou `WEB_URL` différent de l'adresse réelle. |
-| « Accès refusé » après connexion | Compte hors du staff des tickets (`inboxServerPermission`) ou sans « Gérer le serveur ». |
+| « Accès refusé » après connexion | Compte hors du staff des tickets (`inboxServerPermission`), ou sans le niveau de la page (`/config permission`). |
 | Boutons du ticket sans effet | Membre hors du staff, ou ticket déjà fermé. |
 | Tickets en forum : « Missing Permissions » | Le bot n'a pas *Gérer les fils* / *Envoyer des messages dans les fils* sur le forum. |
 | `config.ini` ignoré dans Docker | Le fichier doit être sur le volume et indiqué par `MODMAIL_CONFIG=/app/data/config.ini`. |

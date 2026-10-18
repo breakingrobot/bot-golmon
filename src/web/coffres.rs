@@ -1,5 +1,5 @@
 //! Coffres d'un serveur : stock par propriété, activité par joueur, mouvements
-//! filtrables et export CSV. Accès : gradés, leads et « Gérer le serveur ».
+//! filtrables et export CSV. Accès : `coffre.voir`.
 
 use super::{
     Access, MaybeViewer, Viewer,
@@ -14,6 +14,7 @@ use crate::{
         parser::{Kind, item_label},
         service::{self, Filter, MovementRow},
     },
+    modules::permissions::Perm,
     util::time::{DbTime, format_date_label},
 };
 use askama::Template;
@@ -182,10 +183,10 @@ async fn authorize(
     let Some(guild_id) = Id::<GuildMarker>::new_checked(guild_id) else {
         return Err(Box::new(pages::not_found().await));
     };
-    if !access.is_officer_of(guild_id) {
+    if !access.can(guild_id, Perm::CoffreVoir) {
         return Err(Box::new(pages::forbidden(ctx, &viewer, &access)));
     }
-    let name = access.officer_guilds.iter().find(|(id, _)| *id == guild_id).map(|(_, n)| n.clone()).unwrap_or_default();
+    let name = access.guild_name(guild_id);
     Ok((viewer, access, guild_id, name))
 }
 

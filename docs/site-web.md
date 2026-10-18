@@ -9,16 +9,20 @@ serveurs. Il démarre toujours, même sans module ticket, ne serait-ce que pour 
 | `/logs` | Liste et recherche des tickets | Staff des tickets |
 | `/logs/<id>` | Log d'un ticket | Staff des tickets (ou lien seul, voir plus bas) |
 | `/logs/staff` | Statistiques du staff sur 30 jours | Staff des tickets |
-| `/stats/<serveur>` | Statistiques d'un serveur | « Gérer le serveur » sur ce serveur |
-| `/stats/<serveur>/cotisations` | [Cotisations](#cotisations) : totaux, classement, détail, export CSV | Gradés et leads (rôles de `/config recrue`), « Gérer le serveur » |
-| `/stats/<serveur>/coffres` | [Coffres](#coffres) : stock, activité par joueur, mouvements, export CSV | Gradés et leads, « Gérer le serveur » |
-| `/stats/<serveur>/contacts` | [Contacts](#contacts) : répertoire filtrable, notes du staff | Gradés et leads (rôles de `/config recrue`), « Gérer le serveur » |
-| `/stats/<serveur>/journal` | [Journal du staff](modules.md#journal-du-staff) | « Gérer le serveur » sur ce serveur |
-| `/stats/<serveur>/transactions` | Historique des transactions, export CSV | « Gérer le serveur » sur ce serveur |
+| `/stats/<serveur>` | Statistiques d'un serveur | `site.stats` (« Gérer le serveur » par défaut) |
+| `/stats/<serveur>/cotisations` | [Cotisations](#cotisations) : totaux, classement, détail, export CSV | `cotisation.stats` (gradés par défaut) |
+| `/stats/<serveur>/coffres` | [Coffres](#coffres) : stock, activité par joueur, mouvements, export CSV | `coffre.voir` (gradés par défaut) |
+| `/stats/<serveur>/contacts` | [Contacts](#contacts) : répertoire filtrable, notes du staff | `contact.notes` (gradés par défaut) |
+| `/stats/<serveur>/journal` | [Journal du staff](modules.md#journal-du-staff) | `site.journal` (« Gérer le serveur » par défaut) |
+| `/stats/<serveur>/transactions` | Historique des transactions, export CSV | `transaction.historique` (« Gérer le serveur » par défaut) |
 | `/healthz` | Répond `ok` (health check de la plateforme) | Tout le monde |
 
 Le **staff des tickets** est défini par l'option `inboxServerPermission` sur le serveur inbox
 ([options](tickets-options.md)), comme pour les commandes `!r`, `!close`…
+
+Les pages d'un serveur suivent les niveaux réglés sur Discord avec `/config permission`
+([Permissions](modules.md#permissions)) : ouvrir `coffre.voir` aux membres du groupe leur ouvre aussi la
+page des coffres.
 
 ## Mise en place
 

@@ -26,8 +26,8 @@ pub fn definitions(with_tickets: bool) -> Vec<Command> {
         |name: &str, kind: CommandType| CommandBuilder::new(name, "", kind).contexts([InteractionContextType::Guild]);
     let mut commands = vec![
         menu(MEMBER_PRESENCES, CommandType::User).build(),
-        // Visible par défaut du staff ; les gradés peuvent être ajoutés dans *Paramètres → Intégrations*.
-        menu(ADD_RECRUE, CommandType::User).default_member_permissions(Permissions::MANAGE_MESSAGES).build(),
+        // Visible de tous ; réservé au niveau de `recrue.suivi` (`/config permission`).
+        menu(ADD_RECRUE, CommandType::User).build(),
     ];
     if with_tickets {
         commands.push(

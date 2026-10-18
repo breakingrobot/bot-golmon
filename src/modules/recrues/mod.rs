@@ -10,9 +10,6 @@ pub mod interactions;
 pub mod reminder;
 pub mod service;
 
-use crate::discord::interaction::Ix;
-use service::RecrueConfig;
-
 pub const NAMESPACE: &str = "recrue";
 pub const COLOR: u32 = 0x5865f2;
 pub const VETO_COLOR: u32 = 0xed4245;
@@ -60,24 +57,4 @@ impl Vote {
             Self::Blanc => "⬜",
         }
     }
-}
-
-pub const NOT_GRADE: &str = "Seuls les membres ayant le rôle gradé (ou lead) peuvent donner un avis sur les recrues.";
-pub const NOT_LEAD: &str = "Seuls les membres ayant le rôle lead peuvent poser ou lever un véto.";
-
-/// Contrôle d'accès strictement basé sur les rôles configurés. Volontairement,
-/// « Gérer le serveur » n'ouvre aucun droit ici : un administrateur n'est pas
-/// un lead. Cette permission ne sert qu'à `/config recrue` et `/gestion recrue reset`.
-fn has_role(ix: &Ix, role_id: Option<&String>) -> bool {
-    role_id.is_some_and(|role| ix.member_roles().iter().any(|r| r.to_string() == *role))
-}
-
-/// Le véto est réservé au rôle lead configuré.
-pub fn is_lead(ix: &Ix, config: Option<&RecrueConfig>) -> bool {
-    has_role(ix, config.and_then(|c| c.lead_role_id.as_ref()))
-}
-
-/// Un lead peut tout ce qu'un gradé peut faire, et dispose en plus du véto.
-pub fn is_grade(ix: &Ix, config: Option<&RecrueConfig>) -> bool {
-    has_role(ix, config.and_then(|c| c.grade_role_id.as_ref())) || is_lead(ix, config)
 }

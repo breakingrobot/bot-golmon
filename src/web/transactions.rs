@@ -1,5 +1,5 @@
 //! Historique des transactions d'un serveur : filtres, totaux par mois, détail
-//! des objets et export CSV. Même accès que les statistiques (« Gérer le serveur »).
+//! des objets et export CSV. Accès : `transaction.historique`.
 
 use super::{
     MaybeViewer, Viewer,
@@ -9,6 +9,7 @@ use super::{
 use crate::{
     context::{Context, Ctx},
     discord::members,
+    modules::permissions::Perm,
     modules::{
         like_contains,
         transactions::model::{Status, TYPE_CHOICES, TransactionItem, type_label},
@@ -451,10 +452,10 @@ async fn authorize(
     let Some(guild_id) = Id::<GuildMarker>::new_checked(guild_id) else {
         return Err(Box::new(pages::not_found().await));
     };
-    if !access.can_view_guild(guild_id) {
+    if !access.can(guild_id, Perm::TransactionHistorique) {
         return Err(Box::new(pages::forbidden(ctx, &viewer, &access)));
     }
-    let name = access.guilds.iter().find(|(id, _)| *id == guild_id).map(|(_, n)| n.clone()).unwrap_or_default();
+    let name = access.guild_name(guild_id);
     Ok((viewer, access, guild_id, name))
 }
 

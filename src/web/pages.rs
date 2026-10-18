@@ -2,6 +2,7 @@
 
 use super::{ASSET_VERSION, Access, MaybeViewer, Viewer, auth};
 use crate::context::{Context, Ctx};
+use crate::modules::permissions::Perm;
 use askama::Template;
 use axum::{
     extract::State,
@@ -30,12 +31,15 @@ impl Layout {
         if access.tickets {
             nav.push(NavLink { label: "Tickets", href: "/logs", active: current == "/logs" });
         }
-        if !access.guilds.is_empty() {
-            nav.push(NavLink { label: "Statistiques", href: "/stats", active: current == "/stats" });
-        }
-        if !access.officer_guilds.is_empty() {
-            nav.push(NavLink { label: "Cotisations", href: "/cotisations", active: current == "/cotisations" });
-            nav.push(NavLink { label: "Contacts", href: "/contacts", active: current == "/contacts" });
+        let links = [
+            (Perm::SiteStats, "Statistiques", "/stats"),
+            (Perm::CotisationStats, "Cotisations", "/cotisations"),
+            (Perm::ContactNotes, "Contacts", "/contacts"),
+        ];
+        for (perm, label, href) in links {
+            if !access.guilds_with(perm).is_empty() {
+                nav.push(NavLink { label, href, active: current == href });
+            }
         }
         Self {
             title: title.into(),
@@ -108,7 +112,7 @@ pub fn forbidden(ctx: &Ctx, viewer: &Viewer, access: &Access) -> Response {
         layout: Layout::new(ctx, "Accès refusé", Some(viewer), access, ""),
         heading: "Accès refusé".to_owned(),
         text: format!(
-            "Connecté en tant que {}, mais ce compte n'a pas accès à cette page. Il faut faire partie du staff des tickets, ou avoir « Gérer le serveur » pour les statistiques.",
+            "Connecté en tant que {}, mais ce compte n'a pas accès à cette page. Il faut faire partie du staff des tickets, ou avoir le niveau requis par `/config permission` sur Discord.",
             viewer.name
         ),
         action: Some(("/logout".to_owned(), "Changer de compte")),
@@ -123,9 +127,8 @@ struct HomePage {
     login_enabled: bool,
     logged_in: bool,
     tickets: bool,
-    guilds: Vec<(String, String)>,
-    /// Serveurs où le compte voit seulement les cotisations et les contacts (gradé ou lead).
-    cotisation_guilds: Vec<(String, String)>,
+    /// Serveurs où le compte a au moins une page : nom et pages (libellé, adresse).
+    guilds: Vec<(String, Vec<(&'static str, String)>)>,
 }
 
 pub async fn home(State(ctx): State<Context>, viewer: MaybeViewer, uri: Uri) -> Response {
@@ -138,12 +141,11 @@ pub async fn home(State(ctx): State<Context>, viewer: MaybeViewer, uri: Uri) -> 
         login_enabled: auth::enabled(&ctx),
         logged_in: viewer.0.is_some(),
         tickets: access.tickets,
-        guilds: access.guilds.iter().map(|(id, name)| (id.to_string(), name.clone())).collect(),
-        cotisation_guilds: access
-            .officer_guilds
+        guilds: access
+            .guilds
             .iter()
-            .filter(|(id, _)| !access.can_view_guild(*id))
-            .map(|(id, name)| (id.to_string(), name.clone()))
+            .map(|g| (g.name.clone(), access.pages(g.id)))
+            .filter(|(_, pages)| !pages.is_empty())
             .collect(),
     };
     render(&page)
