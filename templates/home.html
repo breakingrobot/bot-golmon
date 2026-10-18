@@ -27,13 +27,15 @@
     <p class="mt-1 text-sm text-ink-muted">Assiduité aux présences, recrues et tickets.</p>
     <a href="/stats/{{ id }}/transactions" class="mt-2 inline-block text-sm font-medium text-accent hover:underline">Historique des transactions →</a>
     <a href="/stats/{{ id }}/cotisations" class="mt-2 ml-3 inline-block text-sm font-medium text-accent hover:underline">Cotisations →</a>
+    <a href="/stats/{{ id }}/coffres" class="mt-2 ml-3 inline-block text-sm font-medium text-accent hover:underline">Coffres →</a>
   </div>
   {% endfor %}
   {% for (id, name) in cotisation_guilds %}
-  <a href="/stats/{{ id }}/cotisations" class="rounded-card border border-line bg-surface px-5 py-4 hover:border-line-strong">
-    <h2 class="font-semibold text-ink">Cotisations · {{ name }}</h2>
+  <div class="rounded-card border border-line bg-surface px-5 py-4 hover:border-line-strong">
+    <h2 class="font-semibold text-ink"><a href="/stats/{{ id }}/cotisations" class="hover:underline">Cotisations · {{ name }}</a></h2>
     <p class="mt-1 text-sm text-ink-muted">Ce que les membres rapportent au groupe, en propre et en sale.</p>
-  </a>
+    <a href="/stats/{{ id }}/coffres" class="mt-2 inline-block text-sm font-medium text-accent hover:underline">Coffres →</a>
+  </div>
   {% endfor %}
 </div>
 {% endif %}

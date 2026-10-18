@@ -17,6 +17,7 @@ use tokio::sync::watch;
 use twilight_cache_inmemory::{DefaultInMemoryCache, ResourceType};
 use twilight_gateway::Config as GatewayConfig;
 use twilight_http::Client as HttpClient;
+use twilight_model::oauth::ApplicationFlags;
 
 /// Un bot Discord attend surtout le réseau : deux threads de travail suffisent,
 /// quel que soit le nombre de cœurs de la machine hôte (chaque thread coûte sa
@@ -76,6 +77,11 @@ async fn run() -> Result<()> {
         bot_user_id: bot_user.id,
         bot_username: bot_user.name.clone(),
         vehicles: modules::vehicles::api::VehicleApi::new(),
+        message_content: application.flags.is_some_and(|flags| {
+            flags.intersects(
+                ApplicationFlags::GATEWAY_MESSAGE_CONTENT | ApplicationFlags::GATEWAY_MESSAGE_CONTENT_LIMITED,
+            )
+        }),
         modmail,
         shard_senders: OnceLock::new(),
     });

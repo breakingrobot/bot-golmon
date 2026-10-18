@@ -47,10 +47,11 @@ pub enum Action {
     PhoneRemovedFor,
     CotisationAddFor,
     CotisationDelete,
+    CoffreLink,
 }
 
 impl Action {
-    pub const ALL: [Self; 20] = [
+    pub const ALL: [Self; 21] = [
         Self::Config,
         Self::PresenceForceVote,
         Self::PresenceCancel,
@@ -71,6 +72,7 @@ impl Action {
         Self::PhoneRemovedFor,
         Self::CotisationAddFor,
         Self::CotisationDelete,
+        Self::CoffreLink,
     ];
 
     pub fn code(self) -> &'static str {
@@ -95,6 +97,7 @@ impl Action {
             Self::PhoneRemovedFor => "numero.remove",
             Self::CotisationAddFor => "cotisation.add",
             Self::CotisationDelete => "cotisation.delete",
+            Self::CoffreLink => "coffre.link",
         }
     }
 
@@ -124,6 +127,7 @@ impl Action {
             Self::PhoneRemovedFor => "📞 Numéro supprimé pour un membre",
             Self::CotisationAddFor => "💰 Cotisation déclarée pour un membre",
             Self::CotisationDelete => "💰 Cotisation supprimée",
+            Self::CoffreLink => "📦 Personnage relié à un membre",
         }
     }
 }

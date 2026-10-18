@@ -14,7 +14,12 @@ use twilight_model::id::{Id, marker::RoleMarker};
 /// des membres ; le flux des messages (serveurs, privés, contenu, réactions…)
 /// n'est demandé que si le module ticket est configuré.
 pub fn intents(ctx: &Context) -> Intents {
-    let base = Intents::GUILDS | Intents::GUILD_MEMBERS;
+    let mut base = Intents::GUILDS | Intents::GUILD_MEMBERS;
+    // Module coffre : messages des serveurs et leur contenu, seulement si l'intent
+    // privilégié est activé sur l'application (sinon Discord refuserait la connexion).
+    if ctx.message_content {
+        base |= Intents::GUILD_MESSAGES | Intents::MESSAGE_CONTENT;
+    }
     match &ctx.modmail {
         Some(modmail) => base | modmail.intents(),
         None => base,
@@ -40,6 +45,7 @@ pub fn wanted_events(ctx: &Context) -> EventTypeFlags {
         | EventTypeFlags::MEMBER_CHUNK
         | EventTypeFlags::INTERACTION_CREATE
         | EventTypeFlags::USER_UPDATE;
+    let base = if ctx.message_content { base | EventTypeFlags::MESSAGE_CREATE } else { base };
     match &ctx.modmail {
         Some(_) => {
             base | EventTypeFlags::MESSAGE_CREATE
@@ -117,6 +123,9 @@ async fn handle(ctx: Context, event: Event, previous_roles: Option<Vec<Id<RoleMa
                 return;
             }
             members::request_all_members(&ctx, guild_id);
+            if ctx.message_content {
+                modules::coffres::ingest::catch_up_guild(&ctx, &guild_id.to_string()).await;
+            }
         }
         Event::InteractionCreate(interaction) => commands::dispatch(ctx, interaction.0).await,
         Event::MemberUpdate(update) => {
@@ -128,6 +137,11 @@ async fn handle(ctx: Context, event: Event, previous_roles: Option<Vec<Id<RoleMa
             }
         }
         other => {
+            if let Event::MessageCreate(message) = &other
+                && message.guild_id.is_some()
+            {
+                modules::coffres::ingest::on_message(&ctx, &message.0).await;
+            }
             if let Some(modmail) = &ctx.modmail {
                 modmail.on_event(&ctx, &other).await;
             }

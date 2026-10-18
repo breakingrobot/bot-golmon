@@ -6,7 +6,7 @@
 |---|---|---|
 | `/config <module>` | « Gérer le serveur » | Réglages de chaque module, **une fois par serveur**. Sans option, affiche la configuration actuelle. |
 | `/gestion …` | « Gérer les messages » | Actions de staff : votes forcés, annulations, planning des présences, blocklist, panneau des absences… |
-| `/presence`, `/absence`, `/transaction`, `/vehicle`, `/recrue`, `/numero`, `/cotisation` | Tout le monde | Utilisation courante. |
+| `/presence`, `/absence`, `/transaction`, `/vehicle`, `/recrue`, `/numero`, `/cotisation`, `/coffre` | Tout le monde (`/coffre` : gradés et leads) | Utilisation courante. |
 | Clic droit → *Applications* | Voir [plus bas](#actions-au-clic-droit) | Raccourcis sur un membre ou un message. |
 
 `/config` et `/gestion` n'apparaissent qu'aux membres qui ont la permission. Pour les ouvrir à un rôle
@@ -177,6 +177,36 @@ Les gradés et leads sont ceux des rôles configurés avec `/config recrue`. `/c
 annonce chaque nouvelle cotisation dans un salon ; `sans_annonce:true` arrête les annonces.
 
 Sur le site : `/cotisations` (ou `/stats/<serveur>/cotisations`), voir [Site web](site-web.md#cotisations).
+
+## Coffres
+
+Le jeu publie chaque dépôt et retrait des coffres de propriété dans un salon Discord (webhook
+« Coffre propriété » : personnage, propriété, objet, quantité, type, heure). Le bot lit ces messages et en
+déduit le **stock** de chaque coffre et l'**historique** de chaque joueur.
+
+**Mise en place**
+
+1. Activer *Message Content Intent* dans le portail Discord (onglet **Bot**), puis redémarrer le bot : sans
+   lui, Discord ne transmet pas le contenu des encadrés.
+2. `/config coffre salon:#logs-coffre` : le salon est suivi, et son historique récent (jusqu'à 5 000
+   messages) est importé tout de suite. Plusieurs salons possibles ; `retirer:true` arrête le suivi.
+3. Facultatif : `/coffre nommer propriete:8740 nom:"Planque du port"` et
+   `/coffre lier id_jeu:340772 membre:@…` (le numéro entre parenthèses après le nom du personnage).
+
+Les messages publiés pendant que le bot était arrêté sont rattrapés à son redémarrage ; un message n'est
+jamais compté deux fois.
+
+| Commande | Effet |
+|---|---|
+| `/coffre stock [propriete]` | Stock par propriété et par objet. |
+| `/coffre historique [propriete] [membre] [objet] [jours]` | Derniers dépôts et retraits (par membre : ses personnages reliés). |
+| `/coffre lier id_jeu membre` | Relie un personnage du jeu à un membre Discord (journalisé). |
+| `/coffre nommer propriete nom` | Nom lisible d'une propriété. |
+
+Réservé aux gradés, leads et « Gérer le serveur ». Le stock est calculé à partir des mouvements lus depuis
+le début du suivi : un objet déjà présent avant peut apparaître en négatif après un retrait.
+
+Sur le site : `/stats/<serveur>/coffres`, voir [Site web](site-web.md#coffres).
 
 ## Journal du staff
 

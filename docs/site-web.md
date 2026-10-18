@@ -11,6 +11,7 @@ serveurs. Il démarre toujours, même sans module ticket, ne serait-ce que pour 
 | `/logs/staff` | Statistiques du staff sur 30 jours | Staff des tickets |
 | `/stats/<serveur>` | Statistiques d'un serveur | « Gérer le serveur » sur ce serveur |
 | `/stats/<serveur>/cotisations` | [Cotisations](#cotisations) : totaux, classement, détail, export CSV | Gradés et leads (rôles de `/config recrue`), « Gérer le serveur » |
+| `/stats/<serveur>/coffres` | [Coffres](#coffres) : stock, activité par joueur, mouvements, export CSV | Gradés et leads, « Gérer le serveur » |
 | `/stats/<serveur>/journal` | [Journal du staff](modules.md#journal-du-staff) | « Gérer le serveur » sur ce serveur |
 | `/stats/<serveur>/transactions` | Historique des transactions, export CSV | « Gérer le serveur » sur ce serveur |
 | `/healthz` | Répond `ok` (health check de la plateforme) | Tout le monde |
@@ -120,6 +121,13 @@ Périodes 7 jours, 30 jours, 90 jours, 1 an ou tout ; totaux en argent propre, s
 classement des membres avec leur part ; clic sur un membre pour ne voir que ses cotisations ; détail des
 cotisations (avec qui les a déclarées pour un autre) ; export CSV pour Excel. `/cotisations` mène
 directement au serveur de la personne connectée.
+
+### Coffres
+
+![Coffres](images/coffres.png)
+
+Stock de chaque propriété, activité par personnage (déposé, retiré, membre relié), liste des mouvements
+filtrable par propriété, objet, type, joueur et période (24 h, 7, 30, 90 jours ou tout), export CSV.
 
 ## Sécurité
 

@@ -7,6 +7,7 @@
 //! par leur lien non devinable, comme dans modmailbot.
 
 pub mod auth;
+mod coffres;
 mod cotisations;
 mod journal;
 pub mod markdown;
@@ -178,6 +179,8 @@ pub fn spawn(ctx: Context) {
         .route("/cotisations", get(cotisations::index))
         .route("/stats/{guild_id}/cotisations", get(cotisations::page))
         .route("/stats/{guild_id}/cotisations.csv", get(cotisations::export))
+        .route("/stats/{guild_id}/coffres", get(coffres::page))
+        .route("/stats/{guild_id}/coffres.csv", get(coffres::export))
         .route("/stats/{guild_id}/transactions", get(transactions::history))
         .route("/stats/{guild_id}/transactions.csv", get(transactions::export))
         .route("/assets/app.css", get(|| async { asset("text/css; charset=UTF-8", CSS) }))
