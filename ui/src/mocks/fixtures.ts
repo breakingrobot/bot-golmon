@@ -201,14 +201,14 @@ export const ACTIONS: ActionDef[] = [
     key: 'presence.creer',
     module: 'Présences',
     label: 'Créer, relancer et clôturer une présence',
-    defaultLevel: 'tous',
+    defaultLevel: 'membre',
     strict: false,
   },
   {
     key: 'presence.stats',
     module: 'Présences',
     label: "Statistiques et historique d'une présence",
-    defaultLevel: 'tous',
+    defaultLevel: 'membre',
     strict: false,
   },
   {
@@ -243,7 +243,7 @@ export const ACTIONS: ActionDef[] = [
     key: 'transaction.utiliser',
     module: 'Transactions',
     label: 'Créer, compléter, changer le statut, annuler',
-    defaultLevel: 'tous',
+    defaultLevel: 'membre',
     strict: false,
   },
   {
@@ -264,7 +264,7 @@ export const ACTIONS: ActionDef[] = [
     key: 'vehicule.utiliser',
     module: 'Véhicules',
     label: 'Enregistrer, consulter, modifier, retirer un véhicule',
-    defaultLevel: 'tous',
+    defaultLevel: 'membre',
     strict: false,
   },
   {
@@ -307,7 +307,7 @@ export const ACTIONS: ActionDef[] = [
     key: 'cotisation.ajouter',
     module: 'Cotisations',
     label: 'Déclarer ses cotisations',
-    defaultLevel: 'tous',
+    defaultLevel: 'membre',
     strict: false,
   },
   {
@@ -338,7 +338,7 @@ export const ACTIONS: ActionDef[] = [
     defaultLevel: 'grade',
     strict: false,
   },
-  { key: 'contact.voir', module: 'Contacts', label: 'Consulter le répertoire', defaultLevel: 'tous', strict: false },
+  { key: 'contact.voir', module: 'Contacts', label: 'Consulter le répertoire', defaultLevel: 'membre', strict: false },
   { key: 'contact.ajouter', module: 'Contacts', label: 'Ajouter un contact', defaultLevel: 'membre', strict: false },
   {
     key: 'contact.modifier',

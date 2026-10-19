@@ -164,6 +164,13 @@ function memberIndex(id: string): number {
   return MEMBERS.findIndex((item) => item.id === id)
 }
 
+/** Les recrues de la maquette n'ont pas le rôle membre : rien n'est enregistré pour elles. */
+function requireMemberRole(person: MemberRef) {
+  if (memberIndex(person.id) >= 14) {
+    throw new HttpError(422, `${person.name} n'a pas le rôle membre : rien n'est enregistré pour cette personne.`)
+  }
+}
+
 function today(): string {
   return parisDay(NOW)
 }
@@ -407,6 +414,7 @@ function addCotisation(body: NewCotisation): CotisationEntry {
   const date = body.date ?? today()
   if (date > today()) throw new HttpError(422, 'La date ne peut pas être dans le futur.')
   const target = body.memberId ? memberById(body.memberId) : ME
+  requireMemberRole(target)
   const entry: CotisationEntry = {
     id: nextId(),
     date,
@@ -838,7 +846,7 @@ route('PUT', `${G}/coffres/properties/:id`, (m, _p, body) => {
 route('PUT', `${G}/coffres/players/:id`, (m, _p, body) => {
   requireGuild(at(m, 1), 'coffre.gerer')
   const memberId = String((body as { memberId?: unknown }).memberId ?? '')
-  memberById(memberId)
+  requireMemberRole(memberById(memberId))
   LINKS.set(at(m, 2), memberId)
   return { gameId: at(m, 2), memberId }
 })

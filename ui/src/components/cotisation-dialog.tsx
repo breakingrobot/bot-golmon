@@ -3,6 +3,7 @@
 import { Plus } from 'lucide-react'
 import { useState, type FormEvent } from 'react'
 
+import { errorMessage } from '@/api/client'
 import { useAddCotisation } from '@/api/queries'
 import type { MemberRef, NewCotisation } from '@/api/types'
 import { Field } from '@/components/form'
@@ -59,6 +60,7 @@ export function AddCotisationDialog({
     setDescription('')
     setDate(todayParis())
     setErrors({})
+    mutation.reset()
   }
 
   const submit = (event: FormEvent) => {
@@ -192,6 +194,12 @@ export function AddCotisationDialog({
               />
             )}
           </Field>
+          {/* Refus du serveur (par exemple : la personne n'a pas le rôle membre), en plus de la notification. */}
+          {mutation.isError && (
+            <p role="alert" className="rounded-md border border-danger/40 bg-danger-soft px-3 py-2 text-sm text-danger">
+              {errorMessage(mutation.error)}
+            </p>
+          )}
           <DialogFooter className="items-center">
             {total > 0 && <span className="mr-auto text-sm text-ink-muted">Total : {formatMoney(total)}</span>}
             <Button type="button" variant="outline" onClick={() => setOpen(false)}>

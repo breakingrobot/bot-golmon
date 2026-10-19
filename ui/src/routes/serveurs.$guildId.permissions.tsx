@@ -18,8 +18,7 @@ import { cn, roleColor } from '@/lib/utils'
 export const Route = createFileRoute('/serveurs/$guildId/permissions')({ component: PermissionsPage })
 
 const LEVELS: { value: Level; label: string; description: string }[] = [
-  { value: 'tous', label: 'Tout le monde', description: 'Toute personne du serveur' },
-  { value: 'membre', label: 'Membres', description: 'Rôle membre et au-dessus' },
+  { value: 'membre', label: 'Membres du groupe', description: 'Rôle membre (obligatoire pour tout le reste)' },
   { value: 'grade', label: 'Gradés', description: 'Rôle gradé et au-dessus' },
   { value: 'lead', label: 'Lead', description: 'Rôle lead et « Gérer le serveur »' },
   { value: 'admin', label: 'Administrateurs', description: '« Gérer le serveur » seulement' },

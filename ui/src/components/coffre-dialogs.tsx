@@ -3,6 +3,7 @@
 import { Link2, Pencil, Unlink } from 'lucide-react'
 import { useState, type FormEvent } from 'react'
 
+import { errorMessage } from '@/api/client'
 import { useLinkPlayer, useRenameProperty, useUnlinkPlayer } from '@/api/queries'
 import type { MemberRef } from '@/api/types'
 import { Field } from '@/components/form'
@@ -113,7 +114,11 @@ export function LinkCharacterDialog({
       setError('Choisissez le membre Discord.')
       return
     }
-    mutation.mutate({ gameId, memberId: member.id }, { onSuccess: () => setOpen(false) })
+    // Refus du serveur (personne sans le rôle membre…) affiché sous le champ, en plus de la notification.
+    mutation.mutate(
+      { gameId, memberId: member.id },
+      { onSuccess: () => setOpen(false), onError: (failure) => setError(errorMessage(failure)) },
+    )
   }
   return (
     <Dialog
@@ -122,6 +127,7 @@ export function LinkCharacterDialog({
         setOpen(next)
         setMember(current)
         setError(null)
+        mutation.reset()
       }}
     >
       <DialogTrigger asChild>
