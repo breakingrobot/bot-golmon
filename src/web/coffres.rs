@@ -30,6 +30,9 @@ use twilight_model::id::{Id, marker::GuildMarker};
 
 const PAGE_SIZE: i64 = 50;
 const CSV_LIMIT: i64 = 20_000;
+/// Période affichée sans choix explicite.
+const DEFAULT_DAYS: i64 = 30;
+
 const PERIODS: [(Option<i64>, &str); 5] =
     [(Some(1), "24 h"), (Some(7), "7 jours"), (Some(30), "30 jours"), (Some(90), "90 jours"), (None, "Tout")];
 
@@ -65,7 +68,12 @@ impl CoffreQuery {
             item: clean(self.objet.as_ref()),
             player: clean(self.joueur.as_ref()).filter(|p| p.bytes().all(|b| b.is_ascii_digit())),
             kind: self.kind.as_deref().and_then(Kind::parse),
-            days: self.jours.as_deref().and_then(|d| d.parse().ok()).filter(|d| (1..=3650).contains(d)),
+            // 30 jours par défaut : l'historique complet (« tout ») est à demander.
+            days: match self.jours.as_deref() {
+                None => Some(DEFAULT_DAYS),
+                Some("tout") => None,
+                Some(d) => Some(d.parse().ok().filter(|d| (1..=3650).contains(d)).unwrap_or(DEFAULT_DAYS)),
+            },
             page: self.page.as_deref().and_then(|p| p.parse().ok()).unwrap_or(1).max(1),
         }
     }
@@ -97,8 +105,10 @@ impl Parsed {
         if let Some(kind) = self.kind {
             parts.push(format!("type={}", kind.as_str().to_lowercase()));
         }
-        if let Some(days) = self.days {
-            parts.push(format!("jours={days}"));
+        match self.days {
+            Some(DEFAULT_DAYS) => {}
+            Some(days) => parts.push(format!("jours={days}")),
+            None => parts.push("jours=tout".to_owned()),
         }
         if let Some(page) = page.filter(|p| *p > 1) {
             parts.push(format!("page={page}"));
@@ -321,7 +331,7 @@ pub async fn page(
         items,
         kinds,
         player_name,
-        days: parsed.days.map(|d| d.to_string()).unwrap_or_default(),
+        days: parsed.days.map_or_else(|| "tout".to_owned(), |d| d.to_string()),
         periods,
         stock,
         players,

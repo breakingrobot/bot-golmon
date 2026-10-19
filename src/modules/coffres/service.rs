@@ -5,35 +5,80 @@ use crate::util::time::DbTime;
 use anyhow::Result;
 use sqlx::{FromRow, SqlitePool};
 
-/// Enregistre un mouvement ; `false` s'il était déjà connu (message relu).
-pub async fn insert(
+/// Mouvement à enregistrer : identifiant « message:rang », contenu, date.
+pub struct NewMovement {
+    pub id: String,
+    pub movement: Movement,
+    pub at: DbTime,
+}
+
+/// Enregistre des mouvements d'un salon en une transaction, met le stock à jour
+/// et avance le dernier message lu. Renvoie le nombre de nouveaux (un message
+/// relu n'est jamais compté deux fois).
+pub async fn insert_all(
     db: &SqlitePool,
-    id: &str,
     guild_id: &str,
     channel_id: &str,
-    movement: &Movement,
-    at: DbTime,
-) -> Result<bool> {
-    let result = sqlx::query(
-        r#"INSERT OR IGNORE INTO "CoffreMovement"
-           ("id", "guildId", "source", "propertyId", "chest", "item", "amount", "kind", "playerName", "playerGameId", "at", "channelId")
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"#,
-    )
-    .bind(id)
-    .bind(guild_id)
-    .bind(&movement.source)
-    .bind(&movement.property_id)
-    .bind(movement.chest)
-    .bind(&movement.item)
-    .bind(movement.amount)
-    .bind(movement.kind.as_str())
-    .bind(&movement.player_name)
-    .bind(&movement.player_game_id)
-    .bind(at)
-    .bind(channel_id)
-    .execute(db)
-    .await?;
-    Ok(result.rows_affected() > 0)
+    movements: &[NewMovement],
+    last_message_id: Option<u64>,
+) -> Result<usize> {
+    let mut tx = db.begin().await?;
+    let mut added = 0;
+    for new in movements {
+        let movement = &new.movement;
+        let result = sqlx::query(
+            r#"INSERT OR IGNORE INTO "CoffreMovement"
+               ("id", "guildId", "source", "propertyId", "chest", "item", "amount", "kind", "playerName", "playerGameId", "at", "channelId")
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"#,
+        )
+        .bind(&new.id)
+        .bind(guild_id)
+        .bind(&movement.source)
+        .bind(&movement.property_id)
+        .bind(movement.chest)
+        .bind(&movement.item)
+        .bind(movement.amount)
+        .bind(movement.kind.as_str())
+        .bind(&movement.player_name)
+        .bind(&movement.player_game_id)
+        .bind(new.at)
+        .bind(channel_id)
+        .execute(&mut *tx)
+        .await?;
+        if result.rows_affected() == 0 {
+            continue;
+        }
+        added += 1;
+        let (deposited, withdrawn) = match movement.kind {
+            Kind::Deposit => (movement.amount, 0),
+            Kind::Withdraw => (0, movement.amount),
+        };
+        sqlx::query(
+            r#"INSERT INTO "CoffreStock" ("guildId", "propertyId", "item", "deposited", "withdrawn") VALUES (?, ?, ?, ?, ?)
+               ON CONFLICT ("guildId", "propertyId", "item") DO UPDATE SET
+                 "deposited" = "deposited" + excluded."deposited", "withdrawn" = "withdrawn" + excluded."withdrawn""#,
+        )
+        .bind(guild_id)
+        .bind(&movement.property_id)
+        .bind(&movement.item)
+        .bind(deposited)
+        .bind(withdrawn)
+        .execute(&mut *tx)
+        .await?;
+    }
+    if let Some(message_id) = last_message_id {
+        sqlx::query(
+            r#"UPDATE "CoffreChannel" SET "lastMessageId" = ?2
+               WHERE "channelId" = ?1 AND ("lastMessageId" IS NULL OR CAST("lastMessageId" AS INTEGER) < ?3)"#,
+        )
+        .bind(channel_id)
+        .bind(message_id.to_string())
+        .bind(message_id as i64)
+        .execute(&mut *tx)
+        .await?;
+    }
+    tx.commit().await?;
+    Ok(added)
 }
 
 #[derive(Clone, Debug, FromRow)]
@@ -143,18 +188,18 @@ impl StockLine {
 
 /// Stock par propriété et par objet, d'après les mouvements enregistrés.
 pub async fn stock(db: &SqlitePool, guild_id: &str, property_id: Option<&str>) -> Result<Vec<StockLine>> {
-    let rows: Vec<(String, String, i64, i64)> = sqlx::query_as(
-        r#"SELECT "propertyId", "item",
-                  COALESCE(SUM(CASE WHEN "kind" = 'DEPOSIT' THEN "amount" END), 0),
-                  COALESCE(SUM(CASE WHEN "kind" = 'WITHDRAW' THEN "amount" END), 0)
-           FROM "CoffreMovement" WHERE "guildId" = ?1 AND (?2 IS NULL OR "propertyId" = ?2)
-           GROUP BY "propertyId", "item" ORDER BY "propertyId", "item""#,
-    )
-    .bind(guild_id)
-    .bind(property_id)
-    .fetch_all(db)
-    .await?;
-    Ok(rows
+    let sql = format!(
+        r#"SELECT "propertyId", "item", "deposited", "withdrawn" FROM "CoffreStock" WHERE "guildId" = ?{}
+           ORDER BY "propertyId", "item""#,
+        if property_id.is_some() { r#" AND "propertyId" = ?"# } else { "" }
+    );
+    let mut query = sqlx::query_as::<_, (String, String, i64, i64)>(&sql).bind(guild_id);
+    if let Some(property_id) = property_id {
+        query = query.bind(property_id);
+    }
+    Ok(query
+        .fetch_all(db)
+        .await?
         .into_iter()
         .map(|(property_id, item, deposited, withdrawn)| StockLine { property_id, item, deposited, withdrawn })
         .collect())
@@ -186,7 +231,7 @@ pub async fn by_player(
 pub async fn properties(db: &SqlitePool, guild_id: &str) -> Result<Vec<(String, Option<String>)>> {
     Ok(sqlx::query_as(
         r#"SELECT p."propertyId", n."name" FROM
-             (SELECT DISTINCT "propertyId" FROM "CoffreMovement" WHERE "guildId" = ?1
+             (SELECT DISTINCT "propertyId" FROM "CoffreStock" WHERE "guildId" = ?1
               UNION SELECT "propertyId" FROM "CoffreProperty" WHERE "guildId" = ?1) p
            LEFT JOIN "CoffreProperty" n ON n."guildId" = ?1 AND n."propertyId" = p."propertyId"
            ORDER BY COALESCE(n."name", p."propertyId")"#,
@@ -246,26 +291,42 @@ pub async fn player_links(db: &SqlitePool, guild_id: &str) -> Result<std::collec
 /// Objets connus, pour l'autocomplétion.
 pub async fn items(db: &SqlitePool, guild_id: &str) -> Result<Vec<String>> {
     let rows: Vec<(String,)> =
-        sqlx::query_as(r#"SELECT DISTINCT "item" FROM "CoffreMovement" WHERE "guildId" = ? ORDER BY "item""#)
+        sqlx::query_as(r#"SELECT DISTINCT "item" FROM "CoffreStock" WHERE "guildId" = ? ORDER BY "item""#)
             .bind(guild_id)
             .fetch_all(db)
             .await?;
     Ok(rows.into_iter().map(|(item,)| item).collect())
 }
 
-pub async fn channels(db: &SqlitePool, guild_id: &str) -> Result<Vec<(String, Option<String>)>> {
-    Ok(sqlx::query_as(r#"SELECT "channelId", "lastMessageId" FROM "CoffreChannel" WHERE "guildId" = ?"#)
-        .bind(guild_id)
-        .fetch_all(db)
+#[derive(Clone, Debug, PartialEq, Eq, FromRow)]
+#[sqlx(rename_all = "camelCase")]
+pub struct Channel {
+    pub channel_id: String,
+    pub guild_id: String,
+    pub last_message_id: Option<String>,
+    /// Webhook du jeu retenu pour ce salon (`None` : pas encore vu).
+    pub webhook_id: Option<String>,
+}
+
+pub async fn channels(db: &SqlitePool, guild_id: &str) -> Result<Vec<Channel>> {
+    Ok(sqlx::query_as(r#"SELECT * FROM "CoffreChannel" WHERE "guildId" = ?"#).bind(guild_id).fetch_all(db).await?)
+}
+
+pub async fn channel(db: &SqlitePool, channel_id: &str) -> Result<Option<Channel>> {
+    Ok(sqlx::query_as(r#"SELECT * FROM "CoffreChannel" WHERE "channelId" = ?"#)
+        .bind(channel_id)
+        .fetch_optional(db)
         .await?)
 }
 
-pub async fn is_channel(db: &SqlitePool, channel_id: &str) -> Result<Option<String>> {
-    let row: Option<(String,)> = sqlx::query_as(r#"SELECT "guildId" FROM "CoffreChannel" WHERE "channelId" = ?"#)
+/// Retient le webhook du jeu pour un salon, s'il n'est pas déjà connu.
+pub async fn set_webhook(db: &SqlitePool, channel_id: &str, webhook_id: &str) -> Result<()> {
+    sqlx::query(r#"UPDATE "CoffreChannel" SET "webhookId" = ? WHERE "channelId" = ? AND "webhookId" IS NULL"#)
+        .bind(webhook_id)
         .bind(channel_id)
-        .fetch_optional(db)
+        .execute(db)
         .await?;
-    Ok(row.map(|(guild,)| guild))
+    Ok(())
 }
 
 pub async fn add_channel(db: &SqlitePool, guild_id: &str, channel_id: &str) -> Result<()> {
@@ -284,20 +345,6 @@ pub async fn remove_channel(db: &SqlitePool, guild_id: &str, channel_id: &str) -
         .execute(db)
         .await?;
     Ok(result.rows_affected() > 0)
-}
-
-/// Retient le message le plus récent lu dans le salon (identifiants croissants).
-pub async fn mark_read(db: &SqlitePool, channel_id: &str, message_id: u64) -> Result<()> {
-    sqlx::query(
-        r#"UPDATE "CoffreChannel" SET "lastMessageId" = ?2
-           WHERE "channelId" = ?1 AND ("lastMessageId" IS NULL OR CAST("lastMessageId" AS INTEGER) < ?3)"#,
-    )
-    .bind(channel_id)
-    .bind(message_id.to_string())
-    .bind(message_id as i64)
-    .execute(db)
-    .await?;
-    Ok(())
 }
 
 #[cfg(test)]
@@ -329,14 +376,20 @@ mod tests {
             ("m2:0", movement("repair_kit", 3, Kind::Withdraw, "2")),
             ("m3:0", movement("lockpick", 2, Kind::Deposit, "2")),
         ];
-        for (id, m) in &rows {
-            assert!(insert(&db, id, "g", "c", m, now).await.unwrap());
-        }
-        // Message relu (rattrapage) : ignoré.
-        assert!(!insert(&db, "m1:0", "g", "c", &rows[0].1, now).await.unwrap());
+        add_channel(&db, "g", "c").await.unwrap();
+        let batch: Vec<NewMovement> =
+            rows.iter().map(|(id, m)| NewMovement { id: (*id).to_owned(), movement: m.clone(), at: now }).collect();
+        assert_eq!(insert_all(&db, "g", "c", &batch, Some(200)).await.unwrap(), 3);
+        // Message relu (rattrapage) : ignoré, le stock ne bouge pas, le curseur ne recule pas.
+        assert_eq!(insert_all(&db, "g", "c", &batch[..1], Some(100)).await.unwrap(), 0);
+        let read = channels(&db, "g").await.unwrap();
+        assert_eq!(read[0].last_message_id.as_deref(), Some("200"));
+        set_webhook(&db, "c", "w1").await.unwrap();
+        set_webhook(&db, "c", "w2").await.unwrap();
+        assert_eq!(channel(&db, "c").await.unwrap().unwrap().webhook_id.as_deref(), Some("w1"));
 
-        let stock = stock(&db, "g", None).await.unwrap();
-        let kit = stock.iter().find(|l| l.item == "repair_kit").unwrap();
+        let lines = stock(&db, "g", None).await.unwrap();
+        let kit = lines.iter().find(|l| l.item == "repair_kit").unwrap();
         assert_eq!((kit.deposited, kit.withdrawn, kit.quantity()), (8, 3, 5));
 
         link_player(&db, "g", "2", "u2").await.unwrap();
@@ -351,10 +404,8 @@ mod tests {
         name_property(&db, "g", "8740", "Planque").await.unwrap();
         assert_eq!(properties(&db, "g").await.unwrap(), vec![("8740".to_owned(), Some("Planque".to_owned()))]);
 
-        add_channel(&db, "g", "c").await.unwrap();
-        mark_read(&db, "c", 200).await.unwrap();
-        mark_read(&db, "c", 100).await.unwrap();
-        assert_eq!(channels(&db, "g").await.unwrap(), vec![("c".to_owned(), Some("200".to_owned()))]);
+        assert_eq!(items(&db, "g").await.unwrap(), vec!["lockpick".to_owned(), "repair_kit".to_owned()]);
+        assert_eq!(stock(&db, "g", Some("autre")).await.unwrap(), Vec::new());
 
         db.close().await;
         let _ = std::fs::remove_dir_all(dir);

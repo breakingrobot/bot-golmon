@@ -81,7 +81,7 @@ pub async fn config(ix: &Ix, options: &Options, guild: &str) -> Result<()> {
         } else {
             format!(
                 "Salons suivis : {}.",
-                channels.iter().map(|(id, _)| format!("<#{id}>")).collect::<Vec<_>>().join(", ")
+                channels.iter().map(|c| format!("<#{}>", c.channel_id)).collect::<Vec<_>>().join(", ")
             )
         };
         return ix.reply(Reply::ephemeral(text)).await;
@@ -106,8 +106,12 @@ pub async fn config(ix: &Ix, options: &Options, guild: &str) -> Result<()> {
     }
     service::add_channel(&ix.ctx.db, guild, &channel_id.to_string()).await?;
     ix.defer(true).await?;
-    // Première lecture : l'historique récent du salon (jusqu'à 5 000 messages).
-    let added = ingest::catch_up(&ix.ctx, guild, channel_id, None).await?;
+    // Première lecture : l'historique récent du salon (jusqu'à 5 000 messages) ;
+    // salon déjà suivi : les messages publiés depuis la dernière lecture.
+    let added = match service::channel(&ix.ctx.db, &channel_id.to_string()).await? {
+        Some(mut channel) => ingest::catch_up(&ix.ctx, &mut channel).await?,
+        None => 0,
+    };
     ix.edit_text(format!(
         "<#{channel_id}> est suivi : chaque dépôt et retrait publié par le jeu est enregistré. \
          {added} mouvement(s) importé(s) depuis l'historique du salon."

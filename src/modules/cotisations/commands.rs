@@ -33,13 +33,16 @@ use twilight_util::builder::command::{
 
 const COLOR: u32 = 0x2ecc71;
 
+/// Montant maximal par cotisation (propre ou sale) : protège les totaux d'une saisie aberrante.
+const MAX_AMOUNT: i64 = 100_000_000;
+
 pub fn definition() -> Command {
     CommandBuilder::new("cotisation", "Ce que tu rapportes au groupe", CommandType::ChatInput)
         .option(
             SubCommandBuilder::new("ajouter", "Déclare une cotisation (argent propre et/ou sale)")
                 .option(StringBuilder::new("description", "D'où vient l'argent").required(true).max_length(300))
-                .option(IntegerBuilder::new("propre", "Montant en argent propre").min_value(0))
-                .option(IntegerBuilder::new("sale", "Montant en argent sale").min_value(0))
+                .option(IntegerBuilder::new("propre", "Montant en argent propre").min_value(0).max_value(MAX_AMOUNT))
+                .option(IntegerBuilder::new("sale", "Montant en argent sale").min_value(0).max_value(MAX_AMOUNT))
                 .option(StringBuilder::new("date", "Date JJ/MM/AAAA (défaut : aujourd'hui)"))
                 .option(UserBuilder::new("membre", "Déclarer pour un autre membre (gradés et leads)")),
         )
@@ -130,6 +133,9 @@ async fn add(ix: &Ix, options: &Options, guild_id: Id<GuildMarker>) -> Result<()
     }
     let propre = options.integer("propre").unwrap_or(0);
     let sale = options.integer("sale").unwrap_or(0);
+    if !(0..=MAX_AMOUNT).contains(&propre) || !(0..=MAX_AMOUNT).contains(&sale) {
+        return ix.reply(Reply::ephemeral("Montant invalide.")).await;
+    }
     if propre + sale <= 0 {
         return ix.reply(Reply::ephemeral("Indique un montant en argent propre et/ou sale.")).await;
     }
@@ -309,10 +315,13 @@ async fn remove(ix: &Ix, options: &Options, guild_id: Id<GuildMarker>) -> Result
     let Some(cotisation) = service::get(&ix.ctx.db, &guild, &id).await? else {
         return ix.reply(Reply::ephemeral("Cotisation introuvable.")).await;
     };
-    let own = cotisation.created_by_id == ix.user_id().to_string() || cotisation.user_id == ix.user_id().to_string();
+    // Une cotisation déclarée par un gradé pour un membre ne peut être retirée que par le staff.
+    let own = cotisation.created_by_id == ix.user_id().to_string();
     let officer = permissions::can(ix, Perm::CotisationGerer).await?;
     if !own && !officer {
-        return ix.reply(Reply::ephemeral("Tu ne peux supprimer que tes propres cotisations.")).await;
+        return ix
+            .reply(Reply::ephemeral("Tu ne peux supprimer que les cotisations que tu as déclarées toi-même."))
+            .await;
     }
     service::delete(&ix.ctx.db, &guild, &cotisation.id).await?;
     audit::record(

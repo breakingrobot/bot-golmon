@@ -7,6 +7,7 @@
 use crate::context::Ctx;
 use twilight_model::{
     gateway::payload::outgoing::RequestGuildMembers,
+    guild::Permissions,
     id::{
         Id,
         marker::{GuildMarker, RoleMarker, UserMarker},
@@ -67,4 +68,22 @@ pub fn avatar_url(user: &twilight_model::user::User) -> String {
         }
         None => format!("https://cdn.discordapp.com/embed/avatars/{}.png", (user.id.get() >> 22) % 6),
     }
+}
+
+/// Permissions du membre sur le serveur (rôles, propriétaire, administrateur),
+/// sans les surcharges d'un salon : une permission accordée dans un seul salon
+/// ne donne pas de droit ailleurs.
+pub fn guild_permissions(
+    ctx: &Ctx,
+    guild_id: Id<GuildMarker>,
+    user_id: Id<UserMarker>,
+    roles: &[Id<RoleMarker>],
+) -> Permissions {
+    if ctx.cache.guild(guild_id).is_some_and(|g| g.owner_id() == user_id) {
+        return Permissions::all();
+    }
+    let everyone = ctx.cache.role(guild_id.cast()).map(|r| r.resource().permissions).unwrap_or_else(Permissions::empty);
+    let permissions =
+        roles.iter().filter_map(|id| ctx.cache.role(*id)).fold(everyone, |acc, role| acc | role.resource().permissions);
+    if permissions.contains(Permissions::ADMINISTRATOR) { Permissions::all() } else { permissions }
 }

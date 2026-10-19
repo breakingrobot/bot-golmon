@@ -400,14 +400,19 @@ async fn note(ix: &Ix, options: &Options, guild_id: Id<GuildMarker>) -> Result<(
         return ix.reply(Reply::ephemeral(message)).await;
     }
     service::add_note(&ix.ctx.db, &guild, &contact.id, &ix.user_id().to_string(), &body).await?;
-    // Le salon du journal est réservé au staff : la note y figure, tronquée.
+    // Le journal a son propre niveau d'accès : la note n'y est pas recopiée.
+    let length = body.chars().count();
     audit::record(
         ix,
-        Entry::new(Action::ContactNote, None, format!("**{}** — {}", contact.name, truncate(&body, 300))),
+        Entry::new(
+            Action::ContactNote,
+            None,
+            format!("**{}** — note de {length} caractère{}", contact.name, fmt::plural(length)),
+        ),
     )
     .await;
     ix.reply(Reply::ephemeral(format!(
-        "Note ajoutée sur **{}**. Elle n'est visible que des gradés et leads (`/contact voir`, site).",
+        "Note ajoutée sur **{}**. Elle n'est visible que du staff (`/contact voir`, site).",
         contact.name
     )))
     .await
@@ -417,6 +422,9 @@ pub async fn autocomplete(ix: &Ix, options: &Options) -> Result<()> {
     let Some(guild_id) = ix.guild_id() else {
         return ix.autocomplete(Vec::new()).await;
     };
+    if !permissions::can(ix, Perm::ContactVoir).await? {
+        return ix.autocomplete(Vec::new()).await;
+    }
     let query = options.focused.as_ref().map(|(_, value)| value.clone()).filter(|v| !v.trim().is_empty());
     let filter = Filter { query, ..Default::default() };
     let contacts = service::list(&ix.ctx.db, &guild_id.to_string(), &filter).await?;

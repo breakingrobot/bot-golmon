@@ -199,11 +199,21 @@ impl Grants {
     }
 }
 
-fn holder(ix: &Ix) -> Holder {
+/// Permissions du serveur, pas celles du salon de la commande : « Gérer les
+/// messages » accordé dans un seul salon ne fait pas de quelqu'un un gradé.
+fn holder(ix: &Ix, guild_id: Id<GuildMarker>) -> Holder {
+    let roles = ix.member_roles();
+    // Serveur pas encore en cache (démarrage) : permissions calculées par Discord.
+    let permissions = if ix.ctx.cache.guild(guild_id).is_some() {
+        crate::discord::members::guild_permissions(&ix.ctx, guild_id, ix.user_id(), roles)
+    } else {
+        ix.interaction.member.as_ref().and_then(|m| m.permissions).unwrap_or_else(Permissions::empty)
+    };
+    let permissions = if permissions.contains(Permissions::ADMINISTRATOR) { Permissions::all() } else { permissions };
     Holder {
-        roles: ix.member_roles().iter().map(ToString::to_string).collect(),
-        manage_guild: ix.has_permission(Permissions::MANAGE_GUILD),
-        manage_messages: ix.has_permission(Permissions::MANAGE_MESSAGES),
+        roles: roles.iter().map(ToString::to_string).collect(),
+        manage_guild: permissions.contains(Permissions::MANAGE_GUILD),
+        manage_messages: permissions.contains(Permissions::MANAGE_MESSAGES),
     }
 }
 
@@ -213,7 +223,7 @@ pub async fn can(ix: &Ix, perm: Perm) -> Result<bool> {
     let Some(guild_id) = ix.guild_id() else {
         return Ok(perm.default_level() == Level::Tous);
     };
-    Ok(Grants::load(&ix.ctx.db, guild_id, holder(ix)).await?.can(perm))
+    Ok(Grants::load(&ix.ctx.db, guild_id, holder(ix, guild_id)).await?.can(perm))
 }
 
 /// Comme [`can`], et répond le refus à la personne. Usage :
@@ -222,7 +232,7 @@ pub async fn require(ix: &Ix, perm: Perm) -> Result<bool> {
     let Some(guild_id) = ix.guild_id() else {
         return can(ix, perm).await;
     };
-    let grants = Grants::load(&ix.ctx.db, guild_id, holder(ix)).await?;
+    let grants = Grants::load(&ix.ctx.db, guild_id, holder(ix, guild_id)).await?;
     if grants.can(perm) {
         return Ok(true);
     }

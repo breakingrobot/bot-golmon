@@ -227,7 +227,7 @@ pub async fn page(
                 sale: money(t.sale),
                 total: money(t.total()),
                 count: t.count,
-                share: (t.total() * 100 + grand_total / 2) / grand_total,
+                share: ((i128::from(t.total()) * 100 + i128::from(grand_total) / 2) / i128::from(grand_total)) as i64,
             }
         })
         .collect();

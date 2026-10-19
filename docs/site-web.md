@@ -132,7 +132,8 @@ directement au serveur de la personne connectée.
 ![Coffres](images/coffres.png)
 
 Stock de chaque propriété, activité par personnage (déposé, retiré, membre relié), liste des mouvements
-filtrable par propriété, objet, type, joueur et période (24 h, 7, 30, 90 jours ou tout), export CSV.
+filtrable par propriété, objet, type, joueur et période (24 h, 7, 30, 90 jours ou tout ; 30 jours par défaut),
+export CSV.
 
 ### Contacts
 

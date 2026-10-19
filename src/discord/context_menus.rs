@@ -4,7 +4,10 @@ use super::{
     interaction::{GUILD_ONLY, Ix, Reply},
     options::Options,
 };
-use crate::modules::{presences, recrues};
+use crate::modules::{
+    permissions::{self, Perm},
+    presences, recrues,
+};
 use anyhow::Result;
 use twilight_model::{
     application::{
@@ -48,7 +51,12 @@ pub async fn handle(ix: &Ix, command: &CommandData) -> Result<()> {
     let options = Options::parse(command);
     let resolved = command.resolved.as_ref();
     match command.name.as_str() {
-        MEMBER_PRESENCES => presences::commands::member_stats(ix, &options, target.cast()).await,
+        MEMBER_PRESENCES => {
+            if !permissions::require(ix, Perm::PresenceStats).await? {
+                return Ok(());
+            }
+            presences::commands::member_stats(ix, &options, target.cast()).await
+        }
         ADD_RECRUE => recrues::commands::add_member(ix, &options, guild_id, target.cast()).await,
         OPEN_TICKET => {
             let (Some(modmail), Some(user)) =

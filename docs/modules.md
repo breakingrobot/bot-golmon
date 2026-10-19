@@ -23,7 +23,7 @@ membre.
 | Niveau | Qui |
 |---|---|
 | Membres du groupe | Rôle réglé par `/config permission role_membre:@…`. Sans ce réglage, le niveau ne laisse passer que les gradés et au-dessus. |
-| Gradés | Rôle gradé de `/config recrue`, ou permission Discord « Gérer les messages ». |
+| Gradés | Rôle gradé de `/config recrue`, ou permission Discord « Gérer les messages » sur le serveur (accordée dans un seul salon, elle ne compte pas). |
 | Leads | Rôle lead de `/config recrue`. |
 | « Gérer le serveur » | Permission Discord. Elle ouvre **toutes** les actions, sauf les actions *strictes*. |
 
@@ -227,10 +227,10 @@ Ce que chaque membre rapporte au groupe, en argent **propre** et/ou **sale**.
 
 | Commande | Pour qui | Effet |
 |---|---|---|
-| `ajouter` | Tout le monde | Déclare une cotisation : description obligatoire, au moins un montant (propre et/ou sale), date du jour par défaut (pas dans le futur). Déclarer pour un autre membre : gradés et leads. |
+| `ajouter` | Tout le monde | Déclare une cotisation : description obligatoire, au moins un montant (propre et/ou sale, 100 000 000 au plus chacun), date du jour par défaut (pas dans le futur). Déclarer pour un autre membre : gradés et leads. |
 | `historique [membre] [jours]` | Tout le monde (soi) ; gradés et leads (les autres) | Dernières cotisations et totaux propre / sale. |
 | `stats [jours] [membre]` | Gradés (`cotisation.stats`) | Totaux du groupe sur toute la période ou les N derniers jours, et classement des membres. |
-| `supprimer` | L'auteur, ou gradés et leads | Supprime une cotisation saisie par erreur (journalisé). |
+| `supprimer` | Celui qui l'a déclarée, ou gradés et leads | Supprime une cotisation saisie par erreur (journalisé). |
 
 Les gradés et leads sont ceux des rôles configurés avec `/config recrue`. `/config cotisation salon:#…`
 annonce chaque nouvelle cotisation dans un salon ; `sans_annonce:true` arrête les annonces.
@@ -264,6 +264,12 @@ jamais compté deux fois.
 
 Réservé aux gradés par défaut (`coffre.voir`, `coffre.gerer`). Le stock est calculé à partir des mouvements lus depuis
 le début du suivi : un objet déjà présent avant peut apparaître en négatif après un retrait.
+
+**Messages pris en compte** : seulement ceux du webhook du jeu. Le bot retient le webhook qui publie les
+encadrés « Coffre » dans le salon (le plus fréquent au premier import) et ignore tous les autres webhooks et
+applications, pour qu'un membre ne puisse pas imiter un encadré. Si le jeu change de webhook :
+`/config coffre salon:#… retirer:true` puis `/config coffre salon:#…`. Une quantité supérieure à 1 000 000 est
+ignorée.
 
 Sur le site : `/stats/<serveur>/coffres`, voir [Site web](site-web.md#coffres).
 

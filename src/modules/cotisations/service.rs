@@ -18,7 +18,7 @@ pub struct Cotisation {
 
 impl Cotisation {
     pub fn total(&self) -> i64 {
-        self.propre + self.sale
+        self.propre.saturating_add(self.sale)
     }
 }
 
@@ -118,7 +118,7 @@ pub struct Totals {
 
 impl Totals {
     pub fn total(&self) -> i64 {
-        self.propre + self.sale
+        self.propre.saturating_add(self.sale)
     }
 }
 

@@ -80,7 +80,7 @@ impl Access {
             let Some(roles) = member_roles(ctx, guild_id, user_id).await else {
                 continue;
             };
-            let permissions = member_permissions(ctx, guild_id, user_id, &roles);
+            let permissions = crate::discord::members::guild_permissions(ctx, guild_id, user_id, &roles);
             let holder = Holder {
                 roles: roles.iter().map(ToString::to_string).collect(),
                 manage_guild: permissions.contains(Permissions::MANAGE_GUILD),
@@ -130,21 +130,6 @@ async fn member_roles(ctx: &Ctx, guild_id: Id<GuildMarker>, user_id: Id<UserMark
     }
     let member = ctx.http.guild_member(guild_id, user_id).await.ok()?.model().await.ok()?;
     Some(member.roles)
-}
-
-fn member_permissions(
-    ctx: &Ctx,
-    guild_id: Id<GuildMarker>,
-    user_id: Id<UserMarker>,
-    roles: &[Id<RoleMarker>],
-) -> Permissions {
-    if ctx.cache.guild(guild_id).is_some_and(|g| g.owner_id() == user_id) {
-        return Permissions::all();
-    }
-    let everyone = ctx.cache.role(guild_id.cast()).map(|r| r.resource().permissions).unwrap_or_else(Permissions::empty);
-    let permissions =
-        roles.iter().filter_map(|id| ctx.cache.role(*id)).fold(everyone, |acc, role| acc | role.resource().permissions);
-    if permissions.contains(Permissions::ADMINISTRATOR) { Permissions::all() } else { permissions }
 }
 
 /// Noms des mentions lus dans le cache du bot.
