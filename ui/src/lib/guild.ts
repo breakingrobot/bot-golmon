@@ -80,39 +80,44 @@ export const GUILD_PAGES: GuildPage[] = [
   },
 ]
 
-export function hasPerm(guild: GuildAccess | undefined, perm: Perm): boolean {
-  return guild?.perms.includes(perm) ?? false
-}
+export const hasPerm = (guild: GuildAccess | undefined, perm: Perm): boolean => guild?.perms.includes(perm) ?? false
 
-export function canSeePage(guild: GuildAccess, key: GuildPageKey): boolean {
+export const canSeePage = (guild: GuildAccess, key: GuildPageKey): boolean => {
   switch (key) {
-    case 'stats':
+    case 'stats': {
       return hasPerm(guild, 'site.stats')
-    case 'transactions':
+    }
+    case 'transactions': {
       return hasPerm(guild, 'transaction.historique')
-    case 'cotisations':
+    }
+    case 'cotisations': {
       return hasPerm(guild, 'cotisation.stats')
-    case 'coffres':
+    }
+    case 'coffres': {
       return hasPerm(guild, 'coffre.voir')
-    case 'contacts':
+    }
+    case 'contacts': {
       return hasPerm(guild, 'contact.voir')
-    case 'journal':
+    }
+    case 'journal': {
       return hasPerm(guild, 'site.journal')
-    case 'membres':
+    }
+    case 'membres': {
       return hasPerm(guild, 'membre.fiche')
-    case 'fiche':
+    }
+    case 'fiche': {
       // Chacun peut voir sa propre fiche.
       return true
+    }
     case 'permissions':
-    case 'configuration':
+    case 'configuration': {
       return guild.isAdmin
+    }
   }
 }
 
-export function visiblePages(guild: GuildAccess): GuildPage[] {
-  return GUILD_PAGES.filter((page) => canSeePage(guild, page.key))
-}
+export const visiblePages = (guild: GuildAccess): GuildPage[] =>
+  GUILD_PAGES.filter((page) => canSeePage(guild, page.key))
 
-export function findGuild(me: Me | undefined, guildId: string): GuildAccess | undefined {
-  return me?.guilds.find((guild) => guild.id === guildId)
-}
+export const findGuild = (me: Me | undefined, guildId: string): GuildAccess | undefined =>
+  me?.guilds.find((guild) => guild.id === guildId)

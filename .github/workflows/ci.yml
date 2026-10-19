@@ -36,6 +36,7 @@ jobs:
       # Client généré depuis ui/openapi.json (tenu à jour par cargo test) : il doit
       # rester compatible avec les types de l'interface.
       - run: npm run check:api
+      - run: npm test
       - run: npm run build
 
   docker:

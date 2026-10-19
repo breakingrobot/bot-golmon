@@ -8,11 +8,9 @@ const fetchWithCsrf: typeof fetch = (input, init) => {
   return fetch(request)
 }
 
-export function createClientConfig<T extends object>(config?: T) {
-  return {
-    ...config,
-    baseUrl: '',
-    credentials: 'same-origin' as const,
-    fetch: fetchWithCsrf,
-  }
-}
+export const createClientConfig = <T extends object>(config?: T) => ({
+  ...config,
+  baseUrl: '',
+  credentials: 'same-origin' as const,
+  fetch: fetchWithCsrf,
+})

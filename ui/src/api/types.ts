@@ -34,7 +34,7 @@ export type MemberRef = { id: string; name: string; avatarUrl: string | null }
 export type Role = { id: string; name: string; color: number | null }
 
 /** Niveaux de permission, du plus ouvert au plus restreint. */
-export type Level = 'tous' | 'membre' | 'grade' | 'lead' | 'admin'
+export type Level = 'membre' | 'grade' | 'lead' | 'admin'
 
 /** Clés d'action (voir src/modules/permissions/mod.rs, macro `perms!`). */
 export type Perm =
