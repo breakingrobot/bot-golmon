@@ -1,5 +1,6 @@
 use super::{
-    money,
+    dashboard, money,
+    objective::{self, Counts, Objective},
     service::{self, Filter, NewCotisation, Totals},
 };
 use crate::{
@@ -16,11 +17,11 @@ use crate::{
     },
     util::{
         format::{DESCRIPTION_LIMIT, field, truncate, truncate_field},
-        time::{DbTime, format_day_label, parse_event_date, today_label},
+        time::{DbTime, format_day_label, parse_event_date, today_label, week_start},
     },
 };
 use anyhow::Result;
-use chrono::Duration;
+use chrono::{Duration, Utc};
 use twilight_model::{
     application::command::{Command, CommandType},
     channel::ChannelType,
@@ -64,38 +65,128 @@ pub fn definition() -> Command {
             SubCommandBuilder::new("supprimer", "Supprime une cotisation saisie par erreur")
                 .option(StringBuilder::new("cotisation", "Cotisation à supprimer").required(true).autocomplete(true)),
         )
+        .option(SubCommandBuilder::new("objectif", "Où tu en es de l'objectif de la semaine"))
         .build()
 }
 
 /// `/config cotisation`.
 pub fn config_subcommand() -> SubCommandBuilder {
-    SubCommandBuilder::new("cotisation", "Cotisations : salon des annonces (sans option : affiche)")
+    SubCommandBuilder::new("cotisation", "Cotisations : annonces, objectif, tableau de bord (sans option : affiche)")
         .option(
             ChannelBuilder::new("salon", "Salon où annoncer chaque cotisation").channel_types([ChannelType::GuildText]),
         )
         .option(BooleanBuilder::new("sans_annonce", "Ne plus annoncer les cotisations"))
+        .option(
+            IntegerBuilder::new("objectif", "Objectif hebdomadaire par membre, en $ (0 : pas d'objectif)")
+                .min_value(0)
+                .max_value(objective::MAX_OBJECTIVE),
+        )
+        .option(StringBuilder::new("compte", "Ce qui compte pour l'objectif (défaut : propre + sale)").choices([
+            ("Propre + sale", Counts::Total.as_str()),
+            ("Argent propre", Counts::Propre.as_str()),
+            ("Argent sale", Counts::Sale.as_str()),
+        ]))
+        .option(BooleanBuilder::new("rappel", "Rappel le dimanche à 18:00 aux membres sous l'objectif (défaut : oui)"))
+        .option(
+            ChannelBuilder::new("tableau", "Salon du tableau permanent (classement et objectif)")
+                .channel_types([ChannelType::GuildText]),
+        )
+        .option(BooleanBuilder::new("sans_tableau", "Retirer le tableau de bord"))
+}
+
+/// Réglages actuels, pour `/config cotisation` sans option.
+async fn config_summary(ix: &Ix, guild: &str) -> Result<String> {
+    let mut lines = vec![match service::channel(&ix.ctx.db, guild).await? {
+        Some(channel) => format!("Les cotisations sont annoncées dans <#{channel}>."),
+        None => "Les cotisations ne sont annoncées dans aucun salon.".to_owned(),
+    }];
+    lines.push(match objective::get_objective(&ix.ctx.db, guild).await? {
+        Some(o) => format!(
+            "Objectif hebdomadaire : **{}**, rappel du dimanche {}.",
+            o.describe(),
+            if o.reminder { "activé" } else { "désactivé" }
+        ),
+        None => "Pas d'objectif hebdomadaire (`/config cotisation objectif:…`).".to_owned(),
+    });
+    lines.push(match dashboard::get_dashboard(&ix.ctx.db, guild).await?.0 {
+        Some(channel) => format!("Tableau de bord publié dans <#{channel}>."),
+        None => "Pas de tableau de bord (`/config cotisation tableau:#…`).".to_owned(),
+    });
+    Ok(lines.join("\n"))
 }
 
 pub async fn config(ix: &Ix, options: &Options, guild: &str) -> Result<()> {
     if !ix.has_permission(Permissions::MANAGE_GUILD) {
         return ix.reply(Reply::ephemeral(MANAGE_GUILD_ONLY)).await;
     }
-    let channel = options.channel("salon").map(|id| id.to_string());
-    if channel.is_none() && options.boolean("sans_annonce") != Some(true) {
-        let current = service::channel(&ix.ctx.db, guild).await?;
-        return ix
-            .reply(Reply::ephemeral(match current {
-                Some(channel) => format!("Les cotisations sont annoncées dans <#{channel}>."),
-                None => "Les cotisations ne sont annoncées dans aucun salon.".to_owned(),
-            }))
-            .await;
+    if options.summary().is_empty() {
+        return ix.reply(Reply::ephemeral(config_summary(ix, guild).await?)).await;
     }
-    service::set_channel(&ix.ctx.db, guild, channel.as_deref()).await?;
-    ix.reply(Reply::ephemeral(match channel {
-        Some(channel) => format!("Les cotisations seront annoncées dans <#{channel}>."),
-        None => "Les cotisations ne seront plus annoncées.".to_owned(),
-    }))
-    .await
+    let Some(guild_id) = ix.guild_id() else {
+        return ix.reply(Reply::ephemeral(GUILD_ONLY)).await;
+    };
+    let mut lines = Vec::new();
+
+    let channel = options.channel("salon").map(|id| id.to_string());
+    if channel.is_some() || options.boolean("sans_annonce") == Some(true) {
+        service::set_channel(&ix.ctx.db, guild, channel.as_deref()).await?;
+        lines.push(match channel {
+            Some(channel) => format!("Les cotisations seront annoncées dans <#{channel}>."),
+            None => "Les cotisations ne seront plus annoncées.".to_owned(),
+        });
+    }
+
+    let (amount, counts, reminder) = (
+        options.integer("objectif"),
+        options.string("compte").and_then(|c| Counts::parse(&c)),
+        options.boolean("rappel"),
+    );
+    if amount.is_some() || counts.is_some() || reminder.is_some() {
+        let current = objective::get_objective(&ix.ctx.db, guild).await?;
+        match (amount, current) {
+            (None, None) => lines.push("Indique d'abord le montant de l'objectif (`objectif:…`).".to_owned()),
+            (amount, current) => {
+                let updated = Objective {
+                    amount: amount.or(current.map(|c| c.amount)).unwrap_or(0),
+                    counts: counts.or(current.map(|c| c.counts)).unwrap_or_default(),
+                    reminder: reminder.or(current.map(|c| c.reminder)).unwrap_or(true),
+                };
+                objective::set_objective(&ix.ctx.db, guild, &updated).await?;
+                lines.push(if updated.amount > 0 {
+                    format!(
+                        "Objectif hebdomadaire : **{}** par membre, rappel du dimanche {}.",
+                        updated.describe(),
+                        if updated.reminder { "activé" } else { "désactivé" }
+                    )
+                } else {
+                    "Plus d'objectif hebdomadaire.".to_owned()
+                });
+            }
+        }
+    }
+
+    let board = options.channel("tableau").map(|id| id.to_string());
+    let board_changed = board.is_some() || options.boolean("sans_tableau") == Some(true);
+    if board_changed {
+        // L'ancien message disparaît : changement de salon ou retrait du tableau.
+        if let (Some(old_channel), Some(old_message)) = dashboard::get_dashboard(&ix.ctx.db, guild).await?
+            && let (Some(c), Some(m)) = (parse_id(&old_channel), parse_id(&old_message))
+        {
+            messages::delete_quietly(&ix.ctx, c, m).await;
+        }
+        dashboard::set_dashboard_channel(&ix.ctx.db, guild, board.as_deref()).await?;
+        lines.push(match &board {
+            Some(channel) => format!("Tableau de bord publié dans <#{channel}>."),
+            None => "Le tableau de bord n'est plus publié.".to_owned(),
+        });
+    }
+    if lines.is_empty() {
+        lines.push("Rien à changer.".to_owned());
+    }
+    ix.reply(Reply::ephemeral(lines.join("\n"))).await?;
+    // Après la réponse : la publication peut prendre plus de 3 secondes.
+    dashboard::refresh(&ix.ctx, guild_id).await;
+    Ok(())
 }
 
 pub async fn handle(ix: &Ix, options: &Options) -> Result<()> {
@@ -107,8 +198,66 @@ pub async fn handle(ix: &Ix, options: &Options) -> Result<()> {
         "historique" => history(ix, options, guild_id).await,
         "stats" => stats(ix, options, guild_id).await,
         "supprimer" => remove(ix, options, guild_id).await,
+        "objectif" => objective_view(ix, guild_id).await,
         _ => Ok(()),
     }
+}
+
+/// `/cotisation objectif` : son avancement ; les gradés (`cotisation.stats`) voient tout le monde.
+async fn objective_view(ix: &Ix, guild_id: Id<GuildMarker>) -> Result<()> {
+    let guild = guild_id.to_string();
+    let Some(objective) = objective::get_objective(&ix.ctx.db, &guild).await? else {
+        return ix.reply(Reply::ephemeral("Aucun objectif hebdomadaire n'est fixé.")).await;
+    };
+    let week = week_start(Utc::now());
+    let me = objective::member_progress(&ix.ctx.db, &guild, &ix.user_id().to_string(), week, &objective).await?;
+    let mut description = if me.exempt {
+        format!(
+            "Tu n'es pas concerné cette semaine (absence déclarée ou recrue). Tes cotisations : **{}**.",
+            money(me.amount)
+        )
+    } else if me.reached {
+        format!("✅ Objectif atteint : **{}** / {}.", money(me.amount), money(me.target))
+    } else {
+        format!(
+            "**{}** / {} — {}\nIl te reste **{}** avant dimanche minuit.",
+            money(me.amount),
+            money(me.target),
+            objective::progress_bar(me.amount, me.target),
+            money(me.target - me.amount)
+        )
+    };
+    if permissions::can(ix, Perm::CotisationStats).await? {
+        let rows = objective::objective_progress(&ix.ctx, guild_id, week).await?;
+        let tracked: Vec<_> = rows.iter().filter(|r| !r.exempt).collect();
+        let reached = tracked.iter().filter(|r| r.reached).count();
+        let lines: Vec<String> = rows
+            .iter()
+            .map(|r| {
+                let mark = if r.exempt {
+                    "🌙"
+                } else if r.reached {
+                    "✅"
+                } else {
+                    "⏳"
+                };
+                format!("{mark} <@{}> — {} / {}", r.user_id, money(r.amount), money(r.target))
+            })
+            .collect();
+        description.push_str(&format!("\n\n**Membres suivis : {reached}/{} ont atteint l'objectif**\n", tracked.len()));
+        description.push_str(&if lines.is_empty() {
+            "*Aucun membre suivi : règle le rôle membre avec `/config permission role_membre:@…`.*".to_owned()
+        } else {
+            lines.join("\n")
+        });
+    }
+    let embed = EmbedBuilder::new()
+        .title(format!("🎯 Objectif de la semaine {}", objective::week_label(week)))
+        .color(COLOR)
+        .description(truncate(&description, DESCRIPTION_LIMIT))
+        .footer(footer(format!("Objectif : {} par membre", objective.describe())))
+        .build();
+    ix.reply(Reply::embed(embed).hidden()).await
 }
 
 fn name(ix: &Ix, guild_id: Id<GuildMarker>, user_id: &str) -> String {
@@ -205,7 +354,9 @@ async fn add(ix: &Ix, options: &Options, guild_id: Id<GuildMarker>) -> Result<()
         ))
         .with_embed(embed),
     )
-    .await
+    .await?;
+    dashboard::refresh(&ix.ctx, guild_id).await;
+    Ok(())
 }
 
 fn since_days(days: Option<i64>) -> Option<DbTime> {
@@ -343,7 +494,9 @@ async fn remove(ix: &Ix, options: &Options, guild_id: Id<GuildMarker>) -> Result
         amounts(cotisation.propre, cotisation.sale),
         format_day_label(cotisation.date)
     )))
-    .await
+    .await?;
+    dashboard::refresh(&ix.ctx, guild_id).await;
+    Ok(())
 }
 
 pub async fn autocomplete(ix: &Ix, options: &Options) -> Result<()> {

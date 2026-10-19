@@ -3,6 +3,9 @@
 //! les statistiques, sur Discord et sur le site (niveaux : `/config permission`).
 
 pub mod commands;
+pub mod cron;
+pub mod dashboard;
+pub mod objective;
 pub mod service;
 
 /// Montant lisible : « 12 500 $ ».

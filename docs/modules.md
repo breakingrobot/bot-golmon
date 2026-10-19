@@ -4,7 +4,7 @@
 
 | Commande | Pour qui | Contenu |
 |---|---|---|
-| `/config <module>` | « Gérer le serveur » | Réglages de chaque module, **une fois par serveur**. Sans option, affiche la configuration actuelle. |
+| `/config <module>` | « Gérer le serveur » | Réglages de chaque module, **une fois par serveur**. Sans option, affiche la configuration actuelle. `/config etat` fait le point sur tous les modules ([détails](#état-de-la-configuration)). |
 | `/gestion …` | Selon l'action (gradés par défaut) | Actions de staff : votes forcés, annulations, planning des présences, blocklist, panneau des absences… |
 | `/presence`, `/absence`, `/transaction`, `/vehicle`, `/recrue`, `/numero`, `/cotisation`, `/contact`, `/coffre` | Selon l'action, voir [Permissions](#permissions) | Utilisation courante. |
 | Clic droit → *Applications* | Voir [plus bas](#actions-au-clic-droit) | Raccourcis sur un membre ou un message. |
@@ -62,8 +62,8 @@ Les pages du site suivent les mêmes réglages (`site.stats`, `cotisation.stats`
 | `cotisation.ajouter` | Cotisations | Déclarer ses cotisations | Tout le monde |
 | `cotisation.gerer` | Cotisations | Cotisations des autres : déclarer, consulter, supprimer | Gradés |
 | `cotisation.stats` | Cotisations | Statistiques (Discord et site) | Gradés |
-| `coffre.voir` | Coffres | Stock et historique (Discord et site) | Gradés |
-| `coffre.gerer` | Coffres | Relier un personnage, nommer une propriété | Gradés |
+| `coffre.voir` | Coffres | Stock, historique et seuils (Discord et site) | Gradés |
+| `coffre.gerer` | Coffres | Relier un personnage, nommer une propriété, régler un seuil de stock bas | Gradés |
 | `contact.voir` | Contacts | Consulter le répertoire | Tout le monde |
 | `contact.ajouter` | Contacts | Ajouter un contact | Membres du groupe |
 | `contact.modifier` | Contacts | Modifier ou supprimer un contact | Gradés |
@@ -231,9 +231,43 @@ Ce que chaque membre rapporte au groupe, en argent **propre** et/ou **sale**.
 | `historique [membre] [jours]` | Tout le monde (soi) ; gradés et leads (les autres) | Dernières cotisations et totaux propre / sale. |
 | `stats [jours] [membre]` | Gradés (`cotisation.stats`) | Totaux du groupe sur toute la période ou les N derniers jours, et classement des membres. |
 | `supprimer` | Celui qui l'a déclarée, ou gradés et leads | Supprime une cotisation saisie par erreur (journalisé). |
+| `objectif` | Tout le monde | Où tu en es de l'objectif de la semaine. Les gradés (`cotisation.stats`) voient aussi tous les membres suivis. |
 
 Les gradés et leads sont ceux des rôles configurés avec `/config recrue`. `/config cotisation salon:#…`
 annonce chaque nouvelle cotisation dans un salon ; `sans_annonce:true` arrête les annonces.
+
+### Objectif hebdomadaire
+
+```
+/config cotisation objectif:50000 compte:total rappel:true
+```
+
+| Option | Rôle |
+|---|---|
+| `objectif` | Montant à atteindre par membre chaque semaine (lundi 00:00 → dimanche 23:59, heure de Paris). `0` supprime l'objectif. |
+| `compte` | Ce qui compte : **propre + sale** (défaut), argent propre seul ou argent sale seul. |
+| `rappel` | `true` (défaut) : rappel le dimanche soir aux membres en dessous. |
+
+- **Membres suivis** : porteurs du rôle membre (`/config permission role_membre:@…`), sinon du rôle des
+  présences. Bots exclus.
+- **Non concernés** pour la semaine : les membres ayant une absence déclarée qui chevauche la semaine (une
+  absence annulée avant son début ne compte pas) et les recrues de la semaine.
+- **Le dimanche à 18:00**, un rappel dans le salon des annonces (à défaut, celui du tableau de bord)
+  **mentionne** les membres encore en dessous, avec leur montant. Une fois par semaine.
+- **Le lundi à 09:00**, le bilan de la semaine écoulée (atteint, pas atteint, non concernés) est publié au
+  même endroit, **sans notifier** personne. Un objectif tout juste créé ne fait pas de bilan de la semaine
+  précédente. Si le bot était hors ligne à l'heure dite, l'envoi part à son retour, le jour même.
+
+### Tableau de bord
+
+```
+/config cotisation tableau:#cotisations
+```
+
+Message permanent, mis à jour à chaque cotisation ajoutée ou supprimée et au changement de semaine :
+total de la semaine, **classement** (10 premiers) et, si un objectif est fixé, qui l'a atteint et qui
+est en dessous. Les mentions sont affichées, jamais notifiées. Changer de salon supprime l'ancien message ;
+`sans_tableau:true` le retire.
 
 Sur le site : `/cotisations` (ou `/stats/<serveur>/cotisations`), voir [Site web](site-web.md#cotisations).
 
@@ -257,13 +291,41 @@ jamais compté deux fois.
 
 | Commande | Effet |
 |---|---|
-| `/coffre stock [propriete]` | Stock par propriété et par objet. |
+| `/coffre stock [propriete]` | Stock par propriété et par objet (⚠️ = sous son seuil). |
 | `/coffre historique [propriete] [membre] [objet] [jours]` | Derniers dépôts et retraits (par membre : ses personnages reliés). |
 | `/coffre lier id_jeu membre` | Relie un personnage du jeu à un membre Discord (journalisé). |
 | `/coffre nommer propriete nom` | Nom lisible d'une propriété. |
+| `/coffre seuil objet min [propriete]` | Seuil de stock bas d'un objet, dans une propriété ou dans toutes ; `min:0` retire le seuil (journalisé). |
+| `/coffre seuils` | Seuils réglés, et les propriétés où l'objet est actuellement en dessous. |
 
 Réservé aux gradés par défaut (`coffre.voir`, `coffre.gerer`). Le stock est calculé à partir des mouvements lus depuis
 le début du suivi : un objet déjà présent avant peut apparaître en négatif après un retrait.
+
+**Alertes**
+
+```
+/config coffre alertes_salon:#alertes-coffre alertes_role:@Logistique gros_retrait:50 joueur_inconnu:true
+```
+
+| Option | Rôle |
+|---|---|
+| `alertes_salon` | Salon des alertes. `alertes_desactiver:true` les arrête (les réglages sont conservés). |
+| `alertes_role` | Rôle mentionné dans chaque alerte : **seule** mention notifiée. |
+| `gros_retrait` | Alerte pour un retrait d'au moins cette quantité, en une fois (`0` : désactivé). |
+| `joueur_inconnu` | Alerte quand un personnage relié à aucun membre (`/coffre lier`) retire un objet. |
+
+Les seuils se règlent avec `/coffre seuil` : un seuil propre à une propriété remplace, pour elle, celui de
+« toutes les propriétés ». L'alerte de stock bas part quand la quantité **passe** sous le seuil (elle
+était au moins au seuil avant) : un stock déjà bas ne relance pas d'alerte à chaque retrait.
+
+Un seul message par lot de nouveaux mouvements (un message du jeu, ou tout le rattrapage au redémarrage du
+bot) résume les objets passés sous leur seuil et les retraits à surveiller. Le **premier import** de
+l'historique d'un salon (`/config coffre salon:#…`) n'envoie aucune alerte.
+
+**Tableau du stock** : `/config coffre tableau:#stock` publie un message permanent, le stock par propriété,
+avec les objets sous leur seuil signalés (⚠️) et listés en premier. Il est mis à jour après de nouveaux
+mouvements, **au plus une fois par minute** (le jeu publie parfois des dizaines de mouvements d'affilée).
+Changer de salon supprime l'ancien message ; `sans_tableau:true` le retire.
 
 **Messages pris en compte** : seulement ceux du webhook du jeu. Le bot retient le webhook qui publie les
 encadrés « Coffre » dans le salon (le plus fréquent au premier import) et ignore tous les autres webhooks et
@@ -322,9 +384,34 @@ Clic droit sur un membre ou un message → **Applications** :
 | Action | Sur | Effet | Visible par défaut |
 |---|---|---|---|
 | Présences du membre | Membre | Sa fiche de présence (comme `/presence stats joueur`) | Tout le monde |
+| Fiche du membre | Membre | Résumé privé : taux de présence, absence en cours, cotisations (semaine, 30 jours, objectif), activité des coffres (personnages reliés), recrue, numéro, véhicules, et lien vers sa fiche sur le site | `membre.fiche` (gradés par défaut) ; chacun peut voir la sienne |
 | Ajouter aux recrues | Membre | L'ajoute aux recrues de la semaine et crée son salon d'essai | `recrue.suivi` (gradés par défaut) |
 | Ouvrir un ticket | Membre | Ouvre un ticket avec lui (comme `!newthread`) | « Gérer les messages » ; module ticket requis |
 | Signaler au staff | Message | Transmet le message (texte, auteur, lien) dans le ticket de la personne qui signale, ouvert au besoin | Tout le monde ; module ticket requis |
+
+Discord limite à 5 les actions sur un membre : le bot en utilise 4 (3 sans le module ticket). Dans la fiche,
+le détail des avis d'une recrue reste réservé à `recrue.suivi`.
+
+## État de la configuration
+
+`/config etat` (« Gérer le serveur ») fait le point, en privé, sur chaque module : ✅ prêt, ⚠️ incomplet,
+⚪ non utilisé. Pour chaque contrôle, le bot indique ce qui manque et la commande pour le corriger, par
+exemple :
+
+| Module | Contrôles |
+|---|---|
+| Présences | Rôle ciblé configuré, salon des présences, salon des rappels, rapport hebdomadaire |
+| Absences | Rôle d'absence, salon des absences |
+| Transactions, Véhicules, Numéros | Tableau de bord ou annuaire publié |
+| Recrues | Rôles recrue, gradé et lead, catégorie des salons d'essai, salon des avis |
+| Cotisations | Salon des annonces, objectif, membres suivis, salon du rappel, tableau de bord |
+| Coffres | *Message Content Intent*, salon du webhook suivi, webhook du jeu reconnu, alertes et leurs déclencheurs, tableau du stock |
+| Contacts, Journal du staff | Salon de publication |
+| Permissions | Rôles membre, gradé et lead |
+| Tickets | Serveur relié au module, salon des logs (si le module est configuré) |
+
+Un salon ou un rôle réglé puis supprimé est signalé. Les réglages facultatifs (▫️) n'empêchent pas un
+module d'être prêt. Le site affiche le même état aux administrateurs.
 
 ## Statistiques sur le site
 

@@ -12,18 +12,29 @@ pub struct NewMovement {
     pub at: DbTime,
 }
 
+/// Mouvement réellement ajouté (pas déjà connu), avec le stock de son objet
+/// dans sa propriété juste avant et juste après : de quoi détecter un passage
+/// sous un seuil.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Recorded {
+    pub movement: Movement,
+    pub at: DbTime,
+    pub stock_before: i64,
+    pub stock_after: i64,
+}
+
 /// Enregistre des mouvements d'un salon en une transaction, met le stock à jour
-/// et avance le dernier message lu. Renvoie le nombre de nouveaux (un message
-/// relu n'est jamais compté deux fois).
+/// et avance le dernier message lu. Renvoie les nouveaux mouvements, dans
+/// l'ordre (un message relu n'est jamais compté deux fois).
 pub async fn insert_all(
     db: &SqlitePool,
     guild_id: &str,
     channel_id: &str,
     movements: &[NewMovement],
     last_message_id: Option<u64>,
-) -> Result<usize> {
+) -> Result<Vec<Recorded>> {
     let mut tx = db.begin().await?;
-    let mut added = 0;
+    let mut added = Vec::new();
     for new in movements {
         let movement = &new.movement;
         let result = sqlx::query(
@@ -48,7 +59,20 @@ pub async fn insert_all(
         if result.rows_affected() == 0 {
             continue;
         }
-        added += 1;
+        let before: Option<(i64,)> = sqlx::query_as(
+            r#"SELECT "deposited" - "withdrawn" FROM "CoffreStock" WHERE "guildId" = ? AND "propertyId" = ? AND "item" = ?"#,
+        )
+        .bind(guild_id)
+        .bind(&movement.property_id)
+        .bind(&movement.item)
+        .fetch_optional(&mut *tx)
+        .await?;
+        let stock_before = before.map_or(0, |(quantity,)| quantity);
+        let stock_after = match movement.kind {
+            Kind::Deposit => stock_before + movement.amount,
+            Kind::Withdraw => stock_before - movement.amount,
+        };
+        added.push(Recorded { movement: movement.clone(), at: new.at, stock_before, stock_after });
         let (deposited, withdrawn) = match movement.kind {
             Kind::Deposit => (movement.amount, 0),
             Kind::Withdraw => (0, movement.amount),
@@ -379,9 +403,9 @@ mod tests {
         add_channel(&db, "g", "c").await.unwrap();
         let batch: Vec<NewMovement> =
             rows.iter().map(|(id, m)| NewMovement { id: (*id).to_owned(), movement: m.clone(), at: now }).collect();
-        assert_eq!(insert_all(&db, "g", "c", &batch, Some(200)).await.unwrap(), 3);
+        assert_eq!(insert_all(&db, "g", "c", &batch, Some(200)).await.unwrap().len(), 3);
         // Message relu (rattrapage) : ignoré, le stock ne bouge pas, le curseur ne recule pas.
-        assert_eq!(insert_all(&db, "g", "c", &batch[..1], Some(100)).await.unwrap(), 0);
+        assert_eq!(insert_all(&db, "g", "c", &batch[..1], Some(100)).await.unwrap().len(), 0);
         let read = channels(&db, "g").await.unwrap();
         assert_eq!(read[0].last_message_id.as_deref(), Some("200"));
         set_webhook(&db, "c", "w1").await.unwrap();
