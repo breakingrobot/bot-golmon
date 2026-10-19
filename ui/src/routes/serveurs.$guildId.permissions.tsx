@@ -1,7 +1,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
 import { Lock, RotateCcw, Save } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 
 import { meQuery, permissionsQuery, useSavePermissions } from '@/api/queries'
 import type { Level, Perm, PermissionsResponse, PermissionsUpdate } from '@/api/types'
@@ -52,11 +52,9 @@ function PermissionsForm({ data }: { data: PermissionsResponse }) {
     Object.fromEntries(data.actions.map((action) => [action.key, action.level])),
   )
 
-  const modules = useMemo(() => {
-    const grouped = new Map<string, PermissionsResponse['actions']>()
-    for (const action of data.actions) grouped.set(action.module, [...(grouped.get(action.module) ?? []), action])
-    return [...grouped.entries()]
-  }, [data.actions])
+  const grouped = new Map<string, PermissionsResponse['actions']>()
+  for (const action of data.actions) grouped.set(action.module, [...(grouped.get(action.module) ?? []), action])
+  const modules = [...grouped.entries()]
 
   // Seuls les champs modifiés partent ; revenir au niveau par défaut s'envoie comme `null`.
   const update: PermissionsUpdate = {}

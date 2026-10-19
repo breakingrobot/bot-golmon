@@ -4,7 +4,8 @@
 // (--series-1, --series-2, validées clair/sombre), légende HTML dès deux séries,
 // infobulle au survol et au clavier, textes en couleurs de texte, tableau des données disponible.
 // Les couleurs sont des références aux jetons CSS (`var(--…)`) : le passage clair/sombre
-// ne reconstruit pas le graphique.
+// ne reconstruit pas le graphique. Les définitions ne sont pas enveloppées dans `useMemo` :
+// le React Compiler les mémoïse selon les données reçues (identité stable = pas de reconstruction).
 
 import { barY, crosshair, defineChart, group, lineY, stack, type ChartCurve } from '@tanstack/charts'
 import { scaleBand } from '@tanstack/charts/scales/band'
@@ -12,7 +13,7 @@ import { scaleLinear } from '@tanstack/charts/scales/linear'
 import { scalePoint } from '@tanstack/charts/scales/point'
 import { tooltip } from '@tanstack/charts/tooltip'
 import { Chart } from '@tanstack/react-charts/tooltip'
-import { useMemo, type ReactNode } from 'react'
+import type { ReactNode } from 'react'
 
 import type { CoffreSeries, TransactionsResponse, WeeklyAmount } from '@/api/types'
 import {
@@ -209,33 +210,29 @@ type AttendancePoint = { weekStart: string; rate: number | null; presences: numb
 
 export function AttendanceChart({ data }: { data: AttendancePoint[] }) {
   const series = ATTENDANCE_SERIES
-  const definition = useMemo(
-    () =>
-      defineChart({
-        marks: [
-          crosshair({ x: { stroke: 'var(--line-strong)' }, y: false }),
-          // Les semaines sans présence clôturée (taux nul) coupent la courbe.
-          lineY(data, { x: 'weekStart', y: 'rate', stroke: 'var(--series-1)', strokeWidth: 2, points: true }),
-        ],
-        scales: {
-          x: { scale: () => scalePoint<string>().padding(0.25), axis: periodAxis(formatShortDay) },
-          y: {
-            scale: scaleLinear().domain([0, 100]),
-            grid: GRID,
-            axis: {
-              line: false,
-              ticks: { size: 0, padding: 8, values: [0, 25, 50, 75, 100], format: (value: number) => `${value} %` },
-              tickLabels: TICK_LABELS,
-            },
-          },
+  const definition = defineChart({
+    marks: [
+      crosshair({ x: { stroke: 'var(--line-strong)' }, y: false }),
+      // Les semaines sans présence clôturée (taux nul) coupent la courbe.
+      lineY(data, { x: 'weekStart', y: 'rate', stroke: 'var(--series-1)', strokeWidth: 2, points: true }),
+    ],
+    scales: {
+      x: { scale: () => scalePoint<string>().padding(0.25), axis: periodAxis(formatShortDay) },
+      y: {
+        scale: scaleLinear().domain([0, 100]),
+        grid: GRID,
+        axis: {
+          line: false,
+          ticks: { size: 0, padding: 8, values: [0, 25, 50, 75, 100], format: (value: number) => `${value} %` },
+          tickLabels: TICK_LABELS,
         },
-        theme: THEME,
-        focus: 'nearest-x',
-        maxFocusDistance: Number.POSITIVE_INFINITY,
-        tooltip: TOOLTIP,
-      }),
-    [data],
-  )
+      },
+    },
+    theme: THEME,
+    focus: 'nearest-x',
+    maxFocusDistance: Number.POSITIVE_INFINITY,
+    tooltip: TOOLTIP,
+  })
   return (
     <>
       <Chart
@@ -267,34 +264,32 @@ export function MonthlyTransactionsChart({ months }: { months: TransactionsRespo
   // L'API donne les mois du plus récent au plus ancien : ordre chronologique pour le graphique.
   const rows = months.toReversed()
   const money = (value: number) => formatMoney(value)
-  const definition = useMemo(() => {
-    const long = toLong(months.toReversed(), 'month', TRANSACTION_SERIES)
-    return defineChart({
-      marks: [
-        crosshair({ x: { band: { fill: 'var(--surface-sunken)', fillOpacity: 1 } }, y: false }),
-        barY(long, {
-          x: 'x',
-          y: 'value',
-          z: 'serie',
-          color: 'serie',
-          layout: group({ padding: 0.08 }),
-          radius: [4, 4, 0, 0],
-          maxThickness: 28,
-        }),
-      ],
-      scales: {
-        x: { scale: () => scaleBand<string>().padding(0.2), axis: periodAxis((month) => formatMonth(month)) },
-        y: { scale: scaleLinear, nice: true, grid: GRID, axis: valueAxis(formatCompactMoney) },
-      },
-      color: colorScale(TRANSACTION_SERIES),
-      theme: THEME,
-      focus: 'group-x',
-      maxFocusDistance: Number.POSITIVE_INFINITY,
-      // Le bandeau du curseur marque la période : pas d'anneau sur une barre (parfois nulle).
-      focusRing: false,
-      tooltip: { ...TOOLTIP, anchor: 'group-center' },
-    })
-  }, [months])
+  const long = toLong(rows, 'month', TRANSACTION_SERIES)
+  const definition = defineChart({
+    marks: [
+      crosshair({ x: { band: { fill: 'var(--surface-sunken)', fillOpacity: 1 } }, y: false }),
+      barY(long, {
+        x: 'x',
+        y: 'value',
+        z: 'serie',
+        color: 'serie',
+        layout: group({ padding: 0.08 }),
+        radius: [4, 4, 0, 0],
+        maxThickness: 28,
+      }),
+    ],
+    scales: {
+      x: { scale: () => scaleBand<string>().padding(0.2), axis: periodAxis((month) => formatMonth(month)) },
+      y: { scale: scaleLinear, nice: true, grid: GRID, axis: valueAxis(formatCompactMoney) },
+    },
+    color: colorScale(TRANSACTION_SERIES),
+    theme: THEME,
+    focus: 'group-x',
+    maxFocusDistance: Number.POSITIVE_INFINITY,
+    // Le bandeau du curseur marque la période : pas d'anneau sur une barre (parfois nulle).
+    focusRing: false,
+    tooltip: { ...TOOLTIP, anchor: 'group-center' },
+  })
   return (
     <>
       <Legend series={series} />
@@ -331,37 +326,35 @@ export function MonthlyTransactionsChart({ months }: { months: TransactionsRespo
 export function WeeklyCotisationsChart({ weekly, height = 240 }: { weekly: WeeklyAmount[]; height?: number }) {
   const series = COTISATION_SERIES
   const money = (value: number) => formatMoney(value)
-  const definition = useMemo(() => {
-    const long = toLong(weekly, 'weekStart', COTISATION_SERIES)
-    return defineChart({
-      marks: [
-        crosshair({ x: { band: { fill: 'var(--surface-sunken)', fillOpacity: 1 } }, y: false }),
-        // Empilement : propre en bas, sale au-dessus ; seul le haut de la pile est arrondi.
-        barY(long, {
-          x: 'x',
-          y: 'value',
-          z: 'serie',
-          color: 'serie',
-          layout: stack({ order: ['propre', 'sale'] }),
-          stroke: 'var(--surface)',
-          strokeWidth: 1,
-          radius: { end: 4 },
-          maxThickness: 32,
-        }),
-      ],
-      scales: {
-        x: { scale: () => scaleBand<string>().padding(0.2), axis: periodAxis(formatShortDay) },
-        y: { scale: scaleLinear, nice: true, grid: GRID, axis: valueAxis(formatCompactMoney) },
-      },
-      color: colorScale(COTISATION_SERIES),
-      theme: THEME,
-      focus: 'group-x',
-      maxFocusDistance: Number.POSITIVE_INFINITY,
-      // Le bandeau du curseur marque la période : pas d'anneau sur une barre (parfois nulle).
-      focusRing: false,
-      tooltip: { ...TOOLTIP, anchor: 'group-center' },
-    })
-  }, [weekly])
+  const long = toLong(weekly, 'weekStart', COTISATION_SERIES)
+  const definition = defineChart({
+    marks: [
+      crosshair({ x: { band: { fill: 'var(--surface-sunken)', fillOpacity: 1 } }, y: false }),
+      // Empilement : propre en bas, sale au-dessus ; seul le haut de la pile est arrondi.
+      barY(long, {
+        x: 'x',
+        y: 'value',
+        z: 'serie',
+        color: 'serie',
+        layout: stack({ order: ['propre', 'sale'] }),
+        stroke: 'var(--surface)',
+        strokeWidth: 1,
+        radius: { end: 4 },
+        maxThickness: 32,
+      }),
+    ],
+    scales: {
+      x: { scale: () => scaleBand<string>().padding(0.2), axis: periodAxis(formatShortDay) },
+      y: { scale: scaleLinear, nice: true, grid: GRID, axis: valueAxis(formatCompactMoney) },
+    },
+    color: colorScale(COTISATION_SERIES),
+    theme: THEME,
+    focus: 'group-x',
+    maxFocusDistance: Number.POSITIVE_INFINITY,
+    // Le bandeau du curseur marque la période : pas d'anneau sur une barre (parfois nulle).
+    focusRing: false,
+    tooltip: { ...TOOLTIP, anchor: 'group-center' },
+  })
   return (
     <>
       <Legend series={series} />
@@ -393,52 +386,46 @@ export function WeeklyCotisationsChart({ weekly, height = 240 }: { weekly: Weekl
 export function CoffreSeriesChart({ series: points, itemLabel }: { series: CoffreSeries; itemLabel: string }) {
   const stock = STOCK_SERIES
   const moves = MOVE_SERIES
-  const stockDefinition = useMemo(
-    () =>
-      defineChart({
-        marks: [
-          crosshair({ x: { stroke: 'var(--line-strong)' }, y: false }),
-          lineY(points, { x: 'day', y: 'stock', stroke: 'var(--series-3)', strokeWidth: 2, curve: stepAfter }),
-        ],
-        scales: {
-          x: { scale: () => scalePoint<string>().padding(0.1), axis: periodAxis(formatShortDay) },
-          y: { scale: scaleLinear, nice: true, grid: GRID, axis: valueAxis(formatNumber) },
-        },
-        theme: THEME,
-        focus: 'nearest-x',
-        maxFocusDistance: Number.POSITIVE_INFINITY,
-        tooltip: TOOLTIP,
+  const stockDefinition = defineChart({
+    marks: [
+      crosshair({ x: { stroke: 'var(--line-strong)' }, y: false }),
+      lineY(points, { x: 'day', y: 'stock', stroke: 'var(--series-3)', strokeWidth: 2, curve: stepAfter }),
+    ],
+    scales: {
+      x: { scale: () => scalePoint<string>().padding(0.1), axis: periodAxis(formatShortDay) },
+      y: { scale: scaleLinear, nice: true, grid: GRID, axis: valueAxis(formatNumber) },
+    },
+    theme: THEME,
+    focus: 'nearest-x',
+    maxFocusDistance: Number.POSITIVE_INFINITY,
+    tooltip: TOOLTIP,
+  })
+  const long = toLong(points, 'day', MOVE_SERIES)
+  const movesDefinition = defineChart({
+    marks: [
+      crosshair({ x: { band: { fill: 'var(--surface-sunken)', fillOpacity: 1 } }, y: false }),
+      barY(long, {
+        x: 'x',
+        y: 'value',
+        z: 'serie',
+        color: 'serie',
+        layout: group({ padding: 0.05 }),
+        radius: [3, 3, 0, 0],
+        maxThickness: 14,
       }),
-    [points],
-  )
-  const movesDefinition = useMemo(() => {
-    const long = toLong(points, 'day', MOVE_SERIES)
-    return defineChart({
-      marks: [
-        crosshair({ x: { band: { fill: 'var(--surface-sunken)', fillOpacity: 1 } }, y: false }),
-        barY(long, {
-          x: 'x',
-          y: 'value',
-          z: 'serie',
-          color: 'serie',
-          layout: group({ padding: 0.05 }),
-          radius: [3, 3, 0, 0],
-          maxThickness: 14,
-        }),
-      ],
-      scales: {
-        x: { scale: () => scaleBand<string>().padding(0.15), axis: periodAxis(formatShortDay) },
-        y: { scale: scaleLinear, nice: true, grid: GRID, axis: valueAxis(formatNumber) },
-      },
-      color: colorScale(MOVE_SERIES),
-      theme: THEME,
-      focus: 'group-x',
-      maxFocusDistance: Number.POSITIVE_INFINITY,
-      // Le bandeau du curseur marque la période : pas d'anneau sur une barre (parfois nulle).
-      focusRing: false,
-      tooltip: { ...TOOLTIP, anchor: 'group-center' },
-    })
-  }, [points])
+    ],
+    scales: {
+      x: { scale: () => scaleBand<string>().padding(0.15), axis: periodAxis(formatShortDay) },
+      y: { scale: scaleLinear, nice: true, grid: GRID, axis: valueAxis(formatNumber) },
+    },
+    color: colorScale(MOVE_SERIES),
+    theme: THEME,
+    focus: 'group-x',
+    maxFocusDistance: Number.POSITIVE_INFINITY,
+    // Le bandeau du curseur marque la période : pas d'anneau sur une barre (parfois nulle).
+    focusRing: false,
+    tooltip: { ...TOOLTIP, anchor: 'group-center' },
+  })
   return (
     <div className="grid gap-6 lg:grid-cols-2">
       <div className="min-w-0">

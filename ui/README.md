@@ -9,22 +9,23 @@ Le contrat de l'API est `src/api/types.ts` ; la spécification OpenAPI du bot (`
 
 ## Pile
 
-| Outil                                      | Version                                               | Rôle                                                            |
-| ------------------------------------------ | ----------------------------------------------------- | --------------------------------------------------------------- |
-| React                                      | 19.3.0                                                | Interface                                                       |
-| Vite                                       | 8.3.2                                                 | Serveur de développement, compilation (`dist/`)                 |
-| TanStack Router                            | 1.170.41 (+ `@tanstack/router-plugin` 1.168.42)       | Routes par fichiers (`src/routes`), découpage du code par route |
-| TanStack Query                             | 5.104.1                                               | Toutes les requêtes à l'API                                     |
-| Tailwind CSS                               | 4.3.3                                                 | Styles, jetons du thème dans `src/styles.css`                   |
-| shadcn/ui (Radix, paquet `radix-ui` 1.6.7) | —                                                     | Composants (`src/components/ui`), écrits dans le style shadcn   |
-| TanStack Charts                            | 1.0.0 (`@tanstack/react-charts` + `@tanstack/charts`) | Graphiques SVG, chargés seulement par les pages qui en ont      |
-| Jotai                                      | 3.0.1                                                 | État d'interface (thème, tiroir, dernier serveur)               |
-| lucide-react                               | 1.52.0                                                | Icônes                                                          |
-| sonner                                     | 2.0.8                                                 | Notifications (toasts)                                          |
-| TypeScript                                 | 7.0.2 (compilateur natif)                             | `npm run typecheck` (`tsc --noEmit`) ; Vite transpile           |
-| Oxlint                                     | 1.86.0                                                | Lint (`.oxlintrc.json`)                                         |
-| Oxfmt                                      | 0.71.0                                                | Format (`.oxfmtrc.json`)                                        |
-| Hey API (`@hey-api/openapi-ts`)            | 0.0.0-next-20260930190945 (étiquette `next`)          | Génération du client typé depuis `openapi.json`                 |
+| Outil                                          | Version                                                        | Rôle                                                            |
+| ---------------------------------------------- | -------------------------------------------------------------- | --------------------------------------------------------------- |
+| React                                          | 19.3.0                                                         | Interface                                                       |
+| Vite                                           | 8.3.2                                                          | Serveur de développement, compilation (`dist/`)                 |
+| TanStack Router                                | 1.170.41 (+ `@tanstack/router-plugin` 1.168.42)                | Routes par fichiers (`src/routes`), découpage du code par route |
+| TanStack Query                                 | 5.104.1                                                        | Toutes les requêtes à l'API                                     |
+| Tailwind CSS                                   | 4.3.3                                                          | Styles, jetons du thème dans `src/styles.css`                   |
+| shadcn/ui (Radix, paquet `radix-ui` 1.6.7)     | —                                                              | Composants (`src/components/ui`), écrits dans le style shadcn   |
+| TanStack Charts                                | 1.0.0 (`@tanstack/react-charts` + `@tanstack/charts`)          | Graphiques SVG, chargés seulement par les pages qui en ont      |
+| Jotai                                          | 3.0.1                                                          | État d'interface (thème, tiroir, dernier serveur)               |
+| lucide-react                                   | 1.52.0                                                         | Icônes                                                          |
+| sonner                                         | 2.0.8                                                          | Notifications (toasts)                                          |
+| React Compiler (`babel-plugin-react-compiler`) | 1.0.0 (+ `@rolldown/plugin-babel` 0.2.4, `@babel/core` 7.29.7) | Mémoïsation automatique à la compilation (cible React 19)       |
+| TypeScript                                     | 7.0.2 (compilateur natif)                                      | `npm run typecheck` (`tsc --noEmit`) ; Vite transpile           |
+| Oxlint                                         | 1.86.0                                                         | Lint (`.oxlintrc.json`)                                         |
+| Oxfmt                                          | 0.71.0                                                         | Format (`.oxfmtrc.json`)                                        |
+| Hey API (`@hey-api/openapi-ts`)                | 0.0.0-next-20260930190945 (étiquette `next`)                   | Génération du client typé depuis `openapi.json`                 |
 
 Versions exactes, publiées au moins deux semaines avant leur adoption. Hey API est pris sur l'étiquette `next` : la
 version stable ne prend pas encore TypeScript 7 en charge. Le client fetch de Hey API est généré dans le dossier de
@@ -53,6 +54,7 @@ npm run format         # oxfmt (écrit)
 npm run format:check   # oxfmt --check
 npm run generate:api   # client Hey API depuis openapi.json → src/api/generated (non versionné)
 npm run check:api      # génère, puis vérifie que la spécification convient aux types de src/api/types.ts
+npm run check:compiler # le React Compiler compile chaque composant et hook (aucun abandon)
 ```
 
 `lint`, `format:check`, `typecheck` et `build` doivent passer avant chaque commit. Les fichiers générés

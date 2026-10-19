@@ -1,8 +1,9 @@
 import { fileURLToPath, URL } from 'node:url'
 
+import babel from '@rolldown/plugin-babel'
 import tailwindcss from '@tailwindcss/vite'
 import { tanstackRouter } from '@tanstack/router-plugin/vite'
-import viteReact from '@vitejs/plugin-react'
+import viteReact, { reactCompilerPreset } from '@vitejs/plugin-react'
 import { defineConfig } from 'vite'
 
 // Le bot sert `dist/` (index.html pour toutes les routes du SPA) et l'API sous `/api`.
@@ -14,6 +15,8 @@ export default defineConfig({
   plugins: [
     tanstackRouter({ target: 'react', autoCodeSplitting: true, quoteStyle: 'single', semicolons: false }),
     viteReact(),
+    // React Compiler (Babel) : mémoïsation automatique des composants et des hooks, pour React 19.
+    babel({ presets: [reactCompilerPreset({ target: '19' })] }),
     tailwindcss(),
   ],
   resolve: { alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) } },

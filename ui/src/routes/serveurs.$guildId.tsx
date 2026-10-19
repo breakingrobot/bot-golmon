@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query'
 import { createFileRoute, Outlet, useNavigate } from '@tanstack/react-router'
 import { useAtom, useSetAtom } from 'jotai'
 import { Menu } from 'lucide-react'
-import { useEffect, useMemo } from 'react'
+import { useEffect } from 'react'
 
 import { meQuery } from '@/api/queries'
 import type { GuildAccess, Me } from '@/api/types'
@@ -65,7 +65,7 @@ function GuildLayout() {
 function GuildShell({ me, guild, userId }: { me: Me; guild: GuildAccess; userId: string }) {
   const [open, setOpen] = useAtom(guildNavOpenAtom)
   const setLastGuildId = useSetAtom(lastGuildIdAtom)
-  const context = useMemo(() => ({ me, guild, userId }), [me, guild, userId])
+  const context = { me, guild, userId }
   useEffect(() => {
     setLastGuildId(guild.id)
   }, [guild.id, setLastGuildId])
