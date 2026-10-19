@@ -1,0 +1,5459 @@
+{
+  "components": {
+    "schemas": {
+      "ApiError": {
+        "description": "Erreur : message lisible en français, lien de connexion pour un 401.",
+        "properties": {
+          "error": {
+            "type": "string"
+          },
+          "loginUrl": {
+            "description": "Seulement pour un 401 : lien de connexion.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "error"
+        ],
+        "type": "object"
+      },
+      "AttendanceWeek": {
+        "properties": {
+          "presences": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "rate": {
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "weekStart": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "weekStart",
+          "rate",
+          "presences"
+        ],
+        "type": "object"
+      },
+      "CoffreAlerts": {
+        "properties": {
+          "bigWithdrawal": {
+            "description": "Un retrait unique au-dessus de cette quantité déclenche une alerte (`null` : désactivé).",
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "channelId": {
+            "description": "Salon où publier les alertes, `null` : désactivées.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "roleId": {
+            "description": "Rôle mentionné dans les alertes.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "thresholds": {
+            "items": {
+              "$ref": "#/components/schemas/CoffreThreshold"
+            },
+            "type": "array"
+          },
+          "unknownPlayer": {
+            "description": "Alerte quand un personnage relié à aucun membre retire quelque chose.",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "channelId",
+          "roleId",
+          "thresholds",
+          "bigWithdrawal",
+          "unknownPlayer"
+        ],
+        "type": "object"
+      },
+      "CoffreChannel": {
+        "properties": {
+          "channelId": {
+            "type": "string"
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "webhookKnown": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "channelId",
+          "name",
+          "webhookKnown"
+        ],
+        "type": "object"
+      },
+      "CoffreItem": {
+        "properties": {
+          "item": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "item",
+          "label"
+        ],
+        "type": "object"
+      },
+      "CoffreKind": {
+        "description": "Dépôt ou retrait.",
+        "enum": [
+          "DEPOSIT",
+          "WITHDRAW"
+        ],
+        "type": "string"
+      },
+      "CoffreLink": {
+        "properties": {
+          "gameId": {
+            "type": "string"
+          },
+          "member": {
+            "$ref": "#/components/schemas/MemberRef"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "gameId",
+          "name",
+          "member"
+        ],
+        "type": "object"
+      },
+      "CoffreMeta": {
+        "properties": {
+          "channels": {
+            "items": {
+              "$ref": "#/components/schemas/CoffreChannel"
+            },
+            "type": "array"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/CoffreItem"
+            },
+            "type": "array"
+          },
+          "links": {
+            "items": {
+              "$ref": "#/components/schemas/CoffreLink"
+            },
+            "type": "array"
+          },
+          "properties": {
+            "items": {
+              "$ref": "#/components/schemas/CoffreProperty"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "properties",
+          "items",
+          "links",
+          "channels"
+        ],
+        "type": "object"
+      },
+      "CoffreMovement": {
+        "properties": {
+          "amount": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "at": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "item": {
+            "type": "string"
+          },
+          "itemLabel": {
+            "type": "string"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/CoffreKind"
+          },
+          "player": {
+            "$ref": "#/components/schemas/CoffreMovementPlayer"
+          },
+          "propertyId": {
+            "type": "string"
+          },
+          "propertyName": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "at",
+          "kind",
+          "propertyId",
+          "propertyName",
+          "item",
+          "itemLabel",
+          "amount",
+          "player"
+        ],
+        "type": "object"
+      },
+      "CoffreMovementPage": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/CoffreMovement"
+            },
+            "type": "array"
+          },
+          "page": {
+            "description": "1 = première page.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "pageSize": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "total": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "page",
+          "pageSize"
+        ],
+        "type": "object"
+      },
+      "CoffreMovementPlayer": {
+        "properties": {
+          "gameId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "member": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/MemberRef"
+              }
+            ]
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "gameId",
+          "name",
+          "member"
+        ],
+        "type": "object"
+      },
+      "CoffrePlayer": {
+        "properties": {
+          "count": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "deposited": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "gameId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "member": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/MemberRef"
+              }
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "withdrawn": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "gameId",
+          "name",
+          "member",
+          "deposited",
+          "withdrawn",
+          "count"
+        ],
+        "type": "object"
+      },
+      "CoffreProperty": {
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "name"
+        ],
+        "type": "object"
+      },
+      "CoffreSeriesPoint": {
+        "properties": {
+          "day": {
+            "type": "string"
+          },
+          "deposited": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "stock": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "withdrawn": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "day",
+          "deposited",
+          "withdrawn",
+          "stock"
+        ],
+        "type": "object"
+      },
+      "CoffreStock": {
+        "properties": {
+          "properties": {
+            "items": {
+              "$ref": "#/components/schemas/CoffreStockProperty"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "properties"
+        ],
+        "type": "object"
+      },
+      "CoffreStockItem": {
+        "properties": {
+          "deposited": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "item": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "low": {
+            "type": "boolean"
+          },
+          "quantity": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "withdrawn": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "item",
+          "label",
+          "deposited",
+          "withdrawn",
+          "quantity",
+          "low"
+        ],
+        "type": "object"
+      },
+      "CoffreStockProperty": {
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/CoffreStockItem"
+            },
+            "type": "array"
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "items"
+        ],
+        "type": "object"
+      },
+      "CoffreThreshold": {
+        "properties": {
+          "item": {
+            "type": "string"
+          },
+          "min": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "propertyId": {
+            "description": "`null` : toutes les propriétés.",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "propertyId",
+          "item",
+          "min"
+        ],
+        "type": "object"
+      },
+      "ConfigCheck": {
+        "properties": {
+          "detail": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "fix": {
+            "description": "Commande Discord pour corriger.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "label": {
+            "type": "string"
+          },
+          "ok": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "label",
+          "ok",
+          "detail",
+          "fix"
+        ],
+        "type": "object"
+      },
+      "ConfigModule": {
+        "properties": {
+          "checks": {
+            "items": {
+              "$ref": "#/components/schemas/ConfigCheck"
+            },
+            "type": "array"
+          },
+          "key": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ModuleStatus"
+          }
+        },
+        "required": [
+          "key",
+          "label",
+          "status",
+          "checks"
+        ],
+        "type": "object"
+      },
+      "ConfigStatus": {
+        "properties": {
+          "modules": {
+            "items": {
+              "$ref": "#/components/schemas/ConfigModule"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "modules"
+        ],
+        "type": "object"
+      },
+      "Contact": {
+        "properties": {
+          "createdAt": {
+            "type": "string"
+          },
+          "createdBy": {
+            "$ref": "#/components/schemas/MemberRef"
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/ContactKind"
+          },
+          "name": {
+            "type": "string"
+          },
+          "notesCount": {
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "phone": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "relation": {
+            "$ref": "#/components/schemas/Relation"
+          },
+          "updatedAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "kind",
+          "relation",
+          "phone",
+          "description",
+          "createdBy",
+          "createdAt",
+          "updatedAt",
+          "notesCount"
+        ],
+        "type": "object"
+      },
+      "ContactCounts": {
+        "properties": {
+          "allie": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "hostile": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "neutre": {
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "allie",
+          "neutre",
+          "hostile"
+        ],
+        "type": "object"
+      },
+      "ContactDetail": {
+        "properties": {
+          "contact": {
+            "$ref": "#/components/schemas/Contact"
+          },
+          "notes": {
+            "items": {
+              "$ref": "#/components/schemas/ContactNote"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "contact",
+          "notes"
+        ],
+        "type": "object"
+      },
+      "ContactInput": {
+        "description": "Limites : nom 80, téléphone 30, description 500 caractères.",
+        "properties": {
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "kind": {
+            "$ref": "#/components/schemas/ContactKind"
+          },
+          "name": {
+            "type": "string"
+          },
+          "phone": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "relation": {
+            "$ref": "#/components/schemas/Relation"
+          }
+        },
+        "required": [
+          "name",
+          "kind",
+          "relation"
+        ],
+        "type": "object"
+      },
+      "ContactKind": {
+        "description": "Nature d'un contact.",
+        "enum": [
+          "GROUPE",
+          "ENTREPRISE",
+          "PERSONNE"
+        ],
+        "type": "string"
+      },
+      "ContactNote": {
+        "properties": {
+          "author": {
+            "$ref": "#/components/schemas/MemberRef"
+          },
+          "body": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "author",
+          "body",
+          "createdAt"
+        ],
+        "type": "object"
+      },
+      "ContactPatch": {
+        "description": "`Partial<ContactInput>` : champ absent = inchangé ; `phone`/`description` à `null` = effacé.",
+        "properties": {
+          "description": {
+            "default": null,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "kind": {
+            "default": null,
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ContactKind"
+              }
+            ]
+          },
+          "name": {
+            "default": null,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "phone": {
+            "default": null,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "relation": {
+            "default": null,
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/Relation"
+              }
+            ]
+          }
+        },
+        "type": "object"
+      },
+      "ContactsResponse": {
+        "properties": {
+          "counts": {
+            "$ref": "#/components/schemas/ContactCounts"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/Contact"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "counts",
+          "items"
+        ],
+        "type": "object"
+      },
+      "CotisationEntry": {
+        "properties": {
+          "date": {
+            "type": "string"
+          },
+          "declaredBy": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/MemberRef"
+              }
+            ]
+          },
+          "description": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "member": {
+            "$ref": "#/components/schemas/MemberRef"
+          },
+          "propre": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "sale": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "date",
+          "member",
+          "propre",
+          "sale",
+          "description",
+          "declaredBy"
+        ],
+        "type": "object"
+      },
+      "CotisationEntryPage": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/CotisationEntry"
+            },
+            "type": "array"
+          },
+          "page": {
+            "description": "1 = première page.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "pageSize": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "total": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "page",
+          "pageSize"
+        ],
+        "type": "object"
+      },
+      "CotisationMember": {
+        "properties": {
+          "count": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "member": {
+            "$ref": "#/components/schemas/MemberRef"
+          },
+          "propre": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "sale": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "member",
+          "propre",
+          "sale",
+          "count"
+        ],
+        "type": "object"
+      },
+      "CotisationTotals": {
+        "properties": {
+          "count": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "propre": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "sale": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "count",
+          "propre",
+          "sale"
+        ],
+        "type": "object"
+      },
+      "CotisationsResponse": {
+        "properties": {
+          "entries": {
+            "$ref": "#/components/schemas/CotisationEntryPage"
+          },
+          "members": {
+            "items": {
+              "$ref": "#/components/schemas/CotisationMember"
+            },
+            "type": "array"
+          },
+          "objective": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/Objective"
+              }
+            ]
+          },
+          "objectiveProgress": {
+            "items": {
+              "$ref": "#/components/schemas/ObjectiveProgress"
+            },
+            "type": "array"
+          },
+          "totals": {
+            "$ref": "#/components/schemas/CotisationTotals"
+          },
+          "weekly": {
+            "items": {
+              "$ref": "#/components/schemas/WeeklyAmount"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "totals",
+          "members",
+          "weekly",
+          "entries",
+          "objective",
+          "objectiveProgress"
+        ],
+        "type": "object"
+      },
+      "GuildAccess": {
+        "properties": {
+          "iconUrl": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "isAdmin": {
+            "type": "boolean"
+          },
+          "name": {
+            "type": "string"
+          },
+          "perms": {
+            "items": {
+              "$ref": "#/components/schemas/Perm"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "iconUrl",
+          "isAdmin",
+          "perms"
+        ],
+        "type": "object"
+      },
+      "GuildStats": {
+        "properties": {
+          "absencesCurrent": {
+            "items": {
+              "$ref": "#/components/schemas/StatsAbsence"
+            },
+            "type": "array"
+          },
+          "attendance": {
+            "items": {
+              "$ref": "#/components/schemas/StatsAttendance"
+            },
+            "type": "array"
+          },
+          "attendanceWeekly": {
+            "items": {
+              "$ref": "#/components/schemas/AttendanceWeek"
+            },
+            "type": "array"
+          },
+          "figures": {
+            "items": {
+              "$ref": "#/components/schemas/StatsFigure"
+            },
+            "type": "array"
+          },
+          "recruits": {
+            "items": {
+              "$ref": "#/components/schemas/StatsRecruit"
+            },
+            "type": "array"
+          },
+          "tickets": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/TicketStats"
+              }
+            ]
+          }
+        },
+        "required": [
+          "figures",
+          "attendance",
+          "attendanceWeekly",
+          "recruits",
+          "absencesCurrent",
+          "tickets"
+        ],
+        "type": "object"
+      },
+      "JournalAction": {
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "label"
+        ],
+        "type": "object"
+      },
+      "JournalEntry": {
+        "properties": {
+          "action": {
+            "type": "string"
+          },
+          "actor": {
+            "$ref": "#/components/schemas/MemberRef"
+          },
+          "at": {
+            "type": "string"
+          },
+          "detailsHtml": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "target": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/MemberRef"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "at",
+          "actor",
+          "action",
+          "label",
+          "target",
+          "detailsHtml"
+        ],
+        "type": "object"
+      },
+      "JournalEntryPage": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/JournalEntry"
+            },
+            "type": "array"
+          },
+          "page": {
+            "description": "1 = première page.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "pageSize": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "total": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "page",
+          "pageSize"
+        ],
+        "type": "object"
+      },
+      "JournalResponse": {
+        "properties": {
+          "actions": {
+            "items": {
+              "$ref": "#/components/schemas/JournalAction"
+            },
+            "type": "array"
+          },
+          "list": {
+            "$ref": "#/components/schemas/JournalEntryPage"
+          }
+        },
+        "required": [
+          "actions",
+          "list"
+        ],
+        "type": "object"
+      },
+      "Level": {
+        "description": "Niveau de permission, du plus ouvert au plus restreint.",
+        "enum": [
+          "tous",
+          "membre",
+          "grade",
+          "lead",
+          "admin"
+        ],
+        "type": "string"
+      },
+      "LogCounts": {
+        "properties": {
+          "fromUser": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "internal": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "toUser": {
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "fromUser",
+          "toUser",
+          "internal"
+        ],
+        "type": "object"
+      },
+      "LogEdit": {
+        "properties": {
+          "afterHtml": {
+            "type": "string"
+          },
+          "beforeHtml": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "beforeHtml",
+          "afterHtml"
+        ],
+        "type": "object"
+      },
+      "LogEntry": {
+        "properties": {
+          "at": {
+            "type": "string"
+          },
+          "author": {
+            "type": "string"
+          },
+          "badge": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "bodyHtml": {
+            "type": "string"
+          },
+          "edit": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/LogEdit"
+              }
+            ]
+          },
+          "embeds": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "files": {
+            "items": {
+              "$ref": "#/components/schemas/LogFile"
+            },
+            "type": "array"
+          },
+          "id": {
+            "type": "string"
+          },
+          "images": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/LogKind"
+          },
+          "monospace": {
+            "type": "boolean"
+          },
+          "newDay": {
+            "type": "boolean"
+          },
+          "number": {
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "role": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "technical": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "newDay",
+          "author",
+          "role",
+          "badge",
+          "number",
+          "at",
+          "bodyHtml",
+          "monospace",
+          "edit",
+          "images",
+          "files",
+          "embeds",
+          "technical"
+        ],
+        "type": "object"
+      },
+      "LogFile": {
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "url",
+          "name"
+        ],
+        "type": "object"
+      },
+      "LogKind": {
+        "description": "Type d'un message de log.",
+        "enum": [
+          "user",
+          "staff",
+          "internal",
+          "command",
+          "system",
+          "danger"
+        ],
+        "type": "string"
+      },
+      "Me": {
+        "properties": {
+          "guilds": {
+            "items": {
+              "$ref": "#/components/schemas/GuildAccess"
+            },
+            "type": "array"
+          },
+          "loginEnabled": {
+            "type": "boolean"
+          },
+          "loginUrl": {
+            "type": "string"
+          },
+          "tickets": {
+            "type": "boolean"
+          },
+          "user": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/MeUser"
+              }
+            ]
+          }
+        },
+        "required": [
+          "user",
+          "loginEnabled",
+          "loginUrl",
+          "tickets",
+          "guilds"
+        ],
+        "type": "object"
+      },
+      "MeUser": {
+        "properties": {
+          "avatarUrl": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "avatarUrl"
+        ],
+        "type": "object"
+      },
+      "MemberAbsence": {
+        "properties": {
+          "current": {
+            "type": "boolean"
+          },
+          "from": {
+            "type": "string"
+          },
+          "motif": {
+            "type": "string"
+          },
+          "to": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "from",
+          "to",
+          "motif",
+          "current"
+        ],
+        "type": "object"
+      },
+      "MemberCharacter": {
+        "properties": {
+          "gameId": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "gameId",
+          "name"
+        ],
+        "type": "object"
+      },
+      "MemberCoffres": {
+        "properties": {
+          "characters": {
+            "items": {
+              "$ref": "#/components/schemas/MemberCharacter"
+            },
+            "type": "array"
+          },
+          "deposited": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "recent": {
+            "items": {
+              "$ref": "#/components/schemas/CoffreMovement"
+            },
+            "type": "array"
+          },
+          "withdrawn": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "characters",
+          "deposited",
+          "withdrawn",
+          "recent"
+        ],
+        "type": "object"
+      },
+      "MemberCotisations": {
+        "properties": {
+          "objective": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ObjectiveProgress"
+              }
+            ]
+          },
+          "recent": {
+            "items": {
+              "$ref": "#/components/schemas/CotisationEntry"
+            },
+            "type": "array"
+          },
+          "totals": {
+            "$ref": "#/components/schemas/CotisationTotals"
+          },
+          "weekly": {
+            "items": {
+              "$ref": "#/components/schemas/WeeklyAmount"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "totals",
+          "weekly",
+          "recent",
+          "objective"
+        ],
+        "type": "object"
+      },
+      "MemberPresence": {
+        "properties": {
+          "absent": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "present": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "rate": {
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "recent": {
+            "items": {
+              "$ref": "#/components/schemas/MemberRecentPresence"
+            },
+            "type": "array"
+          },
+          "retard": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "present",
+          "retard",
+          "absent",
+          "rate",
+          "recent"
+        ],
+        "type": "object"
+      },
+      "MemberProfile": {
+        "properties": {
+          "absences": {
+            "items": {
+              "$ref": "#/components/schemas/MemberAbsence"
+            },
+            "type": "array"
+          },
+          "coffres": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/MemberCoffres"
+              }
+            ]
+          },
+          "cotisations": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/MemberCotisations"
+              }
+            ]
+          },
+          "joinedAt": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "member": {
+            "$ref": "#/components/schemas/MemberRef"
+          },
+          "phone": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "presence": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/MemberPresence"
+              }
+            ]
+          },
+          "recrue": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/MemberRecrue"
+              }
+            ]
+          },
+          "roles": {
+            "items": {
+              "$ref": "#/components/schemas/Role"
+            },
+            "type": "array"
+          },
+          "vehicles": {
+            "items": {
+              "$ref": "#/components/schemas/MemberVehicle"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "member",
+          "joinedAt",
+          "roles",
+          "presence",
+          "absences",
+          "cotisations",
+          "coffres",
+          "recrue",
+          "phone",
+          "vehicles"
+        ],
+        "type": "object"
+      },
+      "MemberRecentPresence": {
+        "properties": {
+          "date": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/PresenceStatus"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "date",
+          "status"
+        ],
+        "type": "object"
+      },
+      "MemberRecrue": {
+        "properties": {
+          "weeks": {
+            "items": {
+              "$ref": "#/components/schemas/MemberRecrueWeek"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "weeks"
+        ],
+        "type": "object"
+      },
+      "MemberRecrueWeek": {
+        "properties": {
+          "blanc": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "contre": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "pour": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "veto": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/Veto"
+              }
+            ]
+          },
+          "weekStart": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "weekStart",
+          "pour",
+          "contre",
+          "blanc",
+          "veto"
+        ],
+        "type": "object"
+      },
+      "MemberRef": {
+        "description": "Membre Discord résolu par le bot (nom affiché sur le serveur).",
+        "properties": {
+          "avatarUrl": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "avatarUrl"
+        ],
+        "type": "object"
+      },
+      "MemberVehicle": {
+        "properties": {
+          "model": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "plate": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "plate",
+          "model"
+        ],
+        "type": "object"
+      },
+      "ModuleStatus": {
+        "description": "État d'un module.",
+        "enum": [
+          "ok",
+          "incomplete",
+          "off"
+        ],
+        "type": "string"
+      },
+      "NewCotisation": {
+        "description": "Absent : soi-même (`memberId`) et aujourd'hui (`date`, jamais dans le futur).",
+        "properties": {
+          "date": {
+            "default": null,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "description": {
+            "default": "",
+            "type": "string"
+          },
+          "memberId": {
+            "default": null,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "propre": {
+            "default": 0,
+            "format": "int64",
+            "type": "integer"
+          },
+          "sale": {
+            "default": 0,
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "propre",
+          "sale",
+          "description"
+        ],
+        "type": "object"
+      },
+      "NoteInput": {
+        "properties": {
+          "body": {
+            "description": "1000 caractères au plus.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "body"
+        ],
+        "type": "object"
+      },
+      "Objective": {
+        "description": "Objectif hebdomadaire (lundi → dimanche, heure de Paris).",
+        "properties": {
+          "amount": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "counts": {
+            "$ref": "#/components/schemas/ObjectiveCounts"
+          },
+          "reminder": {
+            "description": "Rappel le dimanche aux membres en dessous de l'objectif.",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "amount",
+          "counts",
+          "reminder"
+        ],
+        "type": "object"
+      },
+      "ObjectiveCounts": {
+        "description": "Ce qui compte pour l'objectif.",
+        "enum": [
+          "total",
+          "propre",
+          "sale"
+        ],
+        "type": "string"
+      },
+      "ObjectiveProgress": {
+        "properties": {
+          "amount": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "exempt": {
+            "description": "Absence déclarée ou recrue : non concerné cette semaine.",
+            "type": "boolean"
+          },
+          "member": {
+            "$ref": "#/components/schemas/MemberRef"
+          },
+          "reached": {
+            "type": "boolean"
+          },
+          "target": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "member",
+          "amount",
+          "target",
+          "reached",
+          "exempt"
+        ],
+        "type": "object"
+      },
+      "Perm": {
+        "description": "Clé d'action soumise à permission.",
+        "enum": [
+          "presence.creer",
+          "presence.stats",
+          "presence.gerer",
+          "presence.reset",
+          "presence.blocklist",
+          "absence.autrui",
+          "transaction.utiliser",
+          "transaction.supprimer",
+          "transaction.historique",
+          "vehicule.utiliser",
+          "numero.ajouter_autrui",
+          "numero.supprimer_autrui",
+          "recrue.suivi",
+          "recrue.avis",
+          "recrue.veto",
+          "recrue.reset",
+          "cotisation.ajouter",
+          "cotisation.gerer",
+          "cotisation.stats",
+          "coffre.voir",
+          "coffre.gerer",
+          "contact.voir",
+          "contact.ajouter",
+          "contact.modifier",
+          "contact.notes",
+          "membre.fiche",
+          "site.stats",
+          "site.journal"
+        ],
+        "type": "string"
+      },
+      "PermissionAction": {
+        "properties": {
+          "defaultLevel": {
+            "$ref": "#/components/schemas/Level"
+          },
+          "key": {
+            "$ref": "#/components/schemas/Perm"
+          },
+          "label": {
+            "type": "string"
+          },
+          "level": {
+            "$ref": "#/components/schemas/Level"
+          },
+          "module": {
+            "type": "string"
+          },
+          "strict": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "key",
+          "module",
+          "label",
+          "defaultLevel",
+          "level",
+          "strict"
+        ],
+        "type": "object"
+      },
+      "PermissionRoles": {
+        "properties": {
+          "grade": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/Role"
+              }
+            ]
+          },
+          "lead": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/Role"
+              }
+            ]
+          },
+          "member": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/Role"
+              }
+            ]
+          }
+        },
+        "required": [
+          "member",
+          "grade",
+          "lead"
+        ],
+        "type": "object"
+      },
+      "PermissionsResponse": {
+        "properties": {
+          "actions": {
+            "items": {
+              "$ref": "#/components/schemas/PermissionAction"
+            },
+            "type": "array"
+          },
+          "guildRoles": {
+            "items": {
+              "$ref": "#/components/schemas/Role"
+            },
+            "type": "array"
+          },
+          "roles": {
+            "$ref": "#/components/schemas/PermissionRoles"
+          }
+        },
+        "required": [
+          "roles",
+          "guildRoles",
+          "actions"
+        ],
+        "type": "object"
+      },
+      "PermissionsUpdate": {
+        "description": "Seuls les champs présents changent ; `null` dans `levels` = niveau par défaut.",
+        "properties": {
+          "levels": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/Level"
+            },
+            "default": null,
+            "description": "Clé d'action → niveau ; `null` = revenir au niveau par défaut.",
+            "propertyNames": {
+              "type": "string"
+            },
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "memberRoleId": {
+            "default": null,
+            "description": "`null` : retirer le rôle membre.",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "type": "object"
+      },
+      "PlayerLink": {
+        "properties": {
+          "memberId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "memberId"
+        ],
+        "type": "object"
+      },
+      "PresenceStatus": {
+        "description": "Réponse à une présence.",
+        "enum": [
+          "PRESENT",
+          "ABSENT",
+          "RETARD",
+          "NON_REPONDU"
+        ],
+        "type": "string"
+      },
+      "PropertyName": {
+        "description": "Nom vide (ou `null`) : retirer le nom.",
+        "properties": {
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "type": "object"
+      },
+      "Relation": {
+        "description": "Relation d'un contact avec le groupe.",
+        "enum": [
+          "ALLIE",
+          "NEUTRE",
+          "HOSTILE"
+        ],
+        "type": "string"
+      },
+      "Role": {
+        "description": "Rôle Discord (`Role` du contrat).",
+        "properties": {
+          "color": {
+            "format": "int32",
+            "minimum": 0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "color"
+        ],
+        "type": "object"
+      },
+      "StatsAbsence": {
+        "properties": {
+          "from": {
+            "type": "string"
+          },
+          "member": {
+            "$ref": "#/components/schemas/MemberRef"
+          },
+          "motif": {
+            "type": "string"
+          },
+          "to": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "member",
+          "from",
+          "to",
+          "motif"
+        ],
+        "type": "object"
+      },
+      "StatsAttendance": {
+        "properties": {
+          "absent": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "member": {
+            "$ref": "#/components/schemas/MemberRef"
+          },
+          "percent": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "present": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "retard": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "member",
+          "present",
+          "retard",
+          "absent",
+          "percent"
+        ],
+        "type": "object"
+      },
+      "StatsFigure": {
+        "properties": {
+          "hint": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "key": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "value": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "label",
+          "value",
+          "hint"
+        ],
+        "type": "object"
+      },
+      "StatsRecruit": {
+        "properties": {
+          "blanc": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "contre": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "member": {
+            "$ref": "#/components/schemas/MemberRef"
+          },
+          "pour": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "veto": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/Veto"
+              }
+            ]
+          }
+        },
+        "required": [
+          "member",
+          "pour",
+          "contre",
+          "blanc",
+          "veto"
+        ],
+        "type": "object"
+      },
+      "TicketLog": {
+        "properties": {
+          "counts": {
+            "$ref": "#/components/schemas/LogCounts"
+          },
+          "entries": {
+            "items": {
+              "$ref": "#/components/schemas/LogEntry"
+            },
+            "type": "array"
+          },
+          "number": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "openedAt": {
+            "type": "string"
+          },
+          "rawUrl": {
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/TicketStatus"
+          },
+          "user": {
+            "$ref": "#/components/schemas/TicketUser"
+          }
+        },
+        "required": [
+          "number",
+          "user",
+          "status",
+          "openedAt",
+          "counts",
+          "rawUrl",
+          "entries"
+        ],
+        "type": "object"
+      },
+      "TicketPage": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/TicketRow"
+            },
+            "type": "array"
+          },
+          "page": {
+            "description": "1 = première page.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "pageSize": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "total": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "page",
+          "pageSize"
+        ],
+        "type": "object"
+      },
+      "TicketRow": {
+        "properties": {
+          "claimedBy": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "exchanges": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "id": {
+            "type": "string"
+          },
+          "number": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "openedAt": {
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/TicketStatus"
+          },
+          "user": {
+            "$ref": "#/components/schemas/TicketUser"
+          }
+        },
+        "required": [
+          "id",
+          "number",
+          "user",
+          "status",
+          "openedAt",
+          "exchanges",
+          "claimedBy"
+        ],
+        "type": "object"
+      },
+      "TicketStaffActivity": {
+        "properties": {
+          "averageFirstResponse": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "claims": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "firstResponses": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "replies": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "tickets": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "name",
+          "replies",
+          "tickets",
+          "claims",
+          "firstResponses",
+          "averageFirstResponse"
+        ],
+        "type": "object"
+      },
+      "TicketStats": {
+        "properties": {
+          "closed": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "medianFirstResponse": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "open": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "opened": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "staff": {
+            "items": {
+              "$ref": "#/components/schemas/TicketStaffActivity"
+            },
+            "type": "array"
+          },
+          "unanswered": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "open",
+          "opened",
+          "closed",
+          "unanswered",
+          "medianFirstResponse",
+          "staff"
+        ],
+        "type": "object"
+      },
+      "TicketStatus": {
+        "description": "Statut d'un ticket.",
+        "enum": [
+          "OPEN",
+          "CLOSED",
+          "SUSPENDED"
+        ],
+        "type": "string"
+      },
+      "TicketUser": {
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name"
+        ],
+        "type": "object"
+      },
+      "Transaction": {
+        "properties": {
+          "createdAt": {
+            "type": "string"
+          },
+          "creator": {
+            "$ref": "#/components/schemas/MemberRef"
+          },
+          "groupe": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/TransactionItem"
+            },
+            "type": "array"
+          },
+          "prix": {
+            "format": "double",
+            "type": "number"
+          },
+          "status": {
+            "$ref": "#/components/schemas/TransactionStatus"
+          },
+          "statusLabel": {
+            "type": "string"
+          },
+          "type": {
+            "$ref": "#/components/schemas/TransactionType"
+          }
+        },
+        "required": [
+          "id",
+          "createdAt",
+          "groupe",
+          "type",
+          "status",
+          "statusLabel",
+          "prix",
+          "creator",
+          "items"
+        ],
+        "type": "object"
+      },
+      "TransactionItem": {
+        "properties": {
+          "nom": {
+            "type": "string"
+          },
+          "prixUnitaire": {
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "quantite": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "nom",
+          "quantite",
+          "prixUnitaire"
+        ],
+        "type": "object"
+      },
+      "TransactionMonth": {
+        "properties": {
+          "achats": {
+            "format": "double",
+            "type": "number"
+          },
+          "count": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "month": {
+            "type": "string"
+          },
+          "ventes": {
+            "format": "double",
+            "type": "number"
+          }
+        },
+        "required": [
+          "month",
+          "achats",
+          "ventes",
+          "count"
+        ],
+        "type": "object"
+      },
+      "TransactionPage": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/Transaction"
+            },
+            "type": "array"
+          },
+          "page": {
+            "description": "1 = première page.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "pageSize": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "total": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "page",
+          "pageSize"
+        ],
+        "type": "object"
+      },
+      "TransactionStatus": {
+        "description": "Statut d'une transaction.",
+        "enum": [
+          "PREPARATION",
+          "EN_ATTENTE_RDV",
+          "AVANCE_ATTENTE_PAIEMENT",
+          "LIVRE_PAYE",
+          "ANNULEE",
+          "CLOTUREE"
+        ],
+        "type": "string"
+      },
+      "TransactionStatusChoice": {
+        "properties": {
+          "label": {
+            "type": "string"
+          },
+          "value": {
+            "$ref": "#/components/schemas/TransactionStatus"
+          }
+        },
+        "required": [
+          "value",
+          "label"
+        ],
+        "type": "object"
+      },
+      "TransactionTotals": {
+        "properties": {
+          "achats": {
+            "format": "double",
+            "type": "number"
+          },
+          "count": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "inProgress": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "solde": {
+            "format": "double",
+            "type": "number"
+          },
+          "ventes": {
+            "format": "double",
+            "type": "number"
+          }
+        },
+        "required": [
+          "count",
+          "achats",
+          "ventes",
+          "solde",
+          "inProgress"
+        ],
+        "type": "object"
+      },
+      "TransactionType": {
+        "description": "Sens d'une transaction.",
+        "enum": [
+          "ACHAT",
+          "VENTE"
+        ],
+        "type": "string"
+      },
+      "TransactionsResponse": {
+        "properties": {
+          "list": {
+            "$ref": "#/components/schemas/TransactionPage"
+          },
+          "months": {
+            "items": {
+              "$ref": "#/components/schemas/TransactionMonth"
+            },
+            "type": "array"
+          },
+          "statuses": {
+            "items": {
+              "$ref": "#/components/schemas/TransactionStatusChoice"
+            },
+            "type": "array"
+          },
+          "totals": {
+            "$ref": "#/components/schemas/TransactionTotals"
+          }
+        },
+        "required": [
+          "totals",
+          "months",
+          "statuses",
+          "list"
+        ],
+        "type": "object"
+      },
+      "Veto": {
+        "properties": {
+          "by": {
+            "$ref": "#/components/schemas/MemberRef"
+          },
+          "motif": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "by",
+          "motif"
+        ],
+        "type": "object"
+      },
+      "WeeklyAmount": {
+        "properties": {
+          "propre": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "sale": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "weekStart": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "weekStart",
+          "propre",
+          "sale"
+        ],
+        "type": "object"
+      }
+    }
+  },
+  "info": {
+    "description": "API JSON du site (`/api`). Écritures : en-têtes `Content-Type: application/json` et `X-Requested-With: fetch` obligatoires.",
+    "license": {
+      "name": ""
+    },
+    "title": "API du bot",
+    "version": "1.0.0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/api/guilds/{guild}/coffres/alerts": {
+      "get": {
+        "operationId": "getCoffreAlerts",
+        "parameters": [
+          {
+            "description": "Identifiant du serveur",
+            "in": "path",
+            "name": "guild",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoffreAlerts"
+                }
+              }
+            },
+            "description": "Réglage des alertes"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Pas connecté"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Droit insuffisant"
+          },
+          "501": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Pas encore disponible"
+          }
+        },
+        "summary": "Alertes des coffres (lecture `coffre.voir`).",
+        "tags": [
+          "coffres"
+        ]
+      },
+      "put": {
+        "operationId": "updateCoffreAlerts",
+        "parameters": [
+          {
+            "description": "Identifiant du serveur",
+            "in": "path",
+            "name": "guild",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CoffreAlerts"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoffreAlerts"
+                }
+              }
+            },
+            "description": "Réglage enregistré"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Pas connecté"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Réservé à « Gérer le serveur »"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Saisie refusée"
+          },
+          "501": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Pas encore disponible"
+          }
+        },
+        "summary": "Règle les alertes des coffres (« Gérer le serveur »).",
+        "tags": [
+          "coffres"
+        ]
+      }
+    },
+    "/api/guilds/{guild}/coffres/export.csv": {
+      "get": {
+        "operationId": "exportCoffres",
+        "parameters": [
+          {
+            "description": "Identifiant du serveur",
+            "in": "path",
+            "name": "guild",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Une seule propriété.",
+            "in": "query",
+            "name": "propriete",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Un seul objet.",
+            "in": "query",
+            "name": "objet",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Identifiant de jeu d'un personnage.",
+            "in": "query",
+            "name": "joueur",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "`deposit` ou `withdraw`.",
+            "in": "query",
+            "name": "type",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Nombre de jours (30 par défaut), ou `tout`.",
+            "in": "query",
+            "name": "jours",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Page (1 = première).",
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "text/csv": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Fichier CSV"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Pas connecté"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Droit insuffisant"
+          }
+        },
+        "summary": "Export CSV, mêmes filtres que les mouvements.",
+        "tags": [
+          "coffres"
+        ]
+      }
+    },
+    "/api/guilds/{guild}/coffres/meta": {
+      "get": {
+        "operationId": "getCoffreMeta",
+        "parameters": [
+          {
+            "description": "Identifiant du serveur",
+            "in": "path",
+            "name": "guild",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoffreMeta"
+                }
+              }
+            },
+            "description": "Méta-données"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Pas connecté"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Droit insuffisant"
+          }
+        },
+        "summary": "Propriétés, objets, liens et salons suivis (`coffre.voir`).",
+        "tags": [
+          "coffres"
+        ]
+      }
+    },
+    "/api/guilds/{guild}/coffres/movements": {
+      "get": {
+        "operationId": "getCoffreMovements",
+        "parameters": [
+          {
+            "description": "Identifiant du serveur",
+            "in": "path",
+            "name": "guild",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Une seule propriété.",
+            "in": "query",
+            "name": "propriete",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Un seul objet.",
+            "in": "query",
+            "name": "objet",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Identifiant de jeu d'un personnage.",
+            "in": "query",
+            "name": "joueur",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "`deposit` ou `withdraw`.",
+            "in": "query",
+            "name": "type",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Nombre de jours (30 par défaut), ou `tout`.",
+            "in": "query",
+            "name": "jours",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Page (1 = première).",
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoffreMovementPage"
+                }
+              }
+            },
+            "description": "Mouvements"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Pas connecté"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Droit insuffisant"
+          }
+        },
+        "summary": "Mouvements filtrés (`coffre.voir`) ; `jours` absent = 30, `tout` = tout.",
+        "tags": [
+          "coffres"
+        ]
+      }
+    },
+    "/api/guilds/{guild}/coffres/players": {
+      "get": {
+        "operationId": "getCoffrePlayers",
+        "parameters": [
+          {
+            "description": "Identifiant du serveur",
+            "in": "path",
+            "name": "guild",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Une seule propriété.",
+            "in": "query",
+            "name": "propriete",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Un seul objet.",
+            "in": "query",
+            "name": "objet",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Identifiant de jeu d'un personnage.",
+            "in": "query",
+            "name": "joueur",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "`deposit` ou `withdraw`.",
+            "in": "query",
+            "name": "type",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Nombre de jours (30 par défaut), ou `tout`.",
+            "in": "query",
+            "name": "jours",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Page (1 = première).",
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/CoffrePlayer"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Joueurs"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Pas connecté"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Droit insuffisant"
+          }
+        },
+        "summary": "Activité par joueur, mêmes filtres que les mouvements (`page` ignoré).",
+        "tags": [
+          "coffres"
+        ]
+      }
+    },
+    "/api/guilds/{guild}/coffres/players/{game_id}": {
+      "delete": {
+        "operationId": "unlinkCoffrePlayer",
+        "parameters": [
+          {
+            "description": "Identifiant du serveur",
+            "in": "path",
+            "name": "guild",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Identifiant du personnage dans le jeu",
+            "in": "path",
+            "name": "game_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Lien retiré"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Pas connecté"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Droit insuffisant"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Introuvable"
+          }
+        },
+        "summary": "Retire le lien d'un personnage (`coffre.gerer`).",
+        "tags": [
+          "coffres"
+        ]
+      },
+      "put": {
+        "operationId": "linkCoffrePlayer",
+        "parameters": [
+          {
+            "description": "Identifiant du serveur",
+            "in": "path",
+            "name": "guild",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Identifiant du personnage dans le jeu",
+            "in": "path",
+            "name": "game_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PlayerLink"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoffreLink"
+                }
+              }
+            },
+            "description": "Lien"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Requête invalide"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Pas connecté"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Droit insuffisant"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Saisie refusée"
+          }
+        },
+        "summary": "Relie un personnage du jeu à un membre, comme `/coffre lier` (`coffre.gerer`).",
+        "tags": [
+          "coffres"
+        ]
+      }
+    },
+    "/api/guilds/{guild}/coffres/properties/{property}": {
+      "put": {
+        "operationId": "nameCoffreProperty",
+        "parameters": [
+          {
+            "description": "Identifiant du serveur",
+            "in": "path",
+            "name": "guild",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Identifiant de la propriété",
+            "in": "path",
+            "name": "property",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PropertyName"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoffreProperty"
+                }
+              }
+            },
+            "description": "Propriété"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Requête invalide"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Pas connecté"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Droit insuffisant"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Saisie refusée"
+          }
+        },
+        "summary": "Nomme une propriété, nom vide : retire le nom (`coffre.gerer`).",
+        "tags": [
+          "coffres"
+        ]
+      }
+    },
+    "/api/guilds/{guild}/coffres/series": {
+      "get": {
+        "operationId": "getCoffreSeries",
+        "parameters": [
+          {
+            "description": "Identifiant du serveur",
+            "in": "path",
+            "name": "guild",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Objet suivi (obligatoire).",
+            "in": "query",
+            "name": "objet",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Une seule propriété.",
+            "in": "query",
+            "name": "propriete",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Nombre de jours (30 par défaut), ou `tout`.",
+            "in": "query",
+            "name": "jours",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/CoffreSeriesPoint"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Série"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Requête invalide"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Pas connecté"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Droit insuffisant"
+          }
+        },
+        "summary": "Évolution d'un objet, un point par jour (`coffre.voir`).",
+        "tags": [
+          "coffres"
+        ]
+      }
+    },
+    "/api/guilds/{guild}/coffres/stock": {
+      "get": {
+        "operationId": "getCoffreStock",
+        "parameters": [
+          {
+            "description": "Identifiant du serveur",
+            "in": "path",
+            "name": "guild",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Une seule propriété.",
+            "in": "query",
+            "name": "propriete",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoffreStock"
+                }
+              }
+            },
+            "description": "Stock"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Pas connecté"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Droit insuffisant"
+          }
+        },
+        "summary": "Stock par propriété (`coffre.voir`).",
+        "tags": [
+          "coffres"
+        ]
+      }
+    },
+    "/api/guilds/{guild}/config": {
+      "get": {
+        "operationId": "getConfigStatus",
+        "parameters": [
+          {
+            "description": "Identifiant du serveur",
+            "in": "path",
+            "name": "guild",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConfigStatus"
+                }
+              }
+            },
+            "description": "État des modules"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Pas connecté"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Réservé à « Gérer le serveur »"
+          },
+          "501": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Pas encore disponible"
+          }
+        },
+        "summary": "État de la configuration des modules (« Gérer le serveur »).",
+        "tags": [
+          "reglages"
+        ]
+      }
+    },
+    "/api/guilds/{guild}/contacts": {
+      "get": {
+        "operationId": "getContacts",
+        "parameters": [
+          {
+            "description": "Identifiant du serveur",
+            "in": "path",
+            "name": "guild",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "`ALLIE`, `NEUTRE` ou `HOSTILE`.",
+            "in": "query",
+            "name": "relation",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "`GROUPE`, `ENTREPRISE` ou `PERSONNE`.",
+            "in": "query",
+            "name": "type",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Texte cherché dans le nom ou la description.",
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContactsResponse"
+                }
+              }
+            },
+            "description": "Contacts"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Pas connecté"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Droit insuffisant"
+          }
+        },
+        "summary": "Répertoire filtré (`contact.voir`).",
+        "tags": [
+          "contacts"
+        ]
+      },
+      "post": {
+        "operationId": "createContact",
+        "parameters": [
+          {
+            "description": "Identifiant du serveur",
+            "in": "path",
+            "name": "guild",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ContactInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Contact"
+                }
+              }
+            },
+            "description": "Contact ajouté"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Requête invalide"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Pas connecté"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Droit insuffisant"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Saisie refusée"
+          }
+        },
+        "summary": "Ajoute un contact (`contact.ajouter`).",
+        "tags": [
+          "contacts"
+        ]
+      }
+    },
+    "/api/guilds/{guild}/contacts/{id}": {
+      "delete": {
+        "operationId": "deleteContact",
+        "parameters": [
+          {
+            "description": "Identifiant du serveur",
+            "in": "path",
+            "name": "guild",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Identifiant du contact",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Supprimé"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Pas connecté"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Droit insuffisant"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Introuvable"
+          }
+        },
+        "summary": "Supprime un contact et ses notes (`contact.modifier`).",
+        "tags": [
+          "contacts"
+        ]
+      },
+      "get": {
+        "operationId": "getContact",
+        "parameters": [
+          {
+            "description": "Identifiant du serveur",
+            "in": "path",
+            "name": "guild",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Identifiant du contact",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContactDetail"
+                }
+              }
+            },
+            "description": "Contact"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Pas connecté"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Droit insuffisant"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Introuvable"
+          }
+        },
+        "summary": "Fiche d'un contact (`contact.voir` ; notes si `contact.notes`).",
+        "tags": [
+          "contacts"
+        ]
+      },
+      "patch": {
+        "operationId": "updateContact",
+        "parameters": [
+          {
+            "description": "Identifiant du serveur",
+            "in": "path",
+            "name": "guild",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Identifiant du contact",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ContactPatch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Contact"
+                }
+              }
+            },
+            "description": "Contact modifié"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Requête invalide"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Pas connecté"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Droit insuffisant"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Introuvable"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Saisie refusée"
+          }
+        },
+        "summary": "Modifie un contact (`contact.modifier`) ; `phone`/`description` à `null` = effacer.",
+        "tags": [
+          "contacts"
+        ]
+      }
+    },
+    "/api/guilds/{guild}/contacts/{id}/notes": {
+      "post": {
+        "operationId": "createContactNote",
+        "parameters": [
+          {
+            "description": "Identifiant du serveur",
+            "in": "path",
+            "name": "guild",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Identifiant du contact",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NoteInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContactNote"
+                }
+              }
+            },
+            "description": "Note ajoutée"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Requête invalide"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Pas connecté"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Droit insuffisant"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Introuvable"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Saisie refusée"
+          }
+        },
+        "summary": "Ajoute une note du staff (`contact.notes`).",
+        "tags": [
+          "contacts"
+        ]
+      }
+    },
+    "/api/guilds/{guild}/cotisations": {
+      "get": {
+        "operationId": "getCotisations",
+        "parameters": [
+          {
+            "description": "Identifiant du serveur",
+            "in": "path",
+            "name": "guild",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Les N derniers jours (absent : depuis le début).",
+            "in": "query",
+            "name": "jours",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Identifiant Discord d'un membre.",
+            "in": "query",
+            "name": "membre",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Page (1 = première).",
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CotisationsResponse"
+                }
+              }
+            },
+            "description": "Cotisations"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Pas connecté"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Droit insuffisant"
+          }
+        },
+        "summary": "Statistiques et détail (`cotisation.stats`).",
+        "tags": [
+          "cotisations"
+        ]
+      },
+      "post": {
+        "operationId": "createCotisation",
+        "parameters": [
+          {
+            "description": "Identifiant du serveur",
+            "in": "path",
+            "name": "guild",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NewCotisation"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CotisationEntry"
+                }
+              }
+            },
+            "description": "Cotisation enregistrée"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Requête invalide"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Pas connecté"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Droit insuffisant"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Saisie refusée"
+          }
+        },
+        "summary": "Déclare une cotisation (`cotisation.ajouter`, pour un autre : `cotisation.gerer`).",
+        "tags": [
+          "cotisations"
+        ]
+      }
+    },
+    "/api/guilds/{guild}/cotisations/export.csv": {
+      "get": {
+        "operationId": "exportCotisations",
+        "parameters": [
+          {
+            "description": "Identifiant du serveur",
+            "in": "path",
+            "name": "guild",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Les N derniers jours (absent : depuis le début).",
+            "in": "query",
+            "name": "jours",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Identifiant Discord d'un membre.",
+            "in": "query",
+            "name": "membre",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Page (1 = première).",
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "text/csv": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Fichier CSV"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Pas connecté"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Droit insuffisant"
+          }
+        },
+        "summary": "Export CSV, mêmes filtres que la liste.",
+        "tags": [
+          "cotisations"
+        ]
+      }
+    },
+    "/api/guilds/{guild}/cotisations/objective": {
+      "get": {
+        "operationId": "getCotisationObjective",
+        "parameters": [
+          {
+            "description": "Identifiant du serveur",
+            "in": "path",
+            "name": "guild",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "type": "null"
+                    },
+                    {
+                      "$ref": "#/components/schemas/Objective"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "Objectif, `null` sans objectif"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Pas connecté"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Droit insuffisant"
+          },
+          "501": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Pas encore disponible"
+          }
+        },
+        "summary": "Objectif hebdomadaire des cotisations (lecture `cotisation.stats`).",
+        "tags": [
+          "cotisations"
+        ]
+      },
+      "put": {
+        "operationId": "updateCotisationObjective",
+        "parameters": [
+          {
+            "description": "Identifiant du serveur",
+            "in": "path",
+            "name": "guild",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/Objective"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "type": "null"
+                    },
+                    {
+                      "$ref": "#/components/schemas/Objective"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "Objectif enregistré"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Pas connecté"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Réservé à « Gérer le serveur »"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Saisie refusée"
+          },
+          "501": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Pas encore disponible"
+          }
+        },
+        "summary": "Règle l'objectif hebdomadaire (« Gérer le serveur »).",
+        "tags": [
+          "cotisations"
+        ]
+      }
+    },
+    "/api/guilds/{guild}/cotisations/{id}": {
+      "delete": {
+        "operationId": "deleteCotisation",
+        "parameters": [
+          {
+            "description": "Identifiant du serveur",
+            "in": "path",
+            "name": "guild",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Identifiant de la cotisation",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Supprimée"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Pas connecté"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Droit insuffisant"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Introuvable"
+          }
+        },
+        "summary": "Supprime une cotisation (son auteur, ou `cotisation.gerer`).",
+        "tags": [
+          "cotisations"
+        ]
+      }
+    },
+    "/api/guilds/{guild}/journal": {
+      "get": {
+        "operationId": "getJournal",
+        "parameters": [
+          {
+            "description": "Identifiant du serveur",
+            "in": "path",
+            "name": "guild",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Code d'action (`actions[].key`).",
+            "in": "query",
+            "name": "action",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Page (1 = première).",
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JournalResponse"
+                }
+              }
+            },
+            "description": "Journal"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Pas connecté"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Droit insuffisant"
+          }
+        },
+        "summary": "Journal du staff (`site.journal`).",
+        "tags": [
+          "journal"
+        ]
+      }
+    },
+    "/api/guilds/{guild}/members": {
+      "get": {
+        "operationId": "searchMembers",
+        "parameters": [
+          {
+            "description": "Identifiant du serveur",
+            "in": "path",
+            "name": "guild",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Texte cherché dans le nom ou l'identifiant.",
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/MemberRef"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Membres"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Pas connecté"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Droit insuffisant"
+          }
+        },
+        "summary": "Membres en cache dont le nom ou l'identifiant contient `q` (25 au plus).",
+        "tags": [
+          "membres"
+        ]
+      }
+    },
+    "/api/guilds/{guild}/members/{user}": {
+      "get": {
+        "operationId": "getMemberProfile",
+        "parameters": [
+          {
+            "description": "Identifiant du serveur",
+            "in": "path",
+            "name": "guild",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Identifiant Discord du membre",
+            "in": "path",
+            "name": "user",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemberProfile"
+                }
+              }
+            },
+            "description": "Fiche"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Pas connecté"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Droit insuffisant"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Introuvable"
+          }
+        },
+        "summary": "Fiche d'un membre : `membre.fiche`, ou sa propre fiche.",
+        "tags": [
+          "membres"
+        ]
+      }
+    },
+    "/api/guilds/{guild}/permissions": {
+      "get": {
+        "operationId": "getPermissions",
+        "parameters": [
+          {
+            "description": "Identifiant du serveur",
+            "in": "path",
+            "name": "guild",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PermissionsResponse"
+                }
+              }
+            },
+            "description": "Permissions"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Pas connecté"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Droit insuffisant"
+          }
+        },
+        "summary": "Permissions du serveur (« Gérer le serveur »).",
+        "tags": [
+          "reglages"
+        ]
+      },
+      "put": {
+        "operationId": "updatePermissions",
+        "parameters": [
+          {
+            "description": "Identifiant du serveur",
+            "in": "path",
+            "name": "guild",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PermissionsUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PermissionsResponse"
+                }
+              }
+            },
+            "description": "Permissions à jour"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Requête invalide"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Pas connecté"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Droit insuffisant"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Saisie refusée"
+          }
+        },
+        "summary": "Change le rôle membre et des niveaux, comme `/config permission` (« Gérer le serveur »).",
+        "tags": [
+          "reglages"
+        ]
+      }
+    },
+    "/api/guilds/{guild}/stats": {
+      "get": {
+        "operationId": "getGuildStats",
+        "parameters": [
+          {
+            "description": "Identifiant du serveur",
+            "in": "path",
+            "name": "guild",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GuildStats"
+                }
+              }
+            },
+            "description": "Statistiques"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Pas connecté"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Droit insuffisant"
+          }
+        },
+        "summary": "Statistiques du serveur (`site.stats`).",
+        "tags": [
+          "stats"
+        ]
+      }
+    },
+    "/api/guilds/{guild}/transactions": {
+      "get": {
+        "operationId": "getTransactions",
+        "parameters": [
+          {
+            "description": "Identifiant du serveur",
+            "in": "path",
+            "name": "guild",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Texte cherché dans le groupe.",
+            "in": "query",
+            "name": "groupe",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Statut (`PREPARATION`…).",
+            "in": "query",
+            "name": "statut",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "`ACHAT` ou `VENTE`.",
+            "in": "query",
+            "name": "type",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Premier jour (`YYYY-MM-DD`, heure de Paris).",
+            "in": "query",
+            "name": "du",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Dernier jour inclus (`YYYY-MM-DD`).",
+            "in": "query",
+            "name": "au",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Page (1 = première). En texte : une valeur invalide ramène à la première page plutôt qu'à une erreur 400.",
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TransactionsResponse"
+                }
+              }
+            },
+            "description": "Historique"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Pas connecté"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Droit insuffisant"
+          }
+        },
+        "summary": "Historique filtré (`transaction.historique`).",
+        "tags": [
+          "transactions"
+        ]
+      }
+    },
+    "/api/guilds/{guild}/transactions/export.csv": {
+      "get": {
+        "operationId": "exportTransactions",
+        "parameters": [
+          {
+            "description": "Identifiant du serveur",
+            "in": "path",
+            "name": "guild",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Texte cherché dans le groupe.",
+            "in": "query",
+            "name": "groupe",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Statut (`PREPARATION`…).",
+            "in": "query",
+            "name": "statut",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "`ACHAT` ou `VENTE`.",
+            "in": "query",
+            "name": "type",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Premier jour (`YYYY-MM-DD`, heure de Paris).",
+            "in": "query",
+            "name": "du",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Dernier jour inclus (`YYYY-MM-DD`).",
+            "in": "query",
+            "name": "au",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Page (1 = première). En texte : une valeur invalide ramène à la première page plutôt qu'à une erreur 400.",
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "text/csv": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Fichier CSV"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Pas connecté"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Droit insuffisant"
+          }
+        },
+        "summary": "Export CSV, mêmes filtres que la liste.",
+        "tags": [
+          "transactions"
+        ]
+      }
+    },
+    "/api/logs/{thread}": {
+      "get": {
+        "operationId": "getTicketLog",
+        "parameters": [
+          {
+            "description": "Identifiant du ticket",
+            "in": "path",
+            "name": "thread",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "`1` : échanges seulement (sans commandes ni messages du bot).",
+            "in": "query",
+            "name": "simple",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TicketLog"
+                }
+              }
+            },
+            "description": "Log"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Pas connecté"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Droit insuffisant"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Introuvable"
+          }
+        },
+        "summary": "Staff des tickets ; sans connexion configurée, lisible par son lien non\ndevinable (comme la page de log et modmailbot).\nLog d'un ticket : staff des tickets, ou lien seul sans connexion configurée.",
+        "tags": [
+          "tickets"
+        ]
+      }
+    },
+    "/api/me": {
+      "get": {
+        "operationId": "getMe",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Me"
+                }
+              }
+            },
+            "description": "Session"
+          }
+        },
+        "summary": "Session et droits (toujours 200, même sans connexion).",
+        "tags": [
+          "session"
+        ]
+      }
+    },
+    "/api/tickets": {
+      "get": {
+        "operationId": "getTickets",
+        "parameters": [
+          {
+            "description": "Identifiant ou nom de l'utilisateur, numéro de ticket ou texte d'un message.",
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "`OPEN`, `CLOSED` ou `SUSPENDED`.",
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Page (1 = première).",
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TicketPage"
+                }
+              }
+            },
+            "description": "Tickets"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Pas connecté"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Droit insuffisant"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Introuvable"
+          }
+        },
+        "summary": "Recherche de tickets (staff des tickets).",
+        "tags": [
+          "tickets"
+        ]
+      }
+    },
+    "/api/tickets/staff": {
+      "get": {
+        "operationId": "getTicketStaff",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TicketStats"
+                }
+              }
+            },
+            "description": "Statistiques"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Pas connecté"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Droit insuffisant"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Introuvable"
+          }
+        },
+        "summary": "Statistiques du staff des tickets (30 derniers jours).",
+        "tags": [
+          "tickets"
+        ]
+      }
+    }
+  },
+  "tags": [
+    {
+      "description": "Connexion et droits",
+      "name": "session"
+    },
+    {
+      "description": "Membres et fiches",
+      "name": "membres"
+    },
+    {
+      "description": "Statistiques du serveur",
+      "name": "stats"
+    },
+    {
+      "description": "Historique des transactions",
+      "name": "transactions"
+    },
+    {
+      "description": "Cotisations",
+      "name": "cotisations"
+    },
+    {
+      "description": "Coffres des propriétés",
+      "name": "coffres"
+    },
+    {
+      "description": "Répertoire des contacts",
+      "name": "contacts"
+    },
+    {
+      "description": "Journal du staff",
+      "name": "journal"
+    },
+    {
+      "description": "Permissions et état de la configuration",
+      "name": "reglages"
+    },
+    {
+      "description": "Tickets (module ticket)",
+      "name": "tickets"
+    }
+  ]
+}

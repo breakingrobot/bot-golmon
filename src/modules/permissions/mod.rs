@@ -191,6 +191,12 @@ impl Grants {
         Ok(Self { roles: service::roles(db, &guild).await?, levels: service::levels(db, &guild).await?, holder })
     }
 
+    /// Droits déjà connus (tests).
+    #[cfg(test)]
+    pub fn from_parts(roles: Roles, levels: std::collections::HashMap<String, Level>, holder: Holder) -> Self {
+        Self { roles, levels, holder }
+    }
+
     pub fn level(&self, perm: Perm) -> Level {
         self.levels.get(perm.key()).copied().unwrap_or(perm.default_level())
     }

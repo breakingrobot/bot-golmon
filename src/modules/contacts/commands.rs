@@ -278,20 +278,36 @@ async fn add(ix: &Ix, options: &Options, guild_id: Id<GuildMarker>) -> Result<()
     };
     ix.defer(true).await?;
     refresh_directory(ix, &guild).await;
-    audit::record(
-        ix,
-        Entry::new(
-            Action::ContactAdd,
-            None,
-            format!("**{}** — {} · {}", contact.name, kind.label(), relation.display()),
-        ),
-    )
-    .await;
+    audit::record(ix, Entry::new(Action::ContactAdd, None, added_details(&contact))).await;
     ix.edit_text(format!("Contact **{}** ajouté ({} · {}).", contact.name, kind.label(), relation.display())).await
 }
 
+/// Détails du journal pour un contact ajouté (Discord et site).
+pub(crate) fn added_details(contact: &Contact) -> String {
+    format!("**{}** — {} · {}", contact.name, contact.kind().label(), contact.relation().display())
+}
+
+/// Détails du journal pour un contact supprimé avec `notes` notes.
+pub(crate) fn deleted_details(contact: &Contact, notes: i64) -> String {
+    format!(
+        "**{}** — {} · {} · {notes} note{} supprimée{}",
+        contact.name,
+        contact.kind().label(),
+        contact.relation().display(),
+        fmt::plural(notes as usize),
+        fmt::plural(notes as usize)
+    )
+}
+
+/// Détails du journal pour une note : le journal a son propre niveau d'accès,
+/// la note n'y est pas recopiée.
+pub(crate) fn note_details(contact: &Contact, body: &str) -> String {
+    let length = body.chars().count();
+    format!("**{}** — note de {length} caractère{}", contact.name, fmt::plural(length))
+}
+
 /// Changements lisibles pour le journal : « relation : 🟢 Allié → 🔴 Hostile ».
-fn changes(before: &Contact, after: &Contact) -> Vec<String> {
+pub(crate) fn changes(before: &Contact, after: &Contact) -> Vec<String> {
     let mut changes = Vec::new();
     if before.name != after.name {
         changes.push(format!("nom : {} → {}", before.name, after.name));
@@ -368,22 +384,7 @@ async fn remove(ix: &Ix, options: &Options, guild_id: Id<GuildMarker>) -> Result
     service::delete(&ix.ctx.db, &guild, &contact.id).await?;
     ix.defer(true).await?;
     refresh_directory(ix, &guild).await;
-    audit::record(
-        ix,
-        Entry::new(
-            Action::ContactDelete,
-            None,
-            format!(
-                "**{}** — {} · {} · {notes} note{} supprimée{}",
-                contact.name,
-                contact.kind().label(),
-                contact.relation().display(),
-                fmt::plural(notes as usize),
-                fmt::plural(notes as usize)
-            ),
-        ),
-    )
-    .await;
+    audit::record(ix, Entry::new(Action::ContactDelete, None, deleted_details(&contact, notes))).await;
     ix.edit_text(format!("Contact **{}** supprimé, avec ses notes.", contact.name)).await
 }
 
@@ -400,17 +401,7 @@ async fn note(ix: &Ix, options: &Options, guild_id: Id<GuildMarker>) -> Result<(
         return ix.reply(Reply::ephemeral(message)).await;
     }
     service::add_note(&ix.ctx.db, &guild, &contact.id, &ix.user_id().to_string(), &body).await?;
-    // Le journal a son propre niveau d'accès : la note n'y est pas recopiée.
-    let length = body.chars().count();
-    audit::record(
-        ix,
-        Entry::new(
-            Action::ContactNote,
-            None,
-            format!("**{}** — note de {length} caractère{}", contact.name, fmt::plural(length)),
-        ),
-    )
-    .await;
+    audit::record(ix, Entry::new(Action::ContactNote, None, note_details(&contact, &body))).await;
     ix.reply(Reply::ephemeral(format!(
         "Note ajoutée sur **{}**. Elle n'est visible que du staff (`/contact voir`, site).",
         contact.name

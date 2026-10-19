@@ -247,6 +247,13 @@ pub async fn logout(State(ctx): State<Context>) -> Response {
     response
 }
 
+/// En-tête `Cookie` d'une session valide (tests de l'API).
+#[cfg(test)]
+pub(crate) fn test_session_cookie(ctx: &Ctx, id: Id<UserMarker>, name: &str) -> String {
+    let viewer = Viewer { id, name: name.to_owned(), exp: chrono::Utc::now().timestamp() + 3600 };
+    format!("{SESSION_COOKIE}={}", sign(ctx, &serde_json::to_vec(&viewer).expect("session sérialisable")))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

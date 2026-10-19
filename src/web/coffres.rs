@@ -28,7 +28,7 @@ use serde::Deserialize;
 use std::collections::HashMap;
 use twilight_model::id::{Id, marker::GuildMarker};
 
-const PAGE_SIZE: i64 = 50;
+pub(crate) const PAGE_SIZE: i64 = 50;
 const CSV_LIMIT: i64 = 20_000;
 /// Période affichée sans choix explicite.
 const DEFAULT_DAYS: i64 = 30;
@@ -36,25 +36,32 @@ const DEFAULT_DAYS: i64 = 30;
 const PERIODS: [(Option<i64>, &str); 5] =
     [(Some(1), "24 h"), (Some(7), "7 jours"), (Some(30), "30 jours"), (Some(90), "90 jours"), (None, "Tout")];
 
-#[derive(Debug, Default, Deserialize)]
+#[derive(Debug, Default, Deserialize, utoipa::IntoParams)]
+#[into_params(parameter_in = Query)]
 pub struct CoffreQuery {
+    /// Une seule propriété.
     propriete: Option<String>,
+    /// Un seul objet.
     objet: Option<String>,
+    /// Identifiant de jeu d'un personnage.
     joueur: Option<String>,
+    /// `deposit` ou `withdraw`.
     #[serde(rename = "type")]
     kind: Option<String>,
+    /// Nombre de jours (30 par défaut), ou `tout`.
     jours: Option<String>,
+    /// Page (1 = première).
     page: Option<String>,
 }
 
 #[derive(Clone, Default)]
-struct Parsed {
-    property: Option<String>,
-    item: Option<String>,
-    player: Option<String>,
-    kind: Option<Kind>,
-    days: Option<i64>,
-    page: i64,
+pub(crate) struct Parsed {
+    pub(crate) property: Option<String>,
+    pub(crate) item: Option<String>,
+    pub(crate) player: Option<String>,
+    pub(crate) kind: Option<Kind>,
+    pub(crate) days: Option<i64>,
+    pub(crate) page: i64,
 }
 
 fn clean(value: Option<&String>) -> Option<String> {
@@ -62,7 +69,7 @@ fn clean(value: Option<&String>) -> Option<String> {
 }
 
 impl CoffreQuery {
-    fn parse(&self) -> Parsed {
+    pub(crate) fn parse(&self) -> Parsed {
         Parsed {
             property: clean(self.propriete.as_ref()),
             item: clean(self.objet.as_ref()),
@@ -80,7 +87,7 @@ impl CoffreQuery {
 }
 
 impl Parsed {
-    fn filter(&self) -> Filter {
+    pub(crate) fn filter(&self) -> Filter {
         Filter {
             property_id: self.property.clone(),
             item: self.item.clone(),
@@ -375,6 +382,11 @@ pub async fn export(
         Ok(found) => found,
         Err(response) => return *response,
     };
+    csv_response(&ctx, guild_id, &query).await
+}
+
+/// Export CSV des mouvements filtrés (page et API).
+pub(crate) async fn csv_response(ctx: &Ctx, guild_id: Id<GuildMarker>, query: &CoffreQuery) -> Response {
     let guild = guild_id.to_string();
     let data = async {
         let rows = service::movements(&ctx.db, &guild, &query.parse().filter(), CSV_LIMIT, 0).await?;

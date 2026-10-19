@@ -6,6 +6,7 @@
 //! ([`Access`]). Sans connexion configurée, seuls les logs restent lisibles,
 //! par leur lien non devinable, comme dans modmailbot.
 
+pub mod api;
 pub mod auth;
 mod coffres;
 mod contacts;
@@ -53,6 +54,32 @@ pub struct GuildAccess {
     pub id: Id<GuildMarker>,
     pub name: String,
     grants: Grants,
+    /// « Gérer le serveur » (ou administrateur, ou propriétaire) sur ce serveur.
+    manage_guild: bool,
+}
+
+impl GuildAccess {
+    pub fn new(id: Id<GuildMarker>, name: String, grants: Grants, manage_guild: bool) -> Self {
+        Self { id, name, grants, manage_guild }
+    }
+
+    /// Réglages du serveur (permissions, objectifs, alertes, état) : « Gérer le serveur ».
+    pub fn is_admin(&self) -> bool {
+        self.manage_guild
+    }
+
+    pub fn can(&self, perm: Perm) -> bool {
+        self.grants.can(perm)
+    }
+
+    pub fn level(&self, perm: Perm) -> crate::modules::permissions::Level {
+        self.grants.level(perm)
+    }
+
+    /// Actions autorisées, dans l'ordre de déclaration.
+    pub fn perms(&self) -> Vec<Perm> {
+        Perm::ALL.iter().copied().filter(|perm| self.grants.can(*perm)).collect()
+    }
 }
 
 /// Pages d'un serveur, dans l'ordre d'affichage : permission, libellé, chemin
@@ -81,9 +108,10 @@ impl Access {
                 continue;
             };
             let permissions = crate::discord::members::guild_permissions(ctx, guild_id, user_id, &roles);
+            let manage_guild = permissions.contains(Permissions::MANAGE_GUILD);
             let holder = Holder {
                 roles: roles.iter().map(ToString::to_string).collect(),
-                manage_guild: permissions.contains(Permissions::MANAGE_GUILD),
+                manage_guild,
                 manage_messages: permissions.contains(Permissions::MANAGE_MESSAGES),
             };
             let grants = match Grants::load(&ctx.db, guild_id, holder).await {
@@ -94,10 +122,18 @@ impl Access {
                 }
             };
             let name = ctx.cache.guild(guild_id).map(|g| g.name().to_owned()).unwrap_or_else(|| guild_id.to_string());
-            access.guilds.push(GuildAccess { id: guild_id, name, grants });
+            access.guilds.push(GuildAccess::new(guild_id, name, grants, manage_guild));
         }
         access.guilds.sort_by(|a, b| a.name.cmp(&b.name));
         access
+    }
+
+    pub fn guild(&self, guild_id: Id<GuildMarker>) -> Option<&GuildAccess> {
+        self.guilds.iter().find(|g| g.id == guild_id)
+    }
+
+    pub fn is_admin(&self, guild_id: Id<GuildMarker>) -> bool {
+        self.guild(guild_id).is_some_and(GuildAccess::is_admin)
     }
 
     pub fn can(&self, guild_id: Id<GuildMarker>, perm: Perm) -> bool {
@@ -177,8 +213,8 @@ fn address(ctx: &Ctx) -> String {
     }
 }
 
-pub fn spawn(ctx: Context) {
-    let address = address(&ctx);
+/// Toutes les routes du site, avec leur état.
+pub fn app(ctx: Context) -> Router {
     let mut app = Router::new()
         .route("/", get(pages::home))
         .route("/login", get(auth::login))
@@ -198,11 +234,17 @@ pub fn spawn(ctx: Context) {
         .route("/stats/{guild_id}/transactions.csv", get(transactions::export))
         .route("/assets/app.css", get(|| async { asset("text/css; charset=UTF-8", CSS) }))
         .route("/assets/app.js", get(|| async { asset("text/javascript; charset=UTF-8", JS) }))
-        .route("/healthz", get(|| async { "ok" }));
+        .route("/healthz", get(|| async { "ok" }))
+        .nest("/api", api::router());
     if ctx.modmail.is_some() {
         app = app.merge(crate::modmail::web_routes());
     }
-    let app = app.fallback(pages::not_found).layer(axum::middleware::map_response(security_headers)).with_state(ctx);
+    app.fallback(pages::not_found).layer(axum::middleware::map_response(security_headers)).with_state(ctx)
+}
+
+pub fn spawn(ctx: Context) {
+    let address = address(&ctx);
+    let app = app(ctx);
 
     tokio::spawn(async move {
         match tokio::net::TcpListener::bind(&address).await {
