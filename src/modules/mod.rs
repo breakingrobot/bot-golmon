@@ -2,9 +2,12 @@ pub mod audit;
 pub mod coffres;
 pub mod contacts;
 pub mod cotisations;
+pub mod fiche;
+pub mod permissions;
 pub mod phones;
 pub mod presences;
 pub mod recrues;
+pub mod status;
 pub mod transactions;
 pub mod vehicles;
 

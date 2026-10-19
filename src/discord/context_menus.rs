@@ -4,7 +4,10 @@ use super::{
     interaction::{GUILD_ONLY, Ix, Reply},
     options::Options,
 };
-use crate::modules::{presences, recrues};
+use crate::modules::{
+    permissions::{self, Perm},
+    presences, recrues,
+};
 use anyhow::Result;
 use twilight_model::{
     application::{
@@ -16,18 +19,22 @@ use twilight_model::{
 use twilight_util::builder::command::CommandBuilder;
 
 pub const MEMBER_PRESENCES: &str = "Présences du membre";
+pub const MEMBER_PROFILE: &str = "Fiche du membre";
 pub const ADD_RECRUE: &str = "Ajouter aux recrues";
 pub const OPEN_TICKET: &str = "Ouvrir un ticket";
 pub const REPORT: &str = "Signaler au staff";
 
 /// Les actions liées aux tickets n'existent que si le module est configuré.
+/// Discord limite à 5 les actions sur un membre (4 utilisées ici).
 pub fn definitions(with_tickets: bool) -> Vec<Command> {
     let menu =
         |name: &str, kind: CommandType| CommandBuilder::new(name, "", kind).contexts([InteractionContextType::Guild]);
     let mut commands = vec![
         menu(MEMBER_PRESENCES, CommandType::User).build(),
-        // Visible par défaut du staff ; les gradés peuvent être ajoutés dans *Paramètres → Intégrations*.
-        menu(ADD_RECRUE, CommandType::User).default_member_permissions(Permissions::MANAGE_MESSAGES).build(),
+        // Visible de tous : chacun peut voir sa propre fiche ; celle des autres demande `membre.fiche`.
+        menu(MEMBER_PROFILE, CommandType::User).build(),
+        // Visible de tous ; réservé au niveau de `recrue.suivi` (`/config permission`).
+        menu(ADD_RECRUE, CommandType::User).build(),
     ];
     if with_tickets {
         commands.push(
@@ -48,7 +55,13 @@ pub async fn handle(ix: &Ix, command: &CommandData) -> Result<()> {
     let options = Options::parse(command);
     let resolved = command.resolved.as_ref();
     match command.name.as_str() {
-        MEMBER_PRESENCES => presences::commands::member_stats(ix, &options, target.cast()).await,
+        MEMBER_PRESENCES => {
+            if !permissions::require(ix, Perm::PresenceStats).await? {
+                return Ok(());
+            }
+            presences::commands::member_stats(ix, &options, target.cast()).await
+        }
+        MEMBER_PROFILE => crate::modules::fiche::show(ix, &options, target.cast()).await,
         ADD_RECRUE => recrues::commands::add_member(ix, &options, guild_id, target.cast()).await,
         OPEN_TICKET => {
             let (Some(modmail), Some(user)) =
@@ -67,5 +80,19 @@ pub async fn handle(ix: &Ix, command: &CommandData) -> Result<()> {
             modmail.report_message(ix, message).await
         }
         _ => Ok(()),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Discord refuse plus de 5 actions sur un membre et 5 sur un message.
+    #[test]
+    fn stays_within_discord_menu_limits() {
+        let commands = definitions(true);
+        let count = |kind: CommandType| commands.iter().filter(|c| c.kind == kind).count();
+        assert!(count(CommandType::User) <= 5);
+        assert!(count(CommandType::Message) <= 5);
     }
 }

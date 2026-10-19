@@ -1,11 +1,13 @@
 use super::{
-    COLOR, NOT_GRADE, NOT_LEAD, VETO_COLOR,
+    COLOR, VETO_COLOR,
     channels::{EnsureChannel, ensure_channel},
     embed::{format_entry_detail, format_tally},
-    is_grade, is_lead,
     service::{self, ConfigUpdate, RecrueConfig},
 };
-use crate::modules::audit::{self, Action, Entry};
+use crate::modules::{
+    audit::{self, Action, Entry},
+    permissions::{self, Perm},
+};
 use crate::{
     discord::{
         embed::{EmbedBuilder, footer},
@@ -109,14 +111,12 @@ pub async fn handle(ix: &Ix, options: &Options) -> Result<()> {
     }
 }
 
-/// Garde commune aux sous-commandes réservées aux gradés.
+/// Garde commune aux sous-commandes de suivi (`recrue.suivi`, gradés par défaut).
 async fn require_grade(ix: &Ix, guild_id: Id<GuildMarker>) -> Result<Option<Option<RecrueConfig>>> {
-    let config = service::get_config(&ix.ctx.db, &guild_id.to_string()).await?;
-    if !is_grade(ix, config.as_ref()) {
-        ix.reply(Reply::ephemeral(NOT_GRADE)).await?;
+    if !permissions::require(ix, Perm::RecrueSuivi).await? {
         return Ok(None);
     }
-    Ok(Some(config))
+    Ok(Some(service::get_config(&ix.ctx.db, &guild_id.to_string()).await?))
 }
 
 fn describe(id: Option<&String>, role: bool) -> String {
@@ -304,8 +304,8 @@ async fn historique(ix: &Ix, options: &Options, guild_id: Id<GuildMarker>) -> Re
 }
 
 pub async fn reset(ix: &Ix, guild_id: Id<GuildMarker>) -> Result<()> {
-    if !ix.has_permission(Permissions::MANAGE_GUILD) {
-        return ix.reply(Reply::ephemeral(MANAGE_GUILD_ONLY)).await;
+    if !permissions::require(ix, Perm::RecrueReset).await? {
+        return Ok(());
     }
     ix.defer(true).await?;
     let session = service::ensure_current_session(&ix.ctx, guild_id).await?;
@@ -319,9 +319,8 @@ pub async fn reset(ix: &Ix, guild_id: Id<GuildMarker>) -> Result<()> {
 }
 
 async fn veto_poser(ix: &Ix, options: &Options, guild_id: Id<GuildMarker>) -> Result<()> {
-    let config = service::get_config(&ix.ctx.db, &guild_id.to_string()).await?;
-    if !is_lead(ix, config.as_ref()) {
-        return ix.reply(Reply::ephemeral(NOT_LEAD)).await;
+    if !permissions::require(ix, Perm::RecrueVeto).await? {
+        return Ok(());
     }
     let membre = options.user("membre").expect("option requise");
     let name = options.user_name(membre);
@@ -341,9 +340,8 @@ async fn veto_poser(ix: &Ix, options: &Options, guild_id: Id<GuildMarker>) -> Re
 }
 
 async fn veto_lever(ix: &Ix, options: &Options, guild_id: Id<GuildMarker>) -> Result<()> {
-    let config = service::get_config(&ix.ctx.db, &guild_id.to_string()).await?;
-    if !is_lead(ix, config.as_ref()) {
-        return ix.reply(Reply::ephemeral(NOT_LEAD)).await;
+    if !permissions::require(ix, Perm::RecrueVeto).await? {
+        return Ok(());
     }
     let membre = options.user("membre").expect("option requise");
     let name = options.user_name(membre);

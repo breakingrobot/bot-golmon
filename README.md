@@ -15,16 +15,17 @@ forme d'image Docker.
 | **Cotisations** | Ce que les membres rapportent au groupe (argent propre et sale), statistiques pour les gradés et leads. |
 | **Contacts** | Répertoire des groupes, entreprises et contacts du jeu (allié, neutre, hostile), notes réservées au staff. |
 | **Tickets** | Modmail compatible [Dragory/modmailbot](https://github.com/Dragory/modmailbot) : tickets par message privé, boutons de prise en charge et de réponse, fils de forum en option. |
-| **Site web** | Logs des tickets lisibles et recherchables, statistiques du staff et des serveurs, connexion Discord. |
+| **Site web** | Interface React : statistiques et graphiques, fiches des membres, cotisations, coffres, contacts (saisie comprise), permissions, configuration, logs des tickets. Connexion Discord. |
 
-<img src="docs/images/log.png" alt="Log d'un ticket" width="520"> <img src="docs/images/statistiques.png" alt="Statistiques d'un serveur" width="300">
+<img src="docs/images/statistiques.png" alt="Statistiques d'un serveur" width="520"> <img src="docs/images/mobile-log-sombre.png" alt="Log d'un ticket sur mobile" width="180">
 
 ## Démarrage rapide
 
 1. **Créer le bot** sur le portail Discord, activer les intents et l'inviter : [docs/discord.md](docs/discord.md).
 2. **Déployer** l'image (Northflank ou Docker) avec un volume sur `/app/data` et le port `8890` public :
    [docs/deploiement.md](docs/deploiement.md), qui contient une checklist complète.
-3. **Configurer les modules** sur Discord (`/config presence`, `/config recrue`…) : [docs/modules.md](docs/modules.md).
+3. **Configurer les modules** sur Discord (`/config presence`, `/config recrue`…) et, si besoin, qui peut faire
+   quoi (`/config permission`) : [docs/modules.md](docs/modules.md).
 
 Le bot crée ses bases et déploie ses slash commands tout seul au démarrage.
 

@@ -1,24 +1,34 @@
 # Site web
 
-Le bot sert un petit site sur le port **8890** : logs et recherche des tickets, statistiques du staff et des
-serveurs. Il démarre toujours, même sans module ticket, ne serait-ce que pour `/healthz`.
+Le bot sert sur le port **8890** une interface React (dossier [`ui/`](../ui/README.md)) et l'API JSON qu'elle
+utilise (`/api`, [spécification OpenAPI](#api)). Il démarre toujours, même sans module ticket, ne serait-ce que
+pour `/healthz`. Thème clair ou sombre (selon le système ou au choix), adapté au mobile.
 
 | Page | Contenu | Accès |
 |---|---|---|
-| `/` | Accueil : liens vers les pages accessibles au compte connecté | Tout le monde |
-| `/logs` | Liste et recherche des tickets | Staff des tickets |
-| `/logs/<id>` | Log d'un ticket | Staff des tickets (ou lien seul, voir plus bas) |
-| `/logs/staff` | Statistiques du staff sur 30 jours | Staff des tickets |
-| `/stats/<serveur>` | Statistiques d'un serveur | « Gérer le serveur » sur ce serveur |
-| `/stats/<serveur>/cotisations` | [Cotisations](#cotisations) : totaux, classement, détail, export CSV | Gradés et leads (rôles de `/config recrue`), « Gérer le serveur » |
-| `/stats/<serveur>/coffres` | [Coffres](#coffres) : stock, activité par joueur, mouvements, export CSV | Gradés et leads, « Gérer le serveur » |
-| `/stats/<serveur>/contacts` | [Contacts](#contacts) : répertoire filtrable, notes du staff | Gradés et leads (rôles de `/config recrue`), « Gérer le serveur » |
-| `/stats/<serveur>/journal` | [Journal du staff](modules.md#journal-du-staff) | « Gérer le serveur » sur ce serveur |
-| `/stats/<serveur>/transactions` | Historique des transactions, export CSV | « Gérer le serveur » sur ce serveur |
+| `/` | Accueil : pages ouvertes au compte connecté, par serveur | Tout le monde |
+| `/serveurs/<serveur>` | [Statistiques](#statistiques) du serveur | `site.stats` (« Gérer le serveur » par défaut) |
+| `/serveurs/<serveur>/transactions` | [Transactions](#transactions) : historique, graphique mensuel, export CSV | `transaction.historique` (« Gérer le serveur » par défaut) |
+| `/serveurs/<serveur>/cotisations` | [Cotisations](#cotisations) : totaux, graphique, objectif, saisie, export CSV | `cotisation.stats` (gradés par défaut) |
+| `/serveurs/<serveur>/coffres` | [Coffres](#coffres) : stock, évolution d'un objet, mouvements, export CSV | `coffre.voir` (gradés par défaut) |
+| `/serveurs/<serveur>/contacts` | [Contacts](#contacts) : répertoire, notes du staff, saisie | `contact.voir` (notes : `contact.notes`) |
+| `/serveurs/<serveur>/membres/<id>` | [Fiche d'un membre](#fiche-dun-membre) | `membre.fiche` (gradés par défaut), ou soi-même |
+| `/serveurs/<serveur>/journal` | [Journal du staff](modules.md#journal-du-staff) | `site.journal` (« Gérer le serveur » par défaut) |
+| `/serveurs/<serveur>/permissions` | [Permissions](#permissions) de chaque action | « Gérer le serveur » |
+| `/serveurs/<serveur>/configuration` | [État de la configuration](#configuration), objectif, alertes des coffres | « Gérer le serveur » |
+| `/tickets`, `/tickets/staff` | Liste et recherche des tickets, statistiques du staff sur 30 jours | Staff des tickets |
+| `/logs/<id>` | [Log d'un ticket](#log-dun-ticket) (`?raw=1` : texte brut au format modmailbot) | Staff des tickets (ou lien seul, voir plus bas) |
 | `/healthz` | Répond `ok` (health check de la plateforme) | Tout le monde |
+
+Les anciennes adresses (`/stats/<serveur>/…`, `/logs`, `/logs/staff`, `/cotisations`, `/contacts`) redirigent vers
+les nouvelles, filtres compris : les favoris et les liens déjà envoyés sur Discord restent valables.
 
 Le **staff des tickets** est défini par l'option `inboxServerPermission` sur le serveur inbox
 ([options](tickets-options.md)), comme pour les commandes `!r`, `!close`…
+
+Les pages d'un serveur suivent les niveaux réglés sur Discord avec `/config permission`
+([Permissions](modules.md#permissions)) : ouvrir `coffre.voir` aux membres du groupe leur ouvre aussi la
+page des coffres.
 
 ## Mise en place
 
@@ -58,96 +68,118 @@ les messages du compte.
 
 ## Pages
 
-### Tickets
+### Accueil et navigation
 
-![Liste des tickets](images/tickets.png)
+<img src="images/accueil.png" alt="Accueil" width="640"> <img src="images/mobile-menu.png" alt="Menu sur mobile" width="200">
 
-Recherche par pseudo, identifiant Discord, numéro de ticket (`42` ou `#42`) ou texte d'un message (messages
-de l'utilisateur, réponses et notes internes), filtre par statut. La colonne 🙋 indique qui a pris le
-ticket en charge (bouton *Prendre en charge* sur Discord).
-
-### Log d'un ticket
-
-<img src="images/log.png" alt="Log d'un ticket" width="640"> <img src="images/log-sombre-mobile.png" alt="Log en thème sombre sur mobile" width="200">
-
-- Messages de l'utilisateur, réponses du staff (numéro, rôle affiché, anonymat), notes internes, commandes,
-  réponses modifiées (avant / après) et supprimées.
-- Markdown Discord complet : titres, sous-texte, citations, listes, gras/italique/souligné/barré, spoilers
-  (clic pour révéler), code, liens masqués, émojis personnalisés, mentions affichées avec les vrais noms.
-- Images en aperçu, fichiers en lien, embeds résumés.
-- Heures et horodatages Discord (`<t:…>`, y compris le style relatif « il y a 3 jours ») affichés dans le
-  fuseau horaire du lecteur.
-- Filtres **Échanges seulement** (sans notes internes, commandes ni messages du bot) et **Détails techniques** (identifiants des
-  messages), et **Texte brut** : le log au format exact de modmailbot.
-- Thème clair ou sombre selon le système, adapté au mobile.
+Une tuile par serveur avec les pages ouvertes au compte ; dans un serveur, un menu latéral (tiroir sur mobile)
+et un sélecteur de serveur. Une page sans le droit nécessaire affiche « Accès refusé ».
 
 ### Statistiques
 
-![Statistiques d'un serveur](images/statistiques.png)
+<img src="images/statistiques.png" alt="Statistiques d'un serveur" width="640"> <img src="images/mobile-statistiques.png" alt="Statistiques sur mobile" width="200">
 
-- **Serveur** (`/stats/<id>`) : présences clôturées, taux de présence moyen et assiduité de chaque membre
-  (présent / retard / absent), absences en cours, recrues de la semaine avec leurs avis et vétos,
-  transactions en cours, véhicules. Le bloc tickets s'affiche sur le serveur principal du module ticket.
-- **Staff** (`/logs/staff`) : sur 30 jours, tickets ouverts, créés, fermés et sans réponse, délai médian de
-  première réponse ; par membre du staff : réponses, tickets, prises en charge, premières réponses et délai
-  moyen.
+Présences clôturées, taux de présence moyen et **courbe de l'assiduité par semaine**, assiduité de chaque membre
+(présent / retard / absent), absences en cours, recrues de la semaine avec leurs avis et vétos. Le bloc tickets
+s'affiche sur le serveur principal du module ticket.
 
 ### Transactions
 
 ![Historique des transactions](images/transactions.png)
 
-Lien **Historique des transactions** depuis l'accueil et la page de statistiques du serveur
-(`/stats/<id>/transactions`).
-
-- **Filtres** : groupe (recherche partielle, sans tenir compte des majuscules), statut, achat ou vente,
-  période **du / au** (jours en heure de Paris, bornes incluses). Les filtres restent dans l'adresse : une
-  vue filtrée peut être mise en favori ou partagée avec quelqu'un qui a le même accès.
-- **Totaux** de la sélection : nombre de transactions, total des achats et des ventes, solde (ventes −
-  achats), transactions en cours. Les transactions **annulées** comptent dans le nombre, pas dans les
-  montants.
-- **Par mois** : achats, ventes, solde et nombre, du plus récent au plus ancien (12 derniers mois de la
-  sélection).
-- **Détail** : 25 transactions par page, des plus récentes aux plus anciennes ; un clic sur une ligne
-  affiche ses objets (quantité, prix unitaire).
-- **Exporter en CSV** reprend les filtres en cours (10 000 lignes au plus) : séparateur `;`, encodage UTF-8
-  reconnu par Excel, dates `JJ/MM/AAAA HH:MM` en heure de Paris, prix en nombre (virgule décimale). Une
-  cellule qui commence par `=`, `+`, `-` ou `@` est préfixée d'une apostrophe pour qu'Excel ne l'exécute
-  pas comme une formule.
+- **Filtres** dans l'adresse (favori ou partage possibles) : groupe, statut, achat ou vente, période du / au (jours
+  en heure de Paris, bornes incluses).
+- **Totaux** : nombre, achats, ventes, solde, en cours. Les transactions **annulées** comptent dans le nombre, pas
+  dans les montants.
+- **Graphique par mois** (achats et ventes), détail paginé avec les objets de chaque transaction.
+- **Export CSV** (10 000 lignes au plus) : séparateur `;`, UTF-8 reconnu par Excel, dates `JJ/MM/AAAA HH:MM`. Une
+  cellule qui commence par `=`, `+`, `-` ou `@` est préfixée d'une apostrophe (pas de formule exécutée).
 
 ### Cotisations
 
-![Cotisations](images/cotisations.png)
+<img src="images/cotisations.png" alt="Cotisations" width="640"> <img src="images/dialogue-cotisation.png" alt="Ajout d'une cotisation" width="300">
 
-Périodes 7 jours, 30 jours, 90 jours, 1 an ou tout ; totaux en argent propre, sale et au total ;
-classement des membres avec leur part ; clic sur un membre pour ne voir que ses cotisations ; détail des
-cotisations (avec qui les a déclarées pour un autre) ; export CSV pour Excel. `/cotisations` mène
-directement au serveur de la personne connectée.
+Périodes 7, 30, 90 jours, 1 an ou tout ; totaux propre / sale ; **graphique par semaine** ; classement avec la part
+de chacun ; **objectif de la semaine** et avancement de chaque membre (absents et recrues exemptés) ; détail paginé.
+Bouton **Ajouter une cotisation** (pour soi, ou pour un membre avec `cotisation.gerer`), suppression de ses
+propres saisies, export CSV.
 
 ### Coffres
 
 ![Coffres](images/coffres.png)
 
-Stock de chaque propriété, activité par personnage (déposé, retiré, membre relié), liste des mouvements
-filtrable par propriété, objet, type, joueur et période (24 h, 7, 30, 90 jours ou tout), export CSV.
+Stock de chaque propriété (objets **sous leur seuil** et stocks négatifs signalés), filtres propriété, objet, type,
+joueur et période (30 jours par défaut), **évolution du stock** de l'objet choisi, activité par personnage, liste
+des mouvements, export CSV. Avec `coffre.gerer` : nommer une propriété, relier ou délier un personnage.
 
 ### Contacts
 
-![Contacts](images/contacts.png)
+<img src="images/contacts.png" alt="Contacts" width="640"> <img src="images/contacts-sombre.png" alt="Contacts en thème sombre" width="300">
 
-Le répertoire des contacts ([module Contacts](modules.md#contacts)) : nombre d'alliés, de neutres et
-d'hostiles ; filtres par relation, par type et recherche dans le nom ou la description. Un clic sur un
-contact déplie sa description et toutes les **notes du staff**, des plus récentes aux plus anciennes.
-`/contacts` mène directement au serveur de la personne connectée.
+Nombre d'alliés, de neutres et d'hostiles, filtres par relation et par type, recherche. La fiche d'un contact
+montre sa description et les **notes du staff** (`contact.notes`). Ajout, modification, suppression et notes depuis
+le site, avec les mêmes effets que les commandes : répertoire publié sur Discord mis à jour, journal du staff.
+
+### Fiche d'un membre
+
+![Fiche d'un membre](images/fiche-membre.png)
+
+Tout un membre sur une page : rôles, présences récentes et taux, absences, cotisations (graphique et objectif de
+la semaine), personnages et mouvements des coffres, semaines de recrue (avis et vétos, avec `recrue.suivi`),
+numéro, véhicules. Accessible depuis la liste des membres, le classement des cotisations et le clic droit
+**Fiche du membre** sur Discord.
+
+### Permissions
+
+![Permissions](images/permissions.png)
+
+Le tableau de [`/config permission`](modules.md#permissions) : rôle des membres du groupe, puis chaque action
+par module avec son niveau (liste déroulante), le niveau par défaut et les actions strictes. Seules les lignes
+modifiées sont envoyées ; chaque ligne peut revenir à son niveau par défaut.
+
+### Configuration
+
+![Configuration](images/configuration.png)
+
+Pour chaque module : prêt, incomplet ou non utilisé, avec ce qui manque et la commande Discord qui corrige (comme
+`/config etat`). Réglage de l'**objectif de cotisation** et des **alertes des coffres** (salon, rôle, gros
+retrait, joueur inconnu, seuils de stock bas).
+
+### Tickets
+
+![Liste des tickets](images/tickets.png)
+
+Recherche par pseudo, identifiant Discord, numéro de ticket (`42` ou `#42`) ou texte d'un message, filtre par
+statut, qui a pris le ticket en charge. `/tickets/staff` : sur 30 jours, tickets ouverts, créés, fermés et sans
+réponse, délai médian de première réponse, et l'activité de chaque membre du staff.
+
+### Log d'un ticket
+
+<img src="images/log.png" alt="Log d'un ticket" width="640"> <img src="images/mobile-log-sombre.png" alt="Log en thème sombre sur mobile" width="200">
+
+- Messages de l'utilisateur, réponses du staff (numéro, rôle affiché, anonymat), notes internes, commandes,
+  réponses modifiées (avant / après) et supprimées.
+- Markdown Discord complet (rendu par le bot) : spoilers, code, liens masqués, émojis, mentions avec les vrais noms.
+- Images en aperçu, fichiers en lien, embeds résumés ; heures dans le fuseau du lecteur.
+- Filtres **Échanges seulement** et **Détails techniques**, lien **Texte brut** (`?raw=1`, format exact de
+  modmailbot, servi directement par le bot).
+
+### API
+
+L'interface ne lit que l'API JSON `/api/*`. Sa spécification OpenAPI 3.1 est servie sur `/api/openapi.json` et
+versionnée dans `ui/openapi.json` (un test échoue si elle n'est plus à jour : `UPDATE_OPENAPI=1 cargo test
+openapi_spec_is_up_to_date`). Les écritures exigent `Content-Type: application/json` et l'en-tête
+`X-Requested-With: fetch` (protection contre les requêtes d'un autre site), en plus du cookie `SameSite=Lax`.
 
 ## Sécurité
 
 - La session est un cookie signé (HMAC-SHA256, clé dérivée du token du bot), `HttpOnly`, `SameSite=Lax`,
   `Secure` en HTTPS, valable **7 jours**. Régénérer le token du bot déconnecte tout le monde.
-- Les droits sont recalculés à **chaque page** : retirer un rôle ou une permission coupe l'accès
+- Les droits sont recalculés à **chaque requête** : retirer un rôle ou une permission coupe l'accès
   immédiatement, sans attendre l'expiration de la session.
-- En-têtes stricts : CSP sans script externe, pas d'intégration dans une autre page, pas d'indexation par
-  les moteurs de recherche.
+- En-têtes stricts : CSP sans script externe ni script en ligne (images seulement du site et du CDN de
+  Discord), pas d'intégration dans une autre page, pas d'indexation par les moteurs de recherche.
 
 **Sans `DISCORD_CLIENT_SECRET`**, la connexion est désactivée : les logs restent lisibles par leur lien
-(identifiant non devinable, comme dans modmailbot) et les autres pages affichent « Connexion non
-configurée ». Déconseillé en production : n'importe qui ayant reçu un lien de log peut le lire.
+(identifiant non devinable, comme dans modmailbot) et l'accueil indique que la connexion n'est pas
+configurée. Déconseillé en production : n'importe qui ayant reçu un lien de log peut le lire.

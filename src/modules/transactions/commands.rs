@@ -3,7 +3,10 @@ use super::{
     model::{Status, TYPE_CHOICES},
     service::{self, NewTransaction},
 };
-use crate::modules::audit::{self, Action, Entry};
+use crate::modules::{
+    audit::{self, Action, Entry},
+    permissions::{self, Perm},
+};
 use crate::{
     discord::{
         embed::EmbedBuilder,
@@ -96,6 +99,9 @@ pub async fn handle(ix: &Ix, options: &Options) -> Result<()> {
         return ix.reply(Reply::ephemeral(GUILD_ONLY)).await;
     };
     let guild = guild_id.to_string();
+    if !permissions::require(ix, Perm::TransactionUtiliser).await? {
+        return Ok(());
+    }
     match options.sub() {
         "create" => create(ix, options, &guild).await,
         "add-item" => add_item(ix, options, &guild).await,
@@ -234,13 +240,9 @@ async fn cancel(ix: &Ix, options: &Options, guild: &str) -> Result<()> {
 }
 
 pub async fn delete(ix: &Ix, options: &Options, guild: &str) -> Result<()> {
-    // Seule action irréversible du module : elle reste réservée aux modérateurs.
-    if !ix.has_permission(Permissions::MANAGE_MESSAGES) {
-        return ix
-            .reply(Reply::ephemeral(
-                "Tu dois avoir la permission de gérer les messages pour supprimer une transaction.",
-            ))
-            .await;
+    // Seule action irréversible du module : réservée aux gradés par défaut.
+    if !permissions::require(ix, Perm::TransactionSupprimer).await? {
+        return Ok(());
     }
     let id = options.string("transaction").unwrap_or_default();
     ix.defer(true).await?;

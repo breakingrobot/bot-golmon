@@ -9,6 +9,7 @@ use crate::{
         interaction::{GUILD_ONLY, Ix, MANAGE_GUILD_ONLY, Reply, choice},
         options::{Mentionable, Options},
     },
+    modules::permissions::{self, Perm},
     util::format::{field, owner_mention},
 };
 use anyhow::Result;
@@ -82,6 +83,9 @@ pub async fn autocomplete(ix: &Ix, options: &Options) -> Result<()> {
 }
 
 pub async fn handle(ix: &Ix, options: &Options) -> Result<()> {
+    if !permissions::require(ix, Perm::Vehicule).await? {
+        return Ok(());
+    }
     if options.sub() == "lookup" {
         return lookup(ix, options).await;
     }

@@ -37,13 +37,16 @@ pub fn config_definition() -> Command {
         .option(crate::modules::cotisations::commands::config_subcommand())
         .option(crate::modules::coffres::commands::config_subcommand())
         .option(crate::modules::contacts::commands::config_subcommand())
+        .option(crate::modules::permissions::commands::config_subcommand())
         .option(audit::config_subcommand())
+        .option(crate::modules::status::config_subcommand())
         .build()
 }
 
 pub fn gestion_definition() -> Command {
+    // Pas de `default_member_permissions` : chaque action vérifie son niveau
+    // (`/config permission`), qui peut l'ouvrir à des membres sans permission Discord.
     CommandBuilder::new("gestion", "Actions réservées au staff", CommandType::ChatInput)
-        .default_member_permissions(Permissions::MANAGE_MESSAGES)
         .contexts([InteractionContextType::Guild])
         .option(
             SubCommandGroupBuilder::new("presence", "Présences : votes forcés, annulation, planning")
@@ -80,6 +83,8 @@ pub async fn handle_config(ix: &Ix, options: &Options) -> Result<()> {
         "cotisation" => crate::modules::cotisations::commands::config(ix, options, &guild).await,
         "coffre" => crate::modules::coffres::commands::config(ix, options, &guild).await,
         "contact" => crate::modules::contacts::commands::config(ix, options, &guild).await,
+        "permission" => crate::modules::permissions::commands::config(ix, options, &guild).await,
+        "etat" => crate::modules::status::command(ix).await,
         _ => Ok(()),
     };
     // Sans option, la commande ne fait qu'afficher : rien à journaliser.

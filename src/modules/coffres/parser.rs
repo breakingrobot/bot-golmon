@@ -95,6 +95,9 @@ fn stamp(text: &str) -> Option<DbTime> {
     parse_event_date(&caps[2], hm).map(|d| DbTime(d.0 + chrono::Duration::seconds(seconds)))
 }
 
+/// Quantité maximale acceptée : au-delà, l'encadré est ignoré (protège les totaux).
+pub const MAX_AMOUNT: i64 = 1_000_000;
+
 /// Un mouvement de coffre, si l'encadré en est un.
 pub fn parse(embed: &Embed) -> Option<Movement> {
     let source = embed.title.as_deref().map(str::trim).filter(|t| t.to_lowercase().starts_with("coffre"))?;
@@ -114,7 +117,7 @@ pub fn parse(embed: &Embed) -> Option<Movement> {
         .into_iter()
         .flatten()
         .find_map(stamp);
-    (amount > 0 && !item.is_empty()).then(|| Movement {
+    (amount > 0 && amount <= MAX_AMOUNT && !item.is_empty()).then(|| Movement {
         source: source.to_owned(),
         property_id,
         chest,
@@ -192,6 +195,10 @@ mod tests {
         assert!(parse(&other).is_none());
         assert!(parse(&embed("Steal", "1", "")).is_none());
         assert!(parse(&embed("Deposit", "abc", "")).is_none());
+        // Quantités absurdes (encadré imité) : ignorées, les totaux restent justes.
+        assert!(parse(&embed("Deposit", "9223372036854775807", "")).is_none());
+        assert!(parse(&embed("Deposit", &(MAX_AMOUNT + 1).to_string(), "")).is_none());
+        assert!(parse(&embed("Deposit", "0", "")).is_none());
     }
 
     #[test]

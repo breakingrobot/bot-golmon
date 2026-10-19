@@ -15,6 +15,7 @@ use crate::{
         messages::{self, Outgoing, parse_id},
         options::Options,
     },
+    modules::permissions::{self, Perm},
     util::ids::{CustomId, encode_custom_id},
 };
 use anyhow::Result;
@@ -46,6 +47,9 @@ pub async fn handle_admin(ix: &Ix, options: &Options) -> Result<()> {
     let Some(guild_id) = ix.guild_id() else {
         return ix.reply(Reply::ephemeral(GUILD_ONLY)).await;
     };
+    if !permissions::require(ix, Perm::AbsenceAutrui).await? {
+        return Ok(());
+    }
     let config = service::get_config(&ix.ctx.db, &guild_id.to_string()).await?;
     let channel_id = options
         .channel("salon")

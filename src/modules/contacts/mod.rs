@@ -1,13 +1,11 @@
 //! Répertoire des contacts : autres groupes, entreprises et personnes du jeu,
 //! avec leur relation au groupe (allié, neutre, hostile). Tout le monde consulte
-//! le répertoire ; les gradés et leads (ou « Gérer le serveur ») le tiennent à
-//! jour et y ajoutent des notes réservées au staff.
+//! le répertoire ; les membres du groupe y ajoutent des contacts, les gradés et
+//! leads le tiennent à jour et y ajoutent des notes réservées au staff. Niveaux
+//! réglables avec `/config permission`.
 
 pub mod commands;
 pub mod service;
-
-/// Officier : gradé ou lead (rôles du module recrues), ou « Gérer le serveur ».
-pub use crate::modules::cotisations::is_officer;
 
 pub const NAME_LIMIT: usize = 80;
 pub const PHONE_LIMIT: usize = 30;

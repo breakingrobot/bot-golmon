@@ -1,5 +1,5 @@
 use super::{
-    DESCRIPTION_LIMIT, Kind, NAME_LIMIT, NAME_TAKEN, NOTE_LIMIT, PHONE_LIMIT, Relation, is_officer, optional_text,
+    DESCRIPTION_LIMIT, Kind, NAME_LIMIT, NAME_TAKEN, NOTE_LIMIT, PHONE_LIMIT, Relation, optional_text,
     service::{self, Contact, Filter, NewContact},
     validate, validate_note,
 };
@@ -11,6 +11,7 @@ use crate::{
         options::Options,
     },
     modules::audit::{self, Action, Entry},
+    modules::permissions::{self, Perm},
     util::{
         format::{self as fmt, ListBlock, field, pack_blocks, truncate},
         time::format_day_label,
@@ -27,7 +28,6 @@ use twilight_util::builder::command::{
     BooleanBuilder, ChannelBuilder, CommandBuilder, StringBuilder, SubCommandBuilder,
 };
 
-const NOT_OFFICER: &str = "Réservé aux gradés et leads (ou « Gérer le serveur »).";
 const NOT_FOUND: &str = "Contact introuvable : choisis-le dans la liste proposée.";
 /// Notes affichées par `/contact voir`.
 const NOTES_SHOWN: i64 = 10;
@@ -63,7 +63,7 @@ pub fn definition() -> Command {
                 .option(kind_option("Seulement ce type")),
         )
         .option(
-            SubCommandBuilder::new("ajouter", "Ajoute un contact (gradés et leads)")
+            SubCommandBuilder::new("ajouter", "Ajoute un contact")
                 .option(
                     StringBuilder::new("nom", "Nom du groupe, de l'entreprise ou de la personne")
                         .required(true)
@@ -75,7 +75,7 @@ pub fn definition() -> Command {
                 .option(description_option()),
         )
         .option(
-            SubCommandBuilder::new("modifier", "Modifie un contact (gradés et leads)")
+            SubCommandBuilder::new("modifier", "Modifie un contact")
                 .option(contact_option("Le contact à modifier"))
                 .option(StringBuilder::new("nom", "Nouveau nom").max_length(NAME_LIMIT as u16))
                 .option(kind_option("Nouveau type"))
@@ -84,11 +84,11 @@ pub fn definition() -> Command {
                 .option(description_option()),
         )
         .option(
-            SubCommandBuilder::new("supprimer", "Supprime un contact et ses notes (gradés et leads)")
+            SubCommandBuilder::new("supprimer", "Supprime un contact et ses notes")
                 .option(contact_option("Le contact à supprimer")),
         )
         .option(
-            SubCommandBuilder::new("note", "Ajoute une note réservée au staff (gradés et leads)")
+            SubCommandBuilder::new("note", "Ajoute une note réservée au staff")
                 .option(contact_option("Le contact"))
                 .option(StringBuilder::new("texte", "La note").required(true).max_length(NOTE_LIMIT as u16)),
         )
@@ -169,13 +169,16 @@ fn optional(value: &Option<String>) -> &str {
 }
 
 async fn show(ix: &Ix, options: &Options, guild_id: Id<GuildMarker>) -> Result<()> {
+    if !permissions::require(ix, Perm::ContactVoir).await? {
+        return Ok(());
+    }
     let guild = guild_id.to_string();
     let Some(contact) = target(ix, options, &guild).await? else {
         return ix.reply(Reply::ephemeral(NOT_FOUND)).await;
     };
     let (kind, relation) = (contact.kind(), contact.relation());
     let mut description = contact.description.clone().unwrap_or_else(|| "*Pas de description.*".to_owned());
-    if is_officer(ix).await? {
+    if permissions::can(ix, Perm::ContactNotes).await? {
         let (notes, total) = service::notes(&ix.ctx.db, &guild, &contact.id, NOTES_SHOWN).await?;
         let header = format!("\n\n**🔒 Notes du staff ({total})**\n");
         let body = if notes.is_empty() {
@@ -206,6 +209,9 @@ async fn show(ix: &Ix, options: &Options, guild_id: Id<GuildMarker>) -> Result<(
 }
 
 async fn list(ix: &Ix, options: &Options, guild_id: Id<GuildMarker>) -> Result<()> {
+    if !permissions::require(ix, Perm::ContactVoir).await? {
+        return Ok(());
+    }
     let guild = guild_id.to_string();
     let filter = Filter {
         relation: options.string("relation").as_deref().and_then(Relation::parse),
@@ -235,7 +241,7 @@ async fn list(ix: &Ix, options: &Options, guild_id: Id<GuildMarker>) -> Result<(
     if let Some(kind) = filter.kind {
         footer_text.push_str(&format!(" · {}", kind.label()));
     }
-    if is_officer(ix).await?
+    if permissions::can(ix, Perm::ContactNotes).await?
         && let Some(url) = crate::web::auth::public_url(&ix.ctx)
     {
         footer_text.push_str(&format!(" · notes : {url}/stats/{guild}/contacts"));
@@ -250,8 +256,8 @@ async fn list(ix: &Ix, options: &Options, guild_id: Id<GuildMarker>) -> Result<(
 }
 
 async fn add(ix: &Ix, options: &Options, guild_id: Id<GuildMarker>) -> Result<()> {
-    if !is_officer(ix).await? {
-        return ix.reply(Reply::ephemeral(NOT_OFFICER)).await;
+    if !permissions::require(ix, Perm::ContactAjouter).await? {
+        return Ok(());
     }
     let name = options.string("nom").unwrap_or_default().trim().to_owned();
     let (Some(kind), Some(relation)) = (
@@ -272,20 +278,36 @@ async fn add(ix: &Ix, options: &Options, guild_id: Id<GuildMarker>) -> Result<()
     };
     ix.defer(true).await?;
     refresh_directory(ix, &guild).await;
-    audit::record(
-        ix,
-        Entry::new(
-            Action::ContactAdd,
-            None,
-            format!("**{}** — {} · {}", contact.name, kind.label(), relation.display()),
-        ),
-    )
-    .await;
+    audit::record(ix, Entry::new(Action::ContactAdd, None, added_details(&contact))).await;
     ix.edit_text(format!("Contact **{}** ajouté ({} · {}).", contact.name, kind.label(), relation.display())).await
 }
 
+/// Détails du journal pour un contact ajouté (Discord et site).
+pub(crate) fn added_details(contact: &Contact) -> String {
+    format!("**{}** — {} · {}", contact.name, contact.kind().label(), contact.relation().display())
+}
+
+/// Détails du journal pour un contact supprimé avec `notes` notes.
+pub(crate) fn deleted_details(contact: &Contact, notes: i64) -> String {
+    format!(
+        "**{}** — {} · {} · {notes} note{} supprimée{}",
+        contact.name,
+        contact.kind().label(),
+        contact.relation().display(),
+        fmt::plural(notes as usize),
+        fmt::plural(notes as usize)
+    )
+}
+
+/// Détails du journal pour une note : le journal a son propre niveau d'accès,
+/// la note n'y est pas recopiée.
+pub(crate) fn note_details(contact: &Contact, body: &str) -> String {
+    let length = body.chars().count();
+    format!("**{}** — note de {length} caractère{}", contact.name, fmt::plural(length))
+}
+
 /// Changements lisibles pour le journal : « relation : 🟢 Allié → 🔴 Hostile ».
-fn changes(before: &Contact, after: &Contact) -> Vec<String> {
+pub(crate) fn changes(before: &Contact, after: &Contact) -> Vec<String> {
     let mut changes = Vec::new();
     if before.name != after.name {
         changes.push(format!("nom : {} → {}", before.name, after.name));
@@ -309,8 +331,8 @@ fn changes(before: &Contact, after: &Contact) -> Vec<String> {
 }
 
 async fn update(ix: &Ix, options: &Options, guild_id: Id<GuildMarker>) -> Result<()> {
-    if !is_officer(ix).await? {
-        return ix.reply(Reply::ephemeral(NOT_OFFICER)).await;
+    if !permissions::require(ix, Perm::ContactModifier).await? {
+        return Ok(());
     }
     let guild = guild_id.to_string();
     let Some(before) = target(ix, options, &guild).await? else {
@@ -351,8 +373,8 @@ async fn update(ix: &Ix, options: &Options, guild_id: Id<GuildMarker>) -> Result
 }
 
 async fn remove(ix: &Ix, options: &Options, guild_id: Id<GuildMarker>) -> Result<()> {
-    if !is_officer(ix).await? {
-        return ix.reply(Reply::ephemeral(NOT_OFFICER)).await;
+    if !permissions::require(ix, Perm::ContactModifier).await? {
+        return Ok(());
     }
     let guild = guild_id.to_string();
     let Some(contact) = target(ix, options, &guild).await? else {
@@ -362,28 +384,13 @@ async fn remove(ix: &Ix, options: &Options, guild_id: Id<GuildMarker>) -> Result
     service::delete(&ix.ctx.db, &guild, &contact.id).await?;
     ix.defer(true).await?;
     refresh_directory(ix, &guild).await;
-    audit::record(
-        ix,
-        Entry::new(
-            Action::ContactDelete,
-            None,
-            format!(
-                "**{}** — {} · {} · {notes} note{} supprimée{}",
-                contact.name,
-                contact.kind().label(),
-                contact.relation().display(),
-                fmt::plural(notes as usize),
-                fmt::plural(notes as usize)
-            ),
-        ),
-    )
-    .await;
+    audit::record(ix, Entry::new(Action::ContactDelete, None, deleted_details(&contact, notes))).await;
     ix.edit_text(format!("Contact **{}** supprimé, avec ses notes.", contact.name)).await
 }
 
 async fn note(ix: &Ix, options: &Options, guild_id: Id<GuildMarker>) -> Result<()> {
-    if !is_officer(ix).await? {
-        return ix.reply(Reply::ephemeral(NOT_OFFICER)).await;
+    if !permissions::require(ix, Perm::ContactNotes).await? {
+        return Ok(());
     }
     let guild = guild_id.to_string();
     let Some(contact) = target(ix, options, &guild).await? else {
@@ -394,14 +401,9 @@ async fn note(ix: &Ix, options: &Options, guild_id: Id<GuildMarker>) -> Result<(
         return ix.reply(Reply::ephemeral(message)).await;
     }
     service::add_note(&ix.ctx.db, &guild, &contact.id, &ix.user_id().to_string(), &body).await?;
-    // Le salon du journal est réservé au staff : la note y figure, tronquée.
-    audit::record(
-        ix,
-        Entry::new(Action::ContactNote, None, format!("**{}** — {}", contact.name, truncate(&body, 300))),
-    )
-    .await;
+    audit::record(ix, Entry::new(Action::ContactNote, None, note_details(&contact, &body))).await;
     ix.reply(Reply::ephemeral(format!(
-        "Note ajoutée sur **{}**. Elle n'est visible que des gradés et leads (`/contact voir`, site).",
+        "Note ajoutée sur **{}**. Elle n'est visible que du staff (`/contact voir`, site).",
         contact.name
     )))
     .await
@@ -411,6 +413,9 @@ pub async fn autocomplete(ix: &Ix, options: &Options) -> Result<()> {
     let Some(guild_id) = ix.guild_id() else {
         return ix.autocomplete(Vec::new()).await;
     };
+    if !permissions::can(ix, Perm::ContactVoir).await? {
+        return ix.autocomplete(Vec::new()).await;
+    }
     let query = options.focused.as_ref().map(|(_, value)| value.clone()).filter(|v| !v.trim().is_empty());
     let filter = Filter { query, ..Default::default() };
     let contacts = service::list(&ix.ctx.db, &guild_id.to_string(), &filter).await?;

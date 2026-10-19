@@ -1,0 +1,43 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": ["eslint", "typescript", "unicorn", "oxc", "react", "jsx-a11y", "import"],
+  "categories": {
+    "correctness": "error",
+    "suspicious": "warn",
+    "perf": "warn"
+  },
+  "env": { "browser": true, "es2024": true },
+  "settings": {
+    "jsx-a11y": {
+      "components": { "Button": "button", "Input": "input", "Textarea": "textarea", "Label": "label" }
+    }
+  },
+  "rules": {
+    "react-hooks/rules-of-hooks": "error",
+    "react-hooks/exhaustive-deps": "error",
+    "react/jsx-key": "error",
+    "react/react-in-jsx-scope": "off",
+    "typescript/no-explicit-any": "error",
+    "typescript/no-non-null-assertion": "error",
+    "typescript/consistent-type-imports": "error",
+    "import/no-cycle": "error",
+    "import/no-duplicates": "error",
+    "eslint/no-console": ["error", { "allow": ["warn", "error"] }],
+    "jsx-a11y/no-autofocus": "off",
+    "unicorn/no-array-sort": "off",
+    "unicorn/consistent-function-scoping": "off",
+    "react-perf/jsx-no-new-object-as-prop": "off",
+    "jsx-a11y/prefer-tag-over-role": "off",
+    "jsx-a11y/no-noninteractive-element-to-interactive-role": ["error", { "ul": ["listbox"], "li": ["option"] }],
+    "oxc/no-map-spread": "off",
+    "import/no-unassigned-import": ["error", { "allow": ["**/*.css"] }]
+  },
+  "ignorePatterns": [
+    "dist/**",
+    "dist-mock/**",
+    "node_modules/**",
+    "src/routeTree.gen.ts",
+    "src/api/generated/**",
+    "public/**"
+  ]
+}

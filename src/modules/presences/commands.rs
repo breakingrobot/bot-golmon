@@ -4,7 +4,10 @@ use super::{
     model::ResponseStatus,
     service::{self, ConfigUpdate, NewPresence},
 };
-use crate::modules::audit::{self, Action, Entry};
+use crate::modules::{
+    audit::{self, Action, Entry},
+    permissions::{self, Perm},
+};
 use crate::{
     discord::{
         embed::{EmbedBuilder, EmbedBuilderExt as _, footer},
@@ -101,7 +104,7 @@ pub fn admin_subcommands() -> Vec<SubCommandBuilder> {
             .option(IntegerBuilder::new("retard", "Durée du retard en minutes").min_value(0)),
         SubCommandBuilder::new("annuler", "Annule et supprime complètement une présence")
             .option(presence_option("Présence à annuler", true)),
-        SubCommandBuilder::new("reset", "Réinitialise toutes les statistiques de présence (« Gérer le serveur »)"),
+        SubCommandBuilder::new("reset", "Réinitialise toutes les statistiques de présence"),
     ]
     .into_iter()
     .chain(super::planning::admin_subcommands())
@@ -122,6 +125,14 @@ pub fn blocklist_subcommands() -> Vec<SubCommandBuilder> {
 
 /// `/gestion presence …` et `/gestion blocklist …`.
 pub async fn handle_admin(ix: &Ix, options: &Options) -> Result<()> {
+    let perm = match (options.group(), options.sub()) {
+        (Some("blocklist"), _) => Perm::Blocklist,
+        (_, "reset") => Perm::PresenceReset,
+        _ => Perm::PresenceGerer,
+    };
+    if !permissions::require(ix, perm).await? {
+        return Ok(());
+    }
     if options.group() == Some("blocklist") {
         return blocklist_command(ix, options).await;
     }
@@ -152,6 +163,10 @@ pub fn absence_definition() -> Command {
 }
 
 pub async fn handle_presence(ix: &Ix, options: &Options) -> Result<()> {
+    let perm = if matches!(options.sub(), "stats" | "changes") { Perm::PresenceStats } else { Perm::PresenceCreer };
+    if !permissions::require(ix, perm).await? {
+        return Ok(());
+    }
     match options.sub() {
         "create" => create(ix, options).await,
         "stats" => stats(ix, options).await,
@@ -422,10 +437,6 @@ async fn force_vote(ix: &Ix, options: &Options) -> Result<()> {
     let Some(guild_id) = ix.guild_id() else {
         return ix.reply(Reply::ephemeral(GUILD_ONLY)).await;
     };
-    if !ix.has_permission(Permissions::MANAGE_MESSAGES) {
-        return ix.reply(Reply::ephemeral("Réservé aux membres pouvant gérer les messages.")).await;
-    }
-
     let target = options.user("utilisateur").expect("option requise");
     let Some(status) = options.string("statut").as_deref().and_then(ResponseStatus::parse) else {
         return ix.reply(Reply::ephemeral("Statut inconnu.")).await;
@@ -477,11 +488,6 @@ async fn cancel(ix: &Ix, options: &Options) -> Result<()> {
     let Some(guild_id) = ix.guild_id() else {
         return ix.reply(Reply::ephemeral(GUILD_ONLY)).await;
     };
-    if !ix.has_permission(Permissions::MANAGE_MESSAGES) {
-        return ix
-            .reply(Reply::ephemeral("Tu dois avoir la permission de gérer les messages pour annuler une présence."))
-            .await;
-    }
     let presence_id = options.string("presence").unwrap_or_default();
     let Some(presence) = service::get_guild_presence(&ix.ctx.db, &guild_id.to_string(), &presence_id).await? else {
         return ix.reply(Reply::ephemeral("Présence introuvable.")).await;
@@ -554,13 +560,6 @@ async fn reset(ix: &Ix) -> Result<()> {
     let Some(guild_id) = ix.guild_id() else {
         return ix.reply(Reply::ephemeral(GUILD_ONLY)).await;
     };
-    if !ix.has_permission(Permissions::MANAGE_GUILD) {
-        return ix
-            .reply(Reply::ephemeral(
-                "Seuls les membres avec la permission « Gérer le serveur » peuvent réinitialiser les statistiques.",
-            ))
-            .await;
-    }
     ix.defer(true).await?;
     service::reset_guild(&ix.ctx.db, &guild_id.to_string()).await?;
     audit::record(ix, Entry::new(Action::PresenceReset, None, String::new())).await;
@@ -602,10 +601,6 @@ async fn blocklist_command(ix: &Ix, options: &Options) -> Result<()> {
         return ix.reply(Reply::embed(embed).hidden()).await;
     }
 
-    // L'ajout et le retrait modifient qui reçoit les pings : réservés au staff.
-    if !ix.has_permission(Permissions::MANAGE_MESSAGES) {
-        return ix.reply(Reply::ephemeral("Réservé aux membres pouvant gérer les messages.")).await;
-    }
     let member = options.user("membre").expect("option requise");
 
     match options.sub() {
@@ -685,8 +680,8 @@ pub(super) async fn declare_absence(ix: &Ix, form: AbsenceForm) -> Result<()> {
     };
     let target = form.target;
     let for_someone_else = target != ix.user_id();
-    if for_someone_else && !ix.has_permission(Permissions::MANAGE_MESSAGES) {
-        return ix.reply(Reply::ephemeral("Seul le staff peut déclarer l'absence d'un autre membre.")).await;
+    if for_someone_else && !permissions::require(ix, Perm::AbsenceAutrui).await? {
+        return Ok(());
     }
 
     let motif = form.motif.trim().to_owned();
@@ -792,8 +787,8 @@ pub(super) async fn end_absence(ix: &Ix, target: Id<UserMarker>) -> Result<()> {
     let Some(guild_id) = ix.guild_id() else {
         return ix.reply(Reply::ephemeral(GUILD_ONLY)).await;
     };
-    if target != ix.user_id() && !ix.has_permission(Permissions::MANAGE_MESSAGES) {
-        return ix.reply(Reply::ephemeral("Seul le staff peut clôturer l'absence d'un autre membre.")).await;
+    if target != ix.user_id() && !permissions::require(ix, Perm::AbsenceAutrui).await? {
+        return Ok(());
     }
 
     let guild = guild_id.to_string();

@@ -127,11 +127,8 @@ pub struct LoginQuery {
 
 pub async fn login(State(ctx): State<Context>, Query(query): Query<LoginQuery>) -> Response {
     let (true, Some(redirect_uri)) = (enabled(&ctx), redirect_uri(&ctx)) else {
-        return super::pages::message_page(
-            axum::http::StatusCode::SERVICE_UNAVAILABLE,
-            "Connexion indisponible",
-            "La connexion Discord n'est pas configurée (DISCORD_CLIENT_SECRET et WEB_URL).",
-        );
+        // L'accueil explique que la connexion n'est pas configurée.
+        return Redirect::to("/?connexion=indisponible").into_response();
     };
     let mut nonce = [0u8; 24];
     if ring::rand::SystemRandom::new().fill(&mut nonce).is_err() {
@@ -172,13 +169,8 @@ struct DiscordUser {
 }
 
 pub async fn callback(State(ctx): State<Context>, headers: HeaderMap, Query(query): Query<CallbackQuery>) -> Response {
-    let refused = || {
-        super::pages::message_page(
-            axum::http::StatusCode::BAD_REQUEST,
-            "Connexion refusée",
-            "La connexion a échoué ou a expiré. Réessaie depuis la page d'accueil.",
-        )
-    };
+    // L'accueil affiche « connexion refusée ou expirée » et le bouton pour réessayer.
+    let refused = || Redirect::to("/?connexion=refusee").into_response();
     let Some(stored) = cookie(&headers, STATE_COOKIE).and_then(|v| verify(&ctx, v)) else {
         return refused();
     };
@@ -245,6 +237,13 @@ pub async fn logout(State(ctx): State<Context>) -> Response {
     let mut response = Redirect::to("/").into_response();
     response.headers_mut().append(header::SET_COOKIE, set_cookie(&ctx, SESSION_COOKIE, "", 0));
     response
+}
+
+/// En-tête `Cookie` d'une session valide (tests de l'API).
+#[cfg(test)]
+pub(crate) fn test_session_cookie(ctx: &Ctx, id: Id<UserMarker>, name: &str) -> String {
+    let viewer = Viewer { id, name: name.to_owned(), exp: chrono::Utc::now().timestamp() + 3600 };
+    format!("{SESSION_COOKIE}={}", sign(ctx, &serde_json::to_vec(&viewer).expect("session sérialisable")))
 }
 
 #[cfg(test)]

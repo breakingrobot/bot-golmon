@@ -6,6 +6,7 @@ use crate::{
         interaction::{GUILD_ONLY, Ix, MANAGE_GUILD_ONLY, Reply},
         options::Options,
     },
+    modules::permissions::{self, Perm},
     util::format::field,
 };
 use anyhow::Result;
@@ -98,11 +99,9 @@ async fn ajouter(ix: &Ix, options: &Options, guild: &str) -> Result<()> {
     // elle écrase sans confirmation le numéro que le membre avait choisi.
     let membre = options.user("membre");
     let forced = membre.filter(|id| *id != ix.user_id());
-    if forced.is_some() && !ix.has_permission(Permissions::MANAGE_GUILD) {
+    if forced.is_some() && !permissions::can(ix, Perm::NumeroAjouterAutrui).await? {
         return ix
-            .reply(Reply::ephemeral(
-                "Seuls les membres avec la permission « Gérer le serveur » peuvent enregistrer le numéro d'un autre membre.",
-            ))
+            .reply(Reply::ephemeral("Tu n'as pas la permission d'enregistrer le numéro d'un autre membre."))
             .await;
     }
 
@@ -135,8 +134,8 @@ async fn voir(ix: &Ix, options: &Options, guild: &str) -> Result<()> {
 
 async fn supprimer(ix: &Ix, options: &Options, guild: &str) -> Result<()> {
     let membre = options.user("membre");
-    if membre.is_some_and(|id| id != ix.user_id()) && !ix.has_permission(Permissions::MANAGE_MESSAGES) {
-        return ix.reply(Reply::ephemeral("Tu n'as pas la permission de supprimer le numéro d'un autre membre.")).await;
+    if membre.is_some_and(|id| id != ix.user_id()) && !permissions::require(ix, Perm::NumeroSupprimerAutrui).await? {
+        return Ok(());
     }
     let target = membre.unwrap_or(ix.user_id());
     ix.defer(true).await?;

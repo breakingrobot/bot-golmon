@@ -1,0 +1,28 @@
+import { ToggleGroup as ToggleGroupPrimitive } from 'radix-ui'
+import type { ComponentProps } from 'react'
+
+import { cn } from '@/lib/utils'
+
+/** Groupe de boutons exclusifs (périodes, vues). */
+export function ToggleGroup({ className, ...props }: ComponentProps<typeof ToggleGroupPrimitive.Root>) {
+  return (
+    <ToggleGroupPrimitive.Root
+      data-slot="toggle-group"
+      className={cn('inline-flex flex-wrap items-center gap-1.5', className)}
+      {...props}
+    />
+  )
+}
+
+export function ToggleGroupItem({ className, ...props }: ComponentProps<typeof ToggleGroupPrimitive.Item>) {
+  return (
+    <ToggleGroupPrimitive.Item
+      data-slot="toggle-group-item"
+      className={cn(
+        'inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-border bg-card px-3 text-sm font-medium whitespace-nowrap text-ink-muted shadow-xs transition-colors outline-none hover:border-line-strong hover:text-ink focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50 data-[state=on]:border-brand data-[state=on]:bg-brand-soft data-[state=on]:text-brand [&_svg]:size-4',
+        className,
+      )}
+      {...props}
+    />
+  )
+}

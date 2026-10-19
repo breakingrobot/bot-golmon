@@ -1,26 +1,29 @@
-//! Serveur web du bot, toujours démarré : `/healthz` pour la plateforme,
-//! logs des tickets (si le module est configuré) et statistiques.
+//! Serveur web du bot, toujours démarré : `/healthz` pour la plateforme, API
+//! JSON (`/api`) et interface React (`ui/`), qui affiche logs des tickets,
+//! statistiques et pages des modules.
 //!
 //! Avec `DISCORD_CLIENT_SECRET` et une adresse publique, les pages sont
 //! réservées aux personnes connectées avec Discord qui en ont le droit
 //! ([`Access`]). Sans connexion configurée, seuls les logs restent lisibles,
 //! par leur lien non devinable, comme dans modmailbot.
 
+pub mod api;
 pub mod auth;
-mod coffres;
-mod contacts;
-mod cotisations;
-mod journal;
+pub mod coffres;
+pub mod cotisations;
 pub mod markdown;
-pub mod pages;
-mod stats;
-mod transactions;
+pub mod spa;
+pub mod stats;
+pub mod transactions;
 
-use crate::context::{Context, Ctx};
+use crate::{
+    context::{Context, Ctx},
+    modules::permissions::{Grants, Holder, Perm},
+};
 use axum::{
     Router,
     http::{HeaderValue, header},
-    response::{IntoResponse, Response},
+    response::Response,
     routing::get,
 };
 use twilight_model::{
@@ -33,20 +36,45 @@ use twilight_model::{
 
 pub use auth::{MaybeViewer, Viewer};
 
-pub const CSS: &str = include_str!("../../web/dist/app.css");
-pub const JS: &str = include_str!("../../web/src/app.js");
-pub const ASSET_VERSION: &str = env!("CARGO_PKG_VERSION");
-
 /// Ce que la personne connectée peut consulter.
-#[derive(Clone, Debug, Default)]
+#[derive(Default)]
 pub struct Access {
     /// Staff des tickets (`inboxServerPermission` sur le serveur inbox).
     pub tickets: bool,
-    /// Serveurs dont elle peut voir les statistiques (« Gérer le serveur »).
-    pub guilds: Vec<(Id<GuildMarker>, String)>,
-    /// Serveurs dont elle peut voir les cotisations et les contacts : « Gérer le serveur », ou
-    /// rôle gradé / lead du module recrues.
-    pub officer_guilds: Vec<(Id<GuildMarker>, String)>,
+    /// Serveurs dont elle est membre, avec ses droits (`/config permission`).
+    pub guilds: Vec<GuildAccess>,
+}
+
+pub struct GuildAccess {
+    pub id: Id<GuildMarker>,
+    pub name: String,
+    grants: Grants,
+    /// « Gérer le serveur » (ou administrateur, ou propriétaire) sur ce serveur.
+    manage_guild: bool,
+}
+
+impl GuildAccess {
+    pub fn new(id: Id<GuildMarker>, name: String, grants: Grants, manage_guild: bool) -> Self {
+        Self { id, name, grants, manage_guild }
+    }
+
+    /// Réglages du serveur (permissions, objectifs, alertes, état) : « Gérer le serveur ».
+    pub fn is_admin(&self) -> bool {
+        self.manage_guild
+    }
+
+    pub fn can(&self, perm: Perm) -> bool {
+        self.grants.can(perm)
+    }
+
+    pub fn level(&self, perm: Perm) -> crate::modules::permissions::Level {
+        self.grants.level(perm)
+    }
+
+    /// Actions autorisées, dans l'ordre de déclaration.
+    pub fn perms(&self) -> Vec<Perm> {
+        Perm::ALL.iter().copied().filter(|perm| self.grants.can(*perm)).collect()
+    }
 }
 
 impl Access {
@@ -63,39 +91,38 @@ impl Access {
             let Some(roles) = member_roles(ctx, guild_id, user_id).await else {
                 continue;
             };
-            let name =
-                || ctx.cache.guild(guild_id).map(|g| g.name().to_owned()).unwrap_or_else(|| guild_id.to_string());
-            let manager = member_permissions(ctx, guild_id, user_id, &roles).contains(Permissions::MANAGE_GUILD);
-            if manager {
-                access.guilds.push((guild_id, name()));
-            }
-            if manager || is_officer(ctx, guild_id, &roles).await {
-                access.officer_guilds.push((guild_id, name()));
-            }
+            let permissions = crate::discord::members::guild_permissions(ctx, guild_id, user_id, &roles);
+            let manage_guild = permissions.contains(Permissions::MANAGE_GUILD);
+            let holder = Holder {
+                roles: roles.iter().map(ToString::to_string).collect(),
+                manage_guild,
+                manage_messages: permissions.contains(Permissions::MANAGE_MESSAGES),
+            };
+            let grants = match Grants::load(&ctx.db, guild_id, holder).await {
+                Ok(grants) => grants,
+                Err(error) => {
+                    tracing::warn!(?error, %guild_id, "droits du site");
+                    continue;
+                }
+            };
+            let name = ctx.cache.guild(guild_id).map(|g| g.name().to_owned()).unwrap_or_else(|| guild_id.to_string());
+            access.guilds.push(GuildAccess::new(guild_id, name, grants, manage_guild));
         }
-        access.guilds.sort_by(|a, b| a.1.cmp(&b.1));
-        access.officer_guilds.sort_by(|a, b| a.1.cmp(&b.1));
+        access.guilds.sort_by(|a, b| a.name.cmp(&b.name));
         access
     }
 
-    pub fn can_view_guild(&self, guild_id: Id<GuildMarker>) -> bool {
-        self.guilds.iter().any(|(id, _)| *id == guild_id)
+    pub fn guild(&self, guild_id: Id<GuildMarker>) -> Option<&GuildAccess> {
+        self.guilds.iter().find(|g| g.id == guild_id)
     }
 
-    pub fn is_officer_of(&self, guild_id: Id<GuildMarker>) -> bool {
-        self.officer_guilds.iter().any(|(id, _)| *id == guild_id)
+    pub fn is_admin(&self, guild_id: Id<GuildMarker>) -> bool {
+        self.guild(guild_id).is_some_and(GuildAccess::is_admin)
     }
-}
 
-/// Rôle gradé ou lead configuré dans le module recrues.
-async fn is_officer(ctx: &Ctx, guild_id: Id<GuildMarker>, roles: &[Id<RoleMarker>]) -> bool {
-    let Ok(Some(config)) = crate::modules::recrues::service::get_config(&ctx.db, &guild_id.to_string()).await else {
-        return false;
-    };
-    [config.grade_role_id, config.lead_role_id]
-        .iter()
-        .flatten()
-        .any(|role| roles.iter().any(|r| r.to_string() == *role))
+    pub fn can(&self, guild_id: Id<GuildMarker>, perm: Perm) -> bool {
+        self.guilds.iter().any(|g| g.id == guild_id && g.grants.can(perm))
+    }
 }
 
 /// Rôles d'un membre : cache, sinon API. `None` si la personne n'est pas membre.
@@ -105,21 +132,6 @@ async fn member_roles(ctx: &Ctx, guild_id: Id<GuildMarker>, user_id: Id<UserMark
     }
     let member = ctx.http.guild_member(guild_id, user_id).await.ok()?.model().await.ok()?;
     Some(member.roles)
-}
-
-fn member_permissions(
-    ctx: &Ctx,
-    guild_id: Id<GuildMarker>,
-    user_id: Id<UserMarker>,
-    roles: &[Id<RoleMarker>],
-) -> Permissions {
-    if ctx.cache.guild(guild_id).is_some_and(|g| g.owner_id() == user_id) {
-        return Permissions::all();
-    }
-    let everyone = ctx.cache.role(guild_id.cast()).map(|r| r.resource().permissions).unwrap_or_else(Permissions::empty);
-    let permissions =
-        roles.iter().filter_map(|id| ctx.cache.role(*id)).fold(everyone, |acc, role| acc | role.resource().permissions);
-    if permissions.contains(Permissions::ADMINISTRATOR) { Permissions::all() } else { permissions }
 }
 
 /// Noms des mentions lus dans le cache du bot.
@@ -140,10 +152,6 @@ impl markdown::Resolver for CacheResolver<'_> {
     }
 }
 
-fn asset(content_type: &'static str, body: &'static str) -> Response {
-    ([(header::CONTENT_TYPE, content_type), (header::CACHE_CONTROL, "public, max-age=86400")], body).into_response()
-}
-
 async fn security_headers(mut response: Response) -> Response {
     let headers = response.headers_mut();
     headers.insert(header::X_CONTENT_TYPE_OPTIONS, HeaderValue::from_static("nosniff"));
@@ -153,7 +161,9 @@ async fn security_headers(mut response: Response) -> Response {
     headers.insert(
         header::CONTENT_SECURITY_POLICY,
         HeaderValue::from_static(
-            "default-src 'none'; style-src 'self'; script-src 'self'; img-src * data:; base-uri 'none'; form-action 'self'",
+            "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; \
+             connect-src 'self'; img-src 'self' data: https://cdn.discordapp.com https://media.discordapp.net; \
+             manifest-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'",
         ),
     );
     response
@@ -167,32 +177,24 @@ fn address(ctx: &Ctx) -> String {
     }
 }
 
-pub fn spawn(ctx: Context) {
-    let address = address(&ctx);
+/// Toutes les routes du site, avec leur état : connexion, API, santé, et
+/// l'interface React pour tout le reste (routage côté navigateur).
+pub fn app(ctx: Context) -> Router {
     let mut app = Router::new()
-        .route("/", get(pages::home))
         .route("/login", get(auth::login))
         .route("/auth/callback", get(auth::callback))
         .route("/logout", get(auth::logout))
-        .route("/stats", get(stats::index))
-        .route("/stats/{guild_id}", get(stats::guild))
-        .route("/stats/{guild_id}/journal", get(journal::page))
-        .route("/cotisations", get(cotisations::index))
-        .route("/stats/{guild_id}/cotisations", get(cotisations::page))
-        .route("/stats/{guild_id}/cotisations.csv", get(cotisations::export))
-        .route("/stats/{guild_id}/coffres", get(coffres::page))
-        .route("/stats/{guild_id}/coffres.csv", get(coffres::export))
-        .route("/contacts", get(contacts::index))
-        .route("/stats/{guild_id}/contacts", get(contacts::page))
-        .route("/stats/{guild_id}/transactions", get(transactions::history))
-        .route("/stats/{guild_id}/transactions.csv", get(transactions::export))
-        .route("/assets/app.css", get(|| async { asset("text/css; charset=UTF-8", CSS) }))
-        .route("/assets/app.js", get(|| async { asset("text/javascript; charset=UTF-8", JS) }))
-        .route("/healthz", get(|| async { "ok" }));
+        .route("/healthz", get(|| async { "ok" }))
+        .nest("/api", api::router());
     if ctx.modmail.is_some() {
         app = app.merge(crate::modmail::web_routes());
     }
-    let app = app.fallback(pages::not_found).layer(axum::middleware::map_response(security_headers)).with_state(ctx);
+    app.fallback(spa::fallback).layer(axum::middleware::map_response(security_headers)).with_state(ctx)
+}
+
+pub fn spawn(ctx: Context) {
+    let address = address(&ctx);
+    let app = app(ctx);
 
     tokio::spawn(async move {
         match tokio::net::TcpListener::bind(&address).await {

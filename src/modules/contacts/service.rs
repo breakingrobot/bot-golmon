@@ -18,7 +18,6 @@ use crate::{
 };
 use anyhow::Result;
 use sqlx::{FromRow, SqlitePool};
-use std::collections::HashMap;
 use twilight_model::channel::message::Component;
 
 #[derive(Clone, Debug, FromRow)]
@@ -51,7 +50,6 @@ impl Contact {
 #[sqlx(rename_all = "camelCase")]
 pub struct Note {
     pub id: String,
-    pub contact_id: String,
     pub author_id: String,
     pub body: String,
     pub created_at: DbTime,
@@ -177,13 +175,7 @@ pub async fn list(db: &SqlitePool, guild_id: &str, filter: &Filter) -> Result<Ve
 }
 
 pub async fn add_note(db: &SqlitePool, guild_id: &str, contact_id: &str, author_id: &str, body: &str) -> Result<Note> {
-    let note = Note {
-        id: new_id(),
-        contact_id: contact_id.to_owned(),
-        author_id: author_id.to_owned(),
-        body: body.to_owned(),
-        created_at: DbTime::now(),
-    };
+    let note = Note { id: new_id(), author_id: author_id.to_owned(), body: body.to_owned(), created_at: DbTime::now() };
     sqlx::query(
         r#"INSERT INTO "ContactNote" ("id", "contactId", "guildId", "authorId", "body", "createdAt") VALUES (?, ?, ?, ?, ?, ?)"#,
     )
@@ -218,21 +210,6 @@ pub async fn notes(db: &SqlitePool, guild_id: &str, contact_id: &str, limit: i64
     .fetch_all(db)
     .await?;
     Ok((rows, total))
-}
-
-/// Toutes les notes du serveur par contact, les plus récentes d'abord (site).
-pub async fn notes_by_contact(db: &SqlitePool, guild_id: &str) -> Result<HashMap<String, Vec<Note>>> {
-    let rows: Vec<Note> = sqlx::query_as(&format!(
-        r#"SELECT {NOTE_COLUMNS} FROM "ContactNote" WHERE "guildId" = ? ORDER BY "createdAt" DESC, rowid DESC"#
-    ))
-    .bind(guild_id)
-    .fetch_all(db)
-    .await?;
-    let mut map: HashMap<String, Vec<Note>> = HashMap::new();
-    for note in rows {
-        map.entry(note.contact_id.clone()).or_default().push(note);
-    }
-    Ok(map)
 }
 
 #[derive(Clone, Debug, Default, FromRow)]
@@ -413,7 +390,6 @@ mod tests {
         let (latest, total) = notes(&db, "g", &ballas.id, 2).await.unwrap();
         assert_eq!(total, 3);
         assert_eq!(latest.iter().map(|n| n.body.as_str()).collect::<Vec<_>>(), ["troisième", "deuxième"]);
-        assert_eq!(notes_by_contact(&db, "g").await.unwrap()[&ballas.id].len(), 3);
         assert!(delete(&db, "g", &ballas.id).await.unwrap());
         let (_, total) = notes(&db, "g", &ballas.id, 10).await.unwrap();
         assert_eq!(total, 0, "notes supprimées en cascade");

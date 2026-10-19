@@ -6,13 +6,13 @@ use crate::{
         interaction::{GUILD_ONLY, Ix, Reply},
         messages,
     },
+    modules::permissions::{self, Perm},
     util::ids::{CustomId, encode_custom_id},
 };
 use anyhow::Result;
 use twilight_model::{
     application::interaction::modal::ModalInteractionData,
     channel::message::{Component, component::TextInputStyle},
-    guild::Permissions,
 };
 
 fn input(custom_id: &str, placeholder: &str, required: bool) -> Component {
@@ -33,6 +33,10 @@ pub async fn button(ix: &Ix, custom_id: &CustomId<'_>) -> Result<()> {
     if transaction.status() == Status::Cloturee {
         return ix.reply(Reply::ephemeral(CLOSED)).await;
     }
+    let perm = if custom_id.action == "delete" { Perm::TransactionSupprimer } else { Perm::TransactionUtiliser };
+    if !permissions::require(ix, perm).await? {
+        return Ok(());
+    }
 
     match custom_id.action {
         "additem" => {
@@ -48,13 +52,6 @@ pub async fn button(ix: &Ix, custom_id: &CustomId<'_>) -> Result<()> {
             .await
         }
         "delete" => {
-            if !ix.has_permission(Permissions::MANAGE_MESSAGES) {
-                return ix
-                    .reply(Reply::ephemeral(
-                        "Tu dois avoir la permission de gérer les messages pour supprimer une transaction.",
-                    ))
-                    .await;
-            }
             ix.defer_update().await?;
             if let (Some(channel_id), Some(message)) = (ix.channel_id(), ix.interaction.message.as_ref()) {
                 messages::delete_quietly(&ix.ctx, channel_id, message.id).await;
