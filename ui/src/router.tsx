@@ -1,5 +1,6 @@
 import type { QueryClient } from '@tanstack/react-query'
 import { createRouter } from '@tanstack/react-router'
+import type { RouterHistory } from '@tanstack/react-router'
 
 import { PageSkeleton } from '@/molecules/PageSkeleton'
 import { routeTree } from '@/routeTree.gen'
@@ -21,8 +22,10 @@ const stringifySearch = (search: Record<string, unknown>): string => {
   return text ? `?${text}` : ''
 }
 
-export const createAppRouter = (queryClient: QueryClient) =>
+/** `history` : historique en mémoire pour les tests ; par défaut, celui du navigateur. */
+export const createAppRouter = (queryClient: QueryClient, history?: RouterHistory) =>
   createRouter({
+    ...(history ? { history } : {}),
     routeTree,
     context: { queryClient },
     parseSearch,
