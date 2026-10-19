@@ -1,22 +1,18 @@
-// Graphiques Recharts (chargés seulement par les pages qui en affichent).
+// Graphiques TanStack Charts (chargés seulement par les pages qui en affichent).
 //
 // Règles : une seule échelle par graphique, couleurs catégorielles dans l'ordre fixe
 // (--series-1, --series-2, validées clair/sombre), légende HTML dès deux séries,
-// infobulle au survol, textes en couleurs de texte, tableau des données disponible.
+// infobulle au survol et au clavier, textes en couleurs de texte, tableau des données disponible.
+// Les couleurs sont des références aux jetons CSS (`var(--…)`) : le passage clair/sombre
+// ne reconstruit pas le graphique.
 
-import type { ReactNode } from 'react'
-import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  Line,
-  LineChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-  type TooltipContentProps,
-} from 'recharts'
+import { barY, crosshair, defineChart, group, lineY, stack, type ChartCurve } from '@tanstack/charts'
+import { scaleBand } from '@tanstack/charts/scales/band'
+import { scaleLinear } from '@tanstack/charts/scales/linear'
+import { scalePoint } from '@tanstack/charts/scales/point'
+import { tooltip } from '@tanstack/charts/tooltip'
+import { Chart } from '@tanstack/react-charts/tooltip'
+import { useMemo, type ReactNode } from 'react'
 
 import type { CoffreSeries, TransactionsResponse, WeeklyAmount } from '@/api/types'
 import {
@@ -28,12 +24,48 @@ import {
   formatShortDay,
   formatWeek,
 } from '@/lib/format'
-import { cn } from '@/lib/utils'
 
 type Series = { key: string; label: string; color: string }
+type Row = Record<string, string | number | null>
 
-const AXIS_TICK = { fill: 'var(--ink-subtle)', fontSize: 12 }
-const GRID_STROKE = 'var(--line)'
+/** Thème commun : textes et grille depuis les jetons du site. */
+const THEME = {
+  foreground: 'var(--ink-subtle)',
+  muted: 'var(--ink-subtle)',
+  grid: 'var(--line)',
+  background: 'transparent',
+  palette: ['var(--series-1)', 'var(--series-2)', 'var(--series-3)'],
+}
+const GRID = { stroke: 'var(--line)', strokeOpacity: 1 }
+const TICK_LABELS = { fontSize: 12 }
+const TOOLTIP = { use: tooltip, className: 'chart-tooltip' } as const
+
+/** Axe des montants ou quantités : sans trait, graduations sans repère. */
+const valueAxis = (format: (value: number) => string) => ({
+  line: false,
+  ticks: { size: 0, padding: 8, format },
+  tickLabels: TICK_LABELS,
+})
+
+/** Axe des périodes (semaines, mois, jours) : étiquettes éclaircies si elles se chevauchent. */
+const periodAxis = (format: (value: string) => string) => ({
+  line: false,
+  ticks: { size: 0, padding: 8, format },
+  tickLabels: { ...TICK_LABELS, thin: { minGap: 12 } },
+})
+
+/** Courbe en escalier (valeur gardée jusqu'au point suivant), pour le stock cumulé. */
+const stepAfter: ChartCurve = {
+  line: (points) => points.map(([x, y], index) => (index === 0 ? `M${x},${y}` : `H${x}V${y}`)).join(''),
+  area: (top, bottom) => {
+    const upper = top.map(([x, y], index) => (index === 0 ? `M${x},${y}` : `H${x}V${y}`)).join('')
+    const lower = bottom
+      .toReversed()
+      .map(([x, y]) => `L${x},${y}`)
+      .join('')
+    return `${upper}${lower}Z`
+  },
+}
 
 function Legend({ series }: { series: Series[] }) {
   if (series.length < 2) return null
@@ -49,30 +81,23 @@ function Legend({ series }: { series: Series[] }) {
   )
 }
 
-type Row = Record<string, string | number | null>
-
-function ChartTooltip({
-  active,
-  payload,
+/** Contenu de l'infobulle (l'enveloppe est celle de TanStack Charts, stylée par `.chart-tooltip`). */
+function TooltipBody({
   label,
+  row,
   series,
-  formatLabel,
   formatValue,
   footer,
 }: {
-  active: boolean | undefined
-  payload: readonly { dataKey?: unknown; value?: unknown; payload?: unknown }[] | undefined
-  label: unknown
+  label: string
+  row: Row
   series: Series[]
-  formatLabel: (label: string) => string
   formatValue: (value: number) => string
-  footer?: ((row: Row) => ReactNode) | undefined
+  footer?: ReactNode
 }) {
-  if (!active || !payload?.length) return null
-  const row = (payload[0]?.payload ?? {}) as Row
   return (
-    <div className="min-w-40 rounded-lg border bg-popover px-3 py-2 text-xs shadow-md">
-      <p className="mb-1 font-medium text-ink">{formatLabel(String(label ?? ''))}</p>
+    <div className="min-w-40 text-xs">
+      <p className="mb-1 font-medium text-ink">{label}</p>
       <ul className="space-y-0.5">
         {series.map((item) => {
           const value = row[item.key]
@@ -89,7 +114,7 @@ function ChartTooltip({
           )
         })}
       </ul>
-      {footer && <div className="mt-1 border-t pt-1 text-ink-muted">{footer(row)}</div>}
+      {footer !== undefined && <div className="mt-1 border-t pt-1 text-ink-muted">{footer}</div>}
     </div>
   )
 }
@@ -146,144 +171,152 @@ function DataTable({
   )
 }
 
-function ChartFrame({
-  label,
-  height = 240,
-  children,
-  className,
-}: {
-  label: string
-  height?: number
-  children: ReactNode
-  className?: string
-}) {
-  return (
-    <div role="img" aria-label={label} className={cn('w-full', className)} style={{ height }}>
-      <ResponsiveContainer width="100%" height="100%">
-        {children}
-      </ResponsiveContainer>
-    </div>
+/** Lignes « longues » (une par période et par série) pour les barres groupées ou empilées. */
+type LongRow<T> = { x: string; serie: string; value: number; row: T }
+
+function toLong<T extends Record<string, unknown>>(rows: readonly T[], xKey: keyof T, series: Series[]): LongRow<T>[] {
+  return rows.flatMap((row) =>
+    series.map((item) => {
+      const value = row[item.key]
+      return { x: String(row[xKey]), serie: item.key, value: typeof value === 'number' ? value : 0, row }
+    }),
   )
 }
 
-function tooltipContent(
-  series: Series[],
-  formatLabel: (label: string) => string,
-  formatValue: (value: number) => string,
-  footer?: (row: Row) => ReactNode,
-) {
-  return function Content(props: TooltipContentProps) {
-    return (
-      <ChartTooltip
-        active={props.active}
-        payload={props.payload}
-        label={props.label}
-        series={series}
-        formatLabel={formatLabel}
-        formatValue={formatValue}
-        footer={footer}
-      />
-    )
-  }
-}
+const colorScale = (series: Series[]) => ({
+  domain: series.map((item) => item.key),
+  range: series.map((item) => item.color),
+})
+
+const ATTENDANCE_SERIES: Series[] = [{ key: 'rate', label: 'Taux de présence', color: 'var(--series-1)' }]
+const TRANSACTION_SERIES: Series[] = [
+  { key: 'ventes', label: 'Ventes', color: 'var(--series-1)' },
+  { key: 'achats', label: 'Achats', color: 'var(--series-2)' },
+]
+const COTISATION_SERIES: Series[] = [
+  { key: 'propre', label: 'Propre', color: 'var(--series-1)' },
+  { key: 'sale', label: 'Sale', color: 'var(--series-2)' },
+]
+const STOCK_SERIES: Series[] = [{ key: 'stock', label: 'Stock', color: 'var(--series-3)' }]
+const MOVE_SERIES: Series[] = [
+  { key: 'deposited', label: 'Déposé', color: 'var(--series-1)' },
+  { key: 'withdrawn', label: 'Retiré', color: 'var(--series-2)' },
+]
 
 // ---------------------------------------------------------------------------
 
-export function AttendanceChart({ data }: { data: { weekStart: string; rate: number | null; presences: number }[] }) {
-  const series: Series[] = [{ key: 'rate', label: 'Taux de présence', color: 'var(--series-1)' }]
-  const rows = data as unknown as Row[]
+type AttendancePoint = { weekStart: string; rate: number | null; presences: number }
+
+export function AttendanceChart({ data }: { data: AttendancePoint[] }) {
+  const series = ATTENDANCE_SERIES
+  const definition = useMemo(
+    () =>
+      defineChart({
+        marks: [
+          crosshair({ x: { stroke: 'var(--line-strong)' }, y: false }),
+          // Les semaines sans présence clôturée (taux nul) coupent la courbe.
+          lineY(data, { x: 'weekStart', y: 'rate', stroke: 'var(--series-1)', strokeWidth: 2, points: true }),
+        ],
+        scales: {
+          x: { scale: () => scalePoint<string>().padding(0.25), axis: periodAxis(formatShortDay) },
+          y: {
+            scale: scaleLinear().domain([0, 100]),
+            grid: GRID,
+            axis: {
+              line: false,
+              ticks: { size: 0, padding: 8, values: [0, 25, 50, 75, 100], format: (value: number) => `${value} %` },
+              tickLabels: TICK_LABELS,
+            },
+          },
+        },
+        theme: THEME,
+        focus: 'nearest-x',
+        maxFocusDistance: Number.POSITIVE_INFINITY,
+        tooltip: TOOLTIP,
+      }),
+    [data],
+  )
   return (
     <>
-      <ChartFrame label="Taux de présence moyen par semaine, sur les 12 dernières semaines">
-        <LineChart data={rows} margin={{ top: 8, right: 12, bottom: 0, left: 0 }}>
-          <CartesianGrid vertical={false} stroke={GRID_STROKE} />
-          <XAxis
-            dataKey="weekStart"
-            tickFormatter={formatShortDay}
-            tick={AXIS_TICK}
-            tickLine={false}
-            axisLine={false}
-            minTickGap={16}
-          />
-          <YAxis
-            domain={[0, 100]}
-            ticks={[0, 25, 50, 75, 100]}
-            tickFormatter={(value: number) => `${value} %`}
-            tick={AXIS_TICK}
-            tickLine={false}
-            axisLine={false}
-            width={52}
-          />
-          <Tooltip
-            cursor={{ stroke: 'var(--line-strong)' }}
-            content={tooltipContent(
-              series,
-              formatWeek,
-              formatPercent,
-              (row) => `${formatNumber(Number(row.presences ?? 0))} présence(s) clôturée(s)`,
-            )}
-          />
-          <Line
-            type="monotone"
-            dataKey="rate"
-            stroke="var(--series-1)"
-            strokeWidth={2}
-            dot={{ r: 3, fill: 'var(--series-1)', stroke: 'var(--surface)', strokeWidth: 2 }}
-            activeDot={{ r: 5, stroke: 'var(--surface)', strokeWidth: 2 }}
-            connectNulls={false}
-            isAnimationActive={false}
-          />
-        </LineChart>
-      </ChartFrame>
-      <DataTable rows={rows} xKey="weekStart" series={series} formatLabel={formatWeek} formatValue={formatPercent} />
+      <Chart
+        definition={definition}
+        height={240}
+        className="chart"
+        ariaLabel="Taux de présence moyen par semaine, sur les 12 dernières semaines"
+        renderTooltipBody={({ points }) => {
+          const datum = points[0]?.datum
+          if (!datum) return null
+          return (
+            <TooltipBody
+              label={formatWeek(datum.weekStart)}
+              row={datum}
+              series={series}
+              formatValue={formatPercent}
+              footer={`${formatNumber(datum.presences)} présence(s) clôturée(s)`}
+            />
+          )
+        }}
+      />
+      <DataTable rows={data} xKey="weekStart" series={series} formatLabel={formatWeek} formatValue={formatPercent} />
     </>
   )
 }
 
 export function MonthlyTransactionsChart({ months }: { months: TransactionsResponse['months'] }) {
-  const series: Series[] = [
-    { key: 'ventes', label: 'Ventes', color: 'var(--series-1)' },
-    { key: 'achats', label: 'Achats', color: 'var(--series-2)' },
-  ]
+  const series = TRANSACTION_SERIES
   // L'API donne les mois du plus récent au plus ancien : ordre chronologique pour le graphique.
-  const rows = months.toReversed() as unknown as Row[]
+  const rows = months.toReversed()
   const money = (value: number) => formatMoney(value)
+  const definition = useMemo(() => {
+    const long = toLong(months.toReversed(), 'month', TRANSACTION_SERIES)
+    return defineChart({
+      marks: [
+        crosshair({ x: { band: { fill: 'var(--surface-sunken)', fillOpacity: 1 } }, y: false }),
+        barY(long, {
+          x: 'x',
+          y: 'value',
+          z: 'serie',
+          color: 'serie',
+          layout: group({ padding: 0.08 }),
+          radius: [4, 4, 0, 0],
+          maxThickness: 28,
+        }),
+      ],
+      scales: {
+        x: { scale: () => scaleBand<string>().padding(0.2), axis: periodAxis((month) => formatMonth(month)) },
+        y: { scale: scaleLinear, nice: true, grid: GRID, axis: valueAxis(formatCompactMoney) },
+      },
+      color: colorScale(TRANSACTION_SERIES),
+      theme: THEME,
+      focus: 'group-x',
+      maxFocusDistance: Number.POSITIVE_INFINITY,
+      // Le bandeau du curseur marque la période : pas d'anneau sur une barre (parfois nulle).
+      focusRing: false,
+      tooltip: { ...TOOLTIP, anchor: 'group-center' },
+    })
+  }, [months])
   return (
     <>
       <Legend series={series} />
-      <ChartFrame label="Achats et ventes par mois">
-        <BarChart data={rows} margin={{ top: 8, right: 12, bottom: 0, left: 0 }} barGap={2}>
-          <CartesianGrid vertical={false} stroke={GRID_STROKE} />
-          <XAxis
-            dataKey="month"
-            tickFormatter={(month: string) => formatMonth(month)}
-            tick={AXIS_TICK}
-            tickLine={false}
-            axisLine={false}
-          />
-          <YAxis tickFormatter={formatCompactMoney} tick={AXIS_TICK} tickLine={false} axisLine={false} width={64} />
-          <Tooltip
-            cursor={{ fill: 'var(--surface-sunken)' }}
-            content={tooltipContent(
-              series,
-              (month) => formatMonth(month, true),
-              money,
-              (row) => `${formatNumber(Number(row.count ?? 0))} transaction(s)`,
-            )}
-          />
-          {series.map((item) => (
-            <Bar
-              key={item.key}
-              dataKey={item.key}
-              name={item.label}
-              fill={item.color}
-              radius={[4, 4, 0, 0]}
-              maxBarSize={28}
-              isAnimationActive={false}
+      <Chart
+        definition={definition}
+        height={240}
+        className="chart"
+        ariaLabel="Achats et ventes par mois"
+        renderTooltipBody={({ points }) => {
+          const row = points[0]?.datum.row
+          if (!row) return null
+          return (
+            <TooltipBody
+              label={formatMonth(row.month, true)}
+              row={row}
+              series={series}
+              formatValue={money}
+              footer={`${formatNumber(row.count)} transaction(s)`}
             />
-          ))}
-        </BarChart>
-      </ChartFrame>
+          )
+        }}
+      />
       <DataTable
         rows={rows}
         xKey="month"
@@ -296,130 +329,157 @@ export function MonthlyTransactionsChart({ months }: { months: TransactionsRespo
 }
 
 export function WeeklyCotisationsChart({ weekly, height = 240 }: { weekly: WeeklyAmount[]; height?: number }) {
-  const series: Series[] = [
-    { key: 'propre', label: 'Propre', color: 'var(--series-1)' },
-    { key: 'sale', label: 'Sale', color: 'var(--series-2)' },
-  ]
-  const rows = weekly.map((week) => ({ ...week, total: week.propre + week.sale })) as unknown as Row[]
+  const series = COTISATION_SERIES
   const money = (value: number) => formatMoney(value)
+  const definition = useMemo(() => {
+    const long = toLong(weekly, 'weekStart', COTISATION_SERIES)
+    return defineChart({
+      marks: [
+        crosshair({ x: { band: { fill: 'var(--surface-sunken)', fillOpacity: 1 } }, y: false }),
+        // Empilement : propre en bas, sale au-dessus ; seul le haut de la pile est arrondi.
+        barY(long, {
+          x: 'x',
+          y: 'value',
+          z: 'serie',
+          color: 'serie',
+          layout: stack({ order: ['propre', 'sale'] }),
+          stroke: 'var(--surface)',
+          strokeWidth: 1,
+          radius: { end: 4 },
+          maxThickness: 32,
+        }),
+      ],
+      scales: {
+        x: { scale: () => scaleBand<string>().padding(0.2), axis: periodAxis(formatShortDay) },
+        y: { scale: scaleLinear, nice: true, grid: GRID, axis: valueAxis(formatCompactMoney) },
+      },
+      color: colorScale(COTISATION_SERIES),
+      theme: THEME,
+      focus: 'group-x',
+      maxFocusDistance: Number.POSITIVE_INFINITY,
+      // Le bandeau du curseur marque la période : pas d'anneau sur une barre (parfois nulle).
+      focusRing: false,
+      tooltip: { ...TOOLTIP, anchor: 'group-center' },
+    })
+  }, [weekly])
   return (
     <>
       <Legend series={series} />
-      <ChartFrame label="Cotisations par semaine, argent propre et sale empilés" height={height}>
-        <BarChart data={rows} margin={{ top: 8, right: 12, bottom: 0, left: 0 }}>
-          <CartesianGrid vertical={false} stroke={GRID_STROKE} />
-          <XAxis
-            dataKey="weekStart"
-            tickFormatter={formatShortDay}
-            tick={AXIS_TICK}
-            tickLine={false}
-            axisLine={false}
-            minTickGap={12}
-          />
-          <YAxis tickFormatter={formatCompactMoney} tick={AXIS_TICK} tickLine={false} axisLine={false} width={64} />
-          <Tooltip
-            cursor={{ fill: 'var(--surface-sunken)' }}
-            content={tooltipContent(series, formatWeek, money, (row) => `Total : ${money(Number(row.total ?? 0))}`)}
-          />
-          <Bar
-            dataKey="propre"
-            stackId="a"
-            fill="var(--series-1)"
-            stroke="var(--surface)"
-            strokeWidth={1}
-            maxBarSize={32}
-            isAnimationActive={false}
-          />
-          <Bar
-            dataKey="sale"
-            stackId="a"
-            fill="var(--series-2)"
-            stroke="var(--surface)"
-            strokeWidth={1}
-            radius={[4, 4, 0, 0]}
-            maxBarSize={32}
-            isAnimationActive={false}
-          />
-        </BarChart>
-      </ChartFrame>
-      <DataTable rows={rows} xKey="weekStart" series={series} formatLabel={formatWeek} formatValue={money} />
+      <Chart
+        definition={definition}
+        height={height}
+        className="chart"
+        ariaLabel="Cotisations par semaine, argent propre et sale empilés"
+        renderTooltipBody={({ points }) => {
+          const row = points[0]?.datum.row
+          if (!row) return null
+          return (
+            <TooltipBody
+              label={formatWeek(row.weekStart)}
+              row={row}
+              series={series}
+              formatValue={money}
+              footer={`Total : ${money(row.propre + row.sale)}`}
+            />
+          )
+        }}
+      />
+      <DataTable rows={weekly} xKey="weekStart" series={series} formatLabel={formatWeek} formatValue={money} />
     </>
   )
 }
 
 /** Évolution d'un objet : stock cumulé (courbe), puis dépôts et retraits par jour (barres). */
 export function CoffreSeriesChart({ series: points, itemLabel }: { series: CoffreSeries; itemLabel: string }) {
-  const stock: Series[] = [{ key: 'stock', label: 'Stock', color: 'var(--series-3)' }]
-  const moves: Series[] = [
-    { key: 'deposited', label: 'Déposé', color: 'var(--series-1)' },
-    { key: 'withdrawn', label: 'Retiré', color: 'var(--series-2)' },
-  ]
-  const rows = points as unknown as Row[]
-  const day = (value: string) => formatShortDay(value)
+  const stock = STOCK_SERIES
+  const moves = MOVE_SERIES
+  const stockDefinition = useMemo(
+    () =>
+      defineChart({
+        marks: [
+          crosshair({ x: { stroke: 'var(--line-strong)' }, y: false }),
+          lineY(points, { x: 'day', y: 'stock', stroke: 'var(--series-3)', strokeWidth: 2, curve: stepAfter }),
+        ],
+        scales: {
+          x: { scale: () => scalePoint<string>().padding(0.1), axis: periodAxis(formatShortDay) },
+          y: { scale: scaleLinear, nice: true, grid: GRID, axis: valueAxis(formatNumber) },
+        },
+        theme: THEME,
+        focus: 'nearest-x',
+        maxFocusDistance: Number.POSITIVE_INFINITY,
+        tooltip: TOOLTIP,
+      }),
+    [points],
+  )
+  const movesDefinition = useMemo(() => {
+    const long = toLong(points, 'day', MOVE_SERIES)
+    return defineChart({
+      marks: [
+        crosshair({ x: { band: { fill: 'var(--surface-sunken)', fillOpacity: 1 } }, y: false }),
+        barY(long, {
+          x: 'x',
+          y: 'value',
+          z: 'serie',
+          color: 'serie',
+          layout: group({ padding: 0.05 }),
+          radius: [3, 3, 0, 0],
+          maxThickness: 14,
+        }),
+      ],
+      scales: {
+        x: { scale: () => scaleBand<string>().padding(0.15), axis: periodAxis(formatShortDay) },
+        y: { scale: scaleLinear, nice: true, grid: GRID, axis: valueAxis(formatNumber) },
+      },
+      color: colorScale(MOVE_SERIES),
+      theme: THEME,
+      focus: 'group-x',
+      maxFocusDistance: Number.POSITIVE_INFINITY,
+      // Le bandeau du curseur marque la période : pas d'anneau sur une barre (parfois nulle).
+      focusRing: false,
+      tooltip: { ...TOOLTIP, anchor: 'group-center' },
+    })
+  }, [points])
   return (
     <div className="grid gap-6 lg:grid-cols-2">
-      <div>
+      <div className="min-w-0">
         <h3 className="mb-2 text-sm font-medium text-ink">Stock de {itemLabel}</h3>
-        <ChartFrame label={`Stock cumulé de ${itemLabel} par jour`} height={220}>
-          <LineChart data={rows} margin={{ top: 8, right: 12, bottom: 0, left: 0 }}>
-            <CartesianGrid vertical={false} stroke={GRID_STROKE} />
-            <XAxis
-              dataKey="day"
-              tickFormatter={day}
-              tick={AXIS_TICK}
-              tickLine={false}
-              axisLine={false}
-              minTickGap={24}
-            />
-            <YAxis tickFormatter={formatNumber} tick={AXIS_TICK} tickLine={false} axisLine={false} width={48} />
-            <Tooltip
-              cursor={{ stroke: 'var(--line-strong)' }}
-              content={tooltipContent([...stock, ...moves], day, formatNumber)}
-            />
-            <Line
-              type="stepAfter"
-              dataKey="stock"
-              stroke="var(--series-3)"
-              strokeWidth={2}
-              dot={false}
-              activeDot={{ r: 5, stroke: 'var(--surface)', strokeWidth: 2 }}
-              isAnimationActive={false}
-            />
-          </LineChart>
-        </ChartFrame>
+        <Chart
+          definition={stockDefinition}
+          height={220}
+          className="chart"
+          ariaLabel={`Stock cumulé de ${itemLabel} par jour`}
+          renderTooltipBody={({ points: focused }) => {
+            const datum = focused[0]?.datum
+            if (!datum) return null
+            return (
+              <TooltipBody
+                label={formatShortDay(datum.day)}
+                row={datum}
+                series={[...stock, ...moves]}
+                formatValue={formatNumber}
+              />
+            )
+          }}
+        />
       </div>
-      <div>
+      <div className="min-w-0">
         <h3 className="mb-2 text-sm font-medium text-ink">Mouvements par jour</h3>
         <Legend series={moves} />
-        <ChartFrame label={`Dépôts et retraits de ${itemLabel} par jour`} height={194}>
-          <BarChart data={rows} margin={{ top: 8, right: 12, bottom: 0, left: 0 }} barGap={1}>
-            <CartesianGrid vertical={false} stroke={GRID_STROKE} />
-            <XAxis
-              dataKey="day"
-              tickFormatter={day}
-              tick={AXIS_TICK}
-              tickLine={false}
-              axisLine={false}
-              minTickGap={24}
-            />
-            <YAxis tickFormatter={formatNumber} tick={AXIS_TICK} tickLine={false} axisLine={false} width={48} />
-            <Tooltip cursor={{ fill: 'var(--surface-sunken)' }} content={tooltipContent(moves, day, formatNumber)} />
-            {moves.map((item) => (
-              <Bar
-                key={item.key}
-                dataKey={item.key}
-                fill={item.color}
-                radius={[3, 3, 0, 0]}
-                maxBarSize={14}
-                isAnimationActive={false}
-              />
-            ))}
-          </BarChart>
-        </ChartFrame>
+        <Chart
+          definition={movesDefinition}
+          height={194}
+          className="chart"
+          ariaLabel={`Dépôts et retraits de ${itemLabel} par jour`}
+          renderTooltipBody={({ points: focused }) => {
+            const row = focused[0]?.datum.row
+            if (!row) return null
+            return <TooltipBody label={formatShortDay(row.day)} row={row} series={moves} formatValue={formatNumber} />
+          }}
+        />
       </div>
       <div className="lg:col-span-2">
         <DataTable
-          rows={rows}
+          rows={points}
           xKey="day"
           series={[...moves, ...stock]}
           formatLabel={(value) => formatShortDay(value)}

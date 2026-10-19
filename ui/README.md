@@ -9,21 +9,22 @@ Le contrat de l'API est `src/api/types.ts` ; la spécification OpenAPI du bot (`
 
 ## Pile
 
-| Outil                                      | Version                                         | Rôle                                                            |
-| ------------------------------------------ | ----------------------------------------------- | --------------------------------------------------------------- |
-| React                                      | 19.3.0                                          | Interface                                                       |
-| Vite                                       | 8.3.2                                           | Serveur de développement, compilation (`dist/`)                 |
-| TanStack Router                            | 1.170.41 (+ `@tanstack/router-plugin` 1.168.42) | Routes par fichiers (`src/routes`), découpage du code par route |
-| TanStack Query                             | 5.104.1                                         | Toutes les requêtes à l'API                                     |
-| Tailwind CSS                               | 4.3.3                                           | Styles, jetons du thème dans `src/styles.css`                   |
-| shadcn/ui (Radix, paquet `radix-ui` 1.6.7) | —                                               | Composants (`src/components/ui`), écrits dans le style shadcn   |
-| Recharts                                   | 3.10.1                                          | Graphiques, chargés seulement par les pages qui en ont          |
-| lucide-react                               | 1.52.0                                          | Icônes                                                          |
-| sonner                                     | 2.0.8                                           | Notifications (toasts)                                          |
-| TypeScript                                 | 7.0.2 (compilateur natif)                       | `npm run typecheck` (`tsc --noEmit`) ; Vite transpile           |
-| Oxlint                                     | 1.86.0                                          | Lint (`.oxlintrc.json`)                                         |
-| Oxfmt                                      | 0.71.0                                          | Format (`.oxfmtrc.json`)                                        |
-| Hey API (`@hey-api/openapi-ts`)            | 0.0.0-next-20260930190945 (étiquette `next`)    | Génération du client typé depuis `openapi.json`                 |
+| Outil                                      | Version                                               | Rôle                                                            |
+| ------------------------------------------ | ----------------------------------------------------- | --------------------------------------------------------------- |
+| React                                      | 19.3.0                                                | Interface                                                       |
+| Vite                                       | 8.3.2                                                 | Serveur de développement, compilation (`dist/`)                 |
+| TanStack Router                            | 1.170.41 (+ `@tanstack/router-plugin` 1.168.42)       | Routes par fichiers (`src/routes`), découpage du code par route |
+| TanStack Query                             | 5.104.1                                               | Toutes les requêtes à l'API                                     |
+| Tailwind CSS                               | 4.3.3                                                 | Styles, jetons du thème dans `src/styles.css`                   |
+| shadcn/ui (Radix, paquet `radix-ui` 1.6.7) | —                                                     | Composants (`src/components/ui`), écrits dans le style shadcn   |
+| TanStack Charts                            | 1.0.0 (`@tanstack/react-charts` + `@tanstack/charts`) | Graphiques SVG, chargés seulement par les pages qui en ont      |
+| Jotai                                      | 3.0.1                                                 | État d'interface (thème, tiroir, dernier serveur)               |
+| lucide-react                               | 1.52.0                                                | Icônes                                                          |
+| sonner                                     | 2.0.8                                                 | Notifications (toasts)                                          |
+| TypeScript                                 | 7.0.2 (compilateur natif)                             | `npm run typecheck` (`tsc --noEmit`) ; Vite transpile           |
+| Oxlint                                     | 1.86.0                                                | Lint (`.oxlintrc.json`)                                         |
+| Oxfmt                                      | 0.71.0                                                | Format (`.oxfmtrc.json`)                                        |
+| Hey API (`@hey-api/openapi-ts`)            | 0.0.0-next-20260930190945 (étiquette `next`)          | Génération du client typé depuis `openapi.json`                 |
 
 Versions exactes, publiées au moins deux semaines avant leur adoption. Hey API est pris sur l'étiquette `next` : la
 version stable ne prend pas encore TypeScript 7 en charge. Le client fetch de Hey API est généré dans le dossier de
@@ -78,11 +79,37 @@ src/
                 et mutations, seul point d'accès à l'API), hey-api.ts (configuration du client généré),
                 contract-check.ts (spécification ↔ types)
   routes/       une route par fichier (TanStack Router), redirections des anciennes adresses comprises
-  components/   ui/ (shadcn), charts/ (Recharts), mise en page, formulaires, dialogues
-  lib/          format (Intl, « 12 500 $ »), thème, droits par page, paramètres d'adresse
+  components/   ui/ (shadcn), charts/ (TanStack Charts), mise en page, formulaires, dialogues
+  state/        atomes Jotai, un fichier par sujet (thème, tiroir du serveur, dernier serveur)
+  lib/          format (Intl, « 12 500 $ »), droits par page, paramètres d'adresse
   mocks/        maquette de l'API (exclue du build)
 public/         theme-init.js (thème avant le premier rendu), favicon
 ```
+
+## État : qui garde quoi
+
+| Nature de l'état               | Outil                                                     | Exemples                                                                                                                                             |
+| ------------------------------ | --------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Données du serveur             | TanStack Query (`src/api/queries.ts`)                     | compte, statistiques, listes, mutations                                                                                                              |
+| État partageable par l'adresse | TanStack Router (paramètres validés par `validateSearch`) | filtres, page, période, objet choisi, vue du log (« Échanges seulement », « Détails techniques »)                                                    |
+| État d'interface du navigateur | Jotai (`src/state/`)                                      | thème (clé `theme`, valeur brute lue aussi par `public/theme-init.js`), tiroir du serveur sur mobile, dernier serveur ouvert (clé `dernier-serveur`) |
+| État local d'un composant      | `useState`                                                | champs d'un formulaire, dialogue ouvert, ligne dépliée                                                                                               |
+
+Jotai utilise le store par défaut (pas de `<Provider>`). Les atomes mémorisés passent par `src/state/storage.ts` :
+texte brut, lectures et écritures dans un `try`/`catch` (navigation privée, stockage bloqué), valeurs relues
+validées, synchronisation entre onglets. Ne jamais copier une réponse de l'API dans un atome, ni un paramètre
+d'adresse. Le scénario de la maquette (`?mock=…`) reste dans `src/mocks/` (sessionStorage) : il est lu par le faux
+serveur hors de React et n'existe pas en production.
+
+## Graphiques
+
+`src/components/charts/charts.tsx`, importé par les routes qui en affichent : le découpage par route le garde hors
+du point d'entrée (morceau `charts-*.js`). Définitions `defineChart` mémorisées, échelles compactes de
+`@tanstack/charts` (point, bande, linéaire), couleurs en références aux jetons (`var(--series-1)`…, `var(--line)`) :
+le changement de thème ne reconstruit rien. Infobulle de la bibliothèque (souris et clavier) avec un contenu React
+en français (`renderTooltipBody`), enveloppe stylée par `.chart` dans `src/styles.css`, légende HTML dès deux
+séries et tableau des valeurs (« Afficher les données »). La courbe du stock en escalier utilise une courbe maison
+(`ChartCurve`) plutôt que `d3-shape` ; la courbe de présence est tracée en segments droits.
 
 Les pages n'appellent jamais `fetch` : elles importent les options de `src/api/queries.ts`. Passer aux types et
 au client générés par Hey API ne touche que `src/api/`.

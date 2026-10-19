@@ -2,8 +2,9 @@
 
 import { useQuery } from '@tanstack/react-query'
 import { createFileRoute, Outlet, useNavigate } from '@tanstack/react-router'
+import { useAtom, useSetAtom } from 'jotai'
 import { Menu } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo } from 'react'
 
 import { meQuery } from '@/api/queries'
 import type { GuildAccess, Me } from '@/api/types'
@@ -17,6 +18,8 @@ import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTr
 import { findGuild, visiblePages } from '@/lib/guild'
 import { GuildContext } from '@/lib/guild-context'
 import { initials } from '@/lib/utils'
+import { guildNavOpenAtom } from '@/state/guild-nav'
+import { lastGuildIdAtom } from '@/state/last-guild'
 
 export const Route = createFileRoute('/serveurs/$guildId')({ component: GuildLayout })
 
@@ -60,8 +63,14 @@ function GuildLayout() {
 }
 
 function GuildShell({ me, guild, userId }: { me: Me; guild: GuildAccess; userId: string }) {
-  const [open, setOpen] = useState(false)
+  const [open, setOpen] = useAtom(guildNavOpenAtom)
+  const setLastGuildId = useSetAtom(lastGuildIdAtom)
   const context = useMemo(() => ({ me, guild, userId }), [me, guild, userId])
+  useEffect(() => {
+    setLastGuildId(guild.id)
+  }, [guild.id, setLastGuildId])
+  // Tiroir refermé en quittant l'espace du serveur (l'atome survit au démontage).
+  useEffect(() => () => setOpen(false), [setOpen])
   return (
     <GuildContext value={context}>
       <div className="mx-auto flex w-full max-w-7xl flex-1">

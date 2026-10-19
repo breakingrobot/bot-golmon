@@ -6,8 +6,8 @@ import { createRoot } from 'react-dom/client'
 
 import { ApiRequestError } from '@/api/client'
 import { Toaster } from '@/components/ui/sonner'
-import { ThemeProvider } from '@/lib/theme'
 import { createAppRouter } from '@/router'
+import { ThemeSync } from '@/state/theme'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -28,11 +28,11 @@ if (!container) throw new Error('Élément #app absent de index.html')
 
 createRoot(container).render(
   <StrictMode>
-    <ThemeProvider>
-      <QueryClientProvider client={queryClient}>
-        <RouterProvider router={router} />
-        <Toaster />
-      </QueryClientProvider>
-    </ThemeProvider>
+    {/* État d'interface : atomes Jotai dans le store par défaut, sans <Provider>. */}
+    <ThemeSync />
+    <QueryClientProvider client={queryClient}>
+      <RouterProvider router={router} />
+      <Toaster />
+    </QueryClientProvider>
   </StrictMode>,
 )

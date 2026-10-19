@@ -72,8 +72,9 @@ les messages du compte.
 
 <img src="images/accueil.png" alt="Accueil" width="640"> <img src="images/mobile-menu.png" alt="Menu sur mobile" width="200">
 
-Une tuile par serveur avec les pages ouvertes au compte ; dans un serveur, un menu latéral (tiroir sur mobile)
-et un sélecteur de serveur. Une page sans le droit nécessaire affiche « Accès refusé ».
+Une tuile par serveur avec les pages ouvertes au compte (le dernier serveur ouvert en premier, mémorisé par le
+navigateur) ; dans un serveur, un menu latéral (tiroir sur mobile) et un sélecteur de serveur. Les graphiques
+s'inspectent à la souris ou au clavier (flèches) et gardent un tableau des valeurs (« Afficher les données »). Une page sans le droit nécessaire affiche « Accès refusé ».
 
 ### Statistiques
 

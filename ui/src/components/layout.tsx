@@ -19,7 +19,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { useTheme, type ThemeChoice } from '@/lib/theme'
+import { useTheme, type ThemeChoice } from '@/state/theme'
 
 export function ThemeToggle() {
   const { choice, resolved, setChoice } = useTheme()

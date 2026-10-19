@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { createFileRoute, Link } from '@tanstack/react-router'
+import { useAtomValue } from 'jotai'
 import { ArrowRight, LogIn, ShieldOff, Ticket } from 'lucide-react'
 
 import { meQuery } from '@/api/queries'
@@ -12,6 +13,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { visiblePages } from '@/lib/guild'
 import { initials } from '@/lib/utils'
+import { lastGuildIdAtom } from '@/state/last-guild'
 
 export const Route = createFileRoute('/')({ component: Home })
 
@@ -31,6 +33,7 @@ function Home() {
 }
 
 function HomeContent({ me }: { me: Me }) {
+  const lastGuildId = useAtomValue(lastGuildIdAtom)
   if (!me.user) return <LoginCard me={me} />
   if (!me.tickets && me.guilds.length === 0) {
     return (
@@ -51,9 +54,12 @@ function HomeContent({ me }: { me: Me }) {
       <h1 className="text-2xl font-semibold tracking-tight">Bienvenue, {me.user.name}</h1>
       <p className="mt-1 text-sm text-ink-muted">Les pages ouvertes à votre compte, par serveur.</p>
       <div className="mt-6 grid gap-4 md:grid-cols-2">
-        {me.guilds.map((guild) => (
-          <GuildTile key={guild.id} guild={guild} userId={me.user?.id ?? ''} />
-        ))}
+        {/* Dernier serveur ouvert en premier, les autres dans l'ordre du serveur. */}
+        {me.guilds
+          .toSorted((a, b) => Number(b.id === lastGuildId) - Number(a.id === lastGuildId))
+          .map((guild) => (
+            <GuildTile key={guild.id} guild={guild} userId={me.user?.id ?? ''} />
+          ))}
         {me.tickets && (
           <Card className="transition-colors hover:border-line-strong">
             <CardHeader>

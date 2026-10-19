@@ -213,8 +213,29 @@
   }
 }
 
-/* Recharts : pas de contour de focus carré sur le SVG entier. */
-.recharts-wrapper svg:focus,
-.recharts-surface:focus {
+/*
+ * Graphiques TanStack Charts : textes et grille hérités des jetons, enveloppe de
+ * l'infobulle aux couleurs des popovers (variables lues par la bibliothèque).
+ */
+.chart {
+  color: var(--ink-subtle);
+  font-variant-numeric: tabular-nums;
+  --ts-chart-1: var(--series-1);
+  --ts-chart-2: var(--series-2);
+  --ts-chart-3: var(--series-3);
+  --ts-chart-tooltip-background: var(--surface);
+  --ts-chart-tooltip-color: var(--ink);
+  --ts-chart-tooltip-border: 1px solid var(--line);
+  --ts-chart-tooltip-border-radius: 0.5rem;
+  --ts-chart-tooltip-shadow: 0 4px 12px -2px oklch(0 0 0 / 0.12);
+  --ts-chart-tooltip-padding: 0.5rem 0.75rem;
+  --ts-chart-tooltip-font: inherit;
+}
+.chart svg:focus {
   outline: none;
+}
+.chart svg:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+  border-radius: 0.375rem;
 }
