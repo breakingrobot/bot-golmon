@@ -86,11 +86,19 @@ async fn run() -> Result<()> {
         shard_senders: OnceLock::new(),
     });
 
-    if ctx.config.deploy_commands || deploy_only {
-        discord::commands::deploy(&ctx).await.context("déploiement des slash commands")?;
-    }
     if deploy_only {
-        return Ok(());
+        return discord::commands::deploy(&ctx).await.context("déploiement des slash commands");
+    }
+    // Le site (et /healthz) démarre avant la connexion à Discord : la plateforme voit
+    // le service en vie pendant le démarrage, et les pages ne dépendent pas de la gateway.
+    web::spawn(Arc::clone(&ctx));
+
+    // Un refus de Discord sur les commandes ne doit pas arrêter le bot (redémarrages
+    // en boucle) : les commandes déjà enregistrées restent utilisables.
+    if ctx.config.deploy_commands
+        && let Err(error) = discord::commands::deploy(&ctx).await
+    {
+        tracing::error!(?error, "déploiement des slash commands refusé, anciennes commandes conservées");
     }
 
     let intents = discord::gateway::intents(&ctx);
@@ -107,7 +115,6 @@ async fn run() -> Result<()> {
     if let Some(modmail) = &ctx.modmail {
         modmail.start(Arc::clone(&ctx));
     }
-    web::spawn(Arc::clone(&ctx));
 
     let (shutdown_tx, shutdown_rx) = watch::channel(false);
     let tasks: Vec<_> = shards

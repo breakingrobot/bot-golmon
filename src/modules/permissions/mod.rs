@@ -128,6 +128,7 @@ perms! {
     ContactAjouter => "contact.ajouter", "Contacts", "Ajouter un contact", Membre, false;
     ContactModifier => "contact.modifier", "Contacts", "Modifier ou supprimer un contact", Grade, false;
     ContactNotes => "contact.notes", "Contacts", "Lire et écrire les notes du staff (Discord et site)", Grade, false;
+    MembreFiche => "membre.fiche", "Membres", "Fiche d'un membre (présences, cotisations, coffres, recrue…)", Grade, false;
     SiteStats => "site.stats", "Site", "Statistiques du serveur sur le site", Admin, false;
     Journal => "site.journal", "Site", "Journal du staff sur le site", Admin, false;
 }
