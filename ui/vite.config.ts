@@ -19,7 +19,16 @@ export default defineConfig({
     babel({ presets: [reactCompilerPreset({ target: '19' })] }),
     tailwindcss(),
   ],
-  resolve: { alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) } },
+  // Couches de la conception atomique, puis `@/` pour le reste de src/ (mêmes alias que tsconfig.json).
+  resolve: {
+    alias: [
+      ...['atoms', 'molecules', 'organisms', 'templates', 'pages'].map((layer) => ({
+        find: `@/${layer}`,
+        replacement: fileURLToPath(new URL(`./src/${layer}`, import.meta.url)),
+      })),
+      { find: '@', replacement: fileURLToPath(new URL('./src', import.meta.url)) },
+    ],
+  },
   server: {
     proxy: {
       '/api': bot,

@@ -5,7 +5,7 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 
 import { ApiRequestError } from '@/api/client'
-import { Toaster } from '@/components/ui/sonner'
+import { Toaster } from '@/atoms/Toaster'
 import { createAppRouter } from '@/router'
 import { ThemeSync } from '@/state/theme'
 

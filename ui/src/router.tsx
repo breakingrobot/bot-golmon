@@ -1,7 +1,7 @@
 import type { QueryClient } from '@tanstack/react-query'
 import { createRouter } from '@tanstack/react-router'
 
-import { PageSkeleton } from '@/components/page'
+import { PageSkeleton } from '@/molecules/PageSkeleton'
 import { routeTree } from '@/routeTree.gen'
 
 /**

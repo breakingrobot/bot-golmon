@@ -19,7 +19,14 @@
     "noEmit": true,
     "allowImportingTsExtensions": true,
     "resolveJsonModule": true,
-    "paths": { "@/*": ["./src/*"] }
+    "paths": {
+      "@/atoms/*": ["./src/atoms/*"],
+      "@/molecules/*": ["./src/molecules/*"],
+      "@/organisms/*": ["./src/organisms/*"],
+      "@/templates/*": ["./src/templates/*"],
+      "@/pages/*": ["./src/pages/*"],
+      "@/*": ["./src/*"]
+    }
   },
   "include": ["src", "vite.config.ts", "openapi-ts.config.ts"],
   "exclude": ["src/api/generated", "src/api/contract-check.ts"]
