@@ -297,7 +297,7 @@ mod tests {
         assert_eq!(operation["operationId"], "getCotisations");
         let schemas = &spec["components"]["schemas"];
         assert_eq!(schemas["Perm"]["enum"][0], "presence.creer");
-        assert_eq!(schemas["Level"]["enum"], serde_json::json!(["tous", "membre", "grade", "lead", "admin"]));
+        assert_eq!(schemas["Level"]["enum"], serde_json::json!(["membre", "grade", "lead", "admin"]));
         assert!(schemas["ApiError"]["required"] == serde_json::json!(["error"]));
     }
 }

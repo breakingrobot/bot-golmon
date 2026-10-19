@@ -223,14 +223,14 @@ mod tests {
     #[test]
     fn validates_updates() {
         let update: PermissionsUpdate =
-            serde_json::from_str(r#"{"memberRoleId":"42","levels":{"contact.ajouter":"tous","coffre.voir":null}}"#)
+            serde_json::from_str(r#"{"memberRoleId":"42","levels":{"contact.ajouter":"grade","coffre.voir":null}}"#)
                 .unwrap();
         let changes = validate(update, |id| id == "42").unwrap();
         assert_eq!(changes.member_role, Some(Some("42".into())));
-        assert_eq!(changes.levels, vec![(Perm::CoffreVoir, None), (Perm::ContactAjouter, Some(Level::Tous))]);
+        assert_eq!(changes.levels, vec![(Perm::CoffreVoir, None), (Perm::ContactAjouter, Some(Level::Grade))]);
         assert_eq!(
             summary(&changes),
-            "role_membre : <@&42>, action : coffre.voir, niveau : défaut, action : contact.ajouter, niveau : tous"
+            "role_membre : <@&42>, action : coffre.voir, niveau : défaut, action : contact.ajouter, niveau : grade"
         );
 
         let cleared: PermissionsUpdate = serde_json::from_str(r#"{"memberRoleId":null}"#).unwrap();
@@ -240,7 +240,7 @@ mod tests {
 
         let unknown_role: PermissionsUpdate = serde_json::from_str(r#"{"memberRoleId":"7"}"#).unwrap();
         assert!(validate(unknown_role, |_| false).is_err());
-        let bad_key: PermissionsUpdate = serde_json::from_str(r#"{"levels":{"tout.casser":"tous"}}"#).unwrap();
+        let bad_key: PermissionsUpdate = serde_json::from_str(r#"{"levels":{"tout.casser":"grade"}}"#).unwrap();
         assert!(validate(bad_key, |_| true).unwrap_err().contains("Action inconnue"));
         let bad_level: PermissionsUpdate = serde_json::from_str(r#"{"levels":{"coffre.voir":"roi"}}"#).unwrap();
         assert!(validate(bad_level, |_| true).unwrap_err().contains("Niveau inconnu"));

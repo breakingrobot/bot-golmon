@@ -395,6 +395,9 @@ async fn link(ix: &Ix, options: &Options, guild_id: Id<GuildMarker>) -> Result<(
         return ix.reply(Reply::ephemeral("Identifiant invalide : uniquement des chiffres, ex : `340772`.")).await;
     }
     let member = options.user("membre").expect("option requise");
+    if !permissions::require_member(ix, member, &options.user_name(member)).await? {
+        return Ok(());
+    }
     service::link_player(&ix.ctx.db, &guild_id.to_string(), &game_id, &member.to_string()).await?;
     audit::record(ix, Entry::new(Action::CoffreLink, Some(member.to_string()), format!("Personnage `{game_id}`")))
         .await;

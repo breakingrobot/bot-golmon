@@ -417,7 +417,7 @@ pub async fn config_status(ctx: &Ctx, guild_id: Id<GuildMarker>) -> Result<Confi
         )],
     ));
 
-    // Permissions : toujours en service.
+    // Permissions : toujours en service. Le rôle membre est le passage obligé.
     let roles = permissions::service::roles(db, &guild).await?;
     modules.push(module(
         "permissions",
@@ -427,7 +427,7 @@ pub async fn config_status(ctx: &Ctx, guild_id: Id<GuildMarker>) -> Result<Confi
             required_ref(
                 "Rôle membre",
                 role_state(ctx, roles.member.as_deref()),
-                "Le niveau « membres du groupe » ne laisse passer que les gradés et au-dessus.",
+                "Indispensable : sans rôle membre, seuls les gradés et leads peuvent utiliser le bot, et rien n'est enregistré pour les autres.",
                 "/config permission role_membre:@…",
             ),
             required_ref(
@@ -466,6 +466,11 @@ pub async fn config_status(ctx: &Ctx, guild_id: Id<GuildMarker>) -> Result<Confi
         modules.push(module("tickets", "Tickets", linked, checks));
     }
 
+    // Le rôle membre conditionne tout le reste : les permissions en premier.
+    if let Some(index) = modules.iter().position(|m| m.key == "permissions") {
+        let permissions = modules.remove(index);
+        modules.insert(0, permissions);
+    }
     Ok(ConfigStatus { modules })
 }
 

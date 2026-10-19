@@ -85,11 +85,11 @@ mod tests {
         let dir = std::env::temp_dir().join(format!("permission-test-{}", uuid::Uuid::new_v4()));
         let db = crate::db::open_main(&dir.join("bot.db")).await.unwrap();
         set_member_role(&db, "g", Some("42")).await.unwrap();
-        set_level(&db, "g", Perm::ContactAjouter, Some(Level::Tous)).await.unwrap();
+        set_level(&db, "g", Perm::ContactAjouter, Some(Level::Grade)).await.unwrap();
         set_level(&db, "g", Perm::CoffreVoir, Some(Level::Lead)).await.unwrap();
         set_level(&db, "g", Perm::CoffreVoir, None).await.unwrap();
         let set = levels(&db, "g").await.unwrap();
-        assert_eq!(set.get("contact.ajouter"), Some(&Level::Tous));
+        assert_eq!(set.get("contact.ajouter"), Some(&Level::Grade));
         assert!(!set.contains_key("coffre.voir"));
         assert_eq!(roles(&db, "g").await.unwrap().member.as_deref(), Some("42"));
         assert!(levels(&db, "autre").await.unwrap().is_empty());

@@ -190,6 +190,16 @@ async fn method_not_allowed() -> ApiError {
     ApiError::new(StatusCode::METHOD_NOT_ALLOWED, "Méthode non prise en charge sur cette route.")
 }
 
+/// Refuse d'enregistrer quoi que ce soit au nom d'une personne hors du groupe
+/// (rôle membre, gradé ou lead), comme les commandes Discord.
+pub async fn require_member(ctx: &Ctx, guild_id: Id<GuildMarker>, user_id: Id<UserMarker>) -> ApiResult<()> {
+    if crate::modules::permissions::in_group(ctx, guild_id, user_id).await? {
+        return Ok(());
+    }
+    let name = Members::new(ctx, guild_id).get(&user_id.to_string()).name;
+    Err(ApiError::invalid(crate::modules::permissions::not_member(&name)))
+}
+
 // ---------------------------------------------------------------------------
 // Réponses
 

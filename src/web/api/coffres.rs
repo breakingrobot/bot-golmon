@@ -653,6 +653,7 @@ pub async fn link_player(
     let gid = guild_id.to_string();
     let game_id = check_game_id(&game_id)?;
     let member = parse_user(&input.member_id)?;
+    super::require_member(&ctx, guild_id, member).await?;
     service::link_player(&ctx.db, &gid, &game_id, &member.to_string()).await?;
     let actor = session.actor_name(&ctx, guild_id);
     let entry = Entry::new(Action::CoffreLink, Some(member.to_string()), format!("Personnage `{game_id}`"));
