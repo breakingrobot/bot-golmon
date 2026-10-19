@@ -1,0 +1,220 @@
+@import 'tailwindcss';
+@import 'tw-animate-css';
+@import '@fontsource-variable/inter';
+/* Styles de sonner importés ici : son injection de <style> est bloquée par la CSP du bot. */
+@import 'sonner/dist/styles.css';
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+/*
+ * Design tokens, repris du site actuel (web/src/app.css) : mêmes valeurs OKLCH,
+ * exposés sous les noms attendus par shadcn/ui (background, card, primary…) et
+ * sous les noms du site (surface, ink, line…). Le thème sombre est appliqué par
+ * la classe `.dark` sur <html> (système par défaut, choix manuel possible).
+ */
+:root {
+  --canvas: oklch(0.985 0.002 260);
+  --surface: oklch(1 0 0);
+  --surface-sunken: oklch(0.965 0.004 260);
+  --line: oklch(0.92 0.006 260);
+  --line-strong: oklch(0.86 0.01 260);
+  --ink: oklch(0.22 0.02 265);
+  --ink-muted: oklch(0.47 0.02 265);
+  --ink-subtle: oklch(0.56 0.015 265);
+  --brand: oklch(0.55 0.2 270);
+  --brand-soft: oklch(0.95 0.035 270);
+  --on-brand: oklch(0.99 0 0);
+  --focus: oklch(0.62 0.19 270);
+
+  /* Rôles (tickets, statuts). */
+  --user: oklch(0.55 0.17 255);
+  --user-soft: oklch(0.95 0.03 255);
+  --staff: oklch(0.52 0.14 160);
+  --staff-soft: oklch(0.95 0.035 160);
+  --internal: oklch(0.6 0.15 70);
+  --internal-soft: oklch(0.96 0.05 85);
+  --system: oklch(0.5 0.02 265);
+  --system-soft: oklch(0.955 0.006 265);
+  --danger: oklch(0.55 0.2 25);
+  --danger-soft: oklch(0.95 0.03 25);
+
+  /* Séries des graphiques (palette catégorielle validée, ordre fixe). */
+  --series-1: #2a78d6;
+  --series-2: #eb6834;
+  --series-3: #6250d6;
+
+  --radius: 0.625rem;
+}
+
+.dark {
+  --canvas: oklch(0.17 0.012 265);
+  --surface: oklch(0.21 0.014 265);
+  --surface-sunken: oklch(0.185 0.012 265);
+  --line: oklch(0.29 0.014 265);
+  --line-strong: oklch(0.36 0.016 265);
+  --ink: oklch(0.94 0.008 265);
+  --ink-muted: oklch(0.74 0.015 265);
+  --ink-subtle: oklch(0.64 0.015 265);
+  --brand: oklch(0.72 0.15 270);
+  --brand-soft: oklch(0.3 0.06 270);
+  --on-brand: oklch(0.17 0.012 265);
+  --focus: oklch(0.72 0.15 270);
+
+  --user: oklch(0.74 0.13 255);
+  --user-soft: oklch(0.29 0.05 255);
+  --staff: oklch(0.75 0.13 160);
+  --staff-soft: oklch(0.28 0.045 160);
+  --internal: oklch(0.8 0.13 80);
+  --internal-soft: oklch(0.3 0.05 80);
+  --system: oklch(0.72 0.02 265);
+  --system-soft: oklch(0.26 0.012 265);
+  --danger: oklch(0.72 0.16 25);
+  --danger-soft: oklch(0.3 0.06 25);
+
+  --series-1: #3987e5;
+  --series-2: #d95926;
+  --series-3: #9085e9;
+}
+
+@theme inline {
+  --font-sans: 'Inter Variable', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  /* Noms du site. */
+  --color-canvas: var(--canvas);
+  --color-surface: var(--surface);
+  --color-surface-sunken: var(--surface-sunken);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-ink: var(--ink);
+  --color-ink-muted: var(--ink-muted);
+  --color-ink-subtle: var(--ink-subtle);
+  --color-brand: var(--brand);
+  --color-brand-soft: var(--brand-soft);
+  --color-on-brand: var(--on-brand);
+  --color-user: var(--user);
+  --color-user-soft: var(--user-soft);
+  --color-staff: var(--staff);
+  --color-staff-soft: var(--staff-soft);
+  --color-internal: var(--internal);
+  --color-internal-soft: var(--internal-soft);
+  --color-system: var(--system);
+  --color-system-soft: var(--system-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-series-1: var(--series-1);
+  --color-series-2: var(--series-2);
+  --color-series-3: var(--series-3);
+
+  /* Noms shadcn/ui. */
+  --color-background: var(--canvas);
+  --color-foreground: var(--ink);
+  --color-card: var(--surface);
+  --color-card-foreground: var(--ink);
+  --color-popover: var(--surface);
+  --color-popover-foreground: var(--ink);
+  --color-primary: var(--brand);
+  --color-primary-foreground: var(--on-brand);
+  --color-secondary: var(--surface-sunken);
+  --color-secondary-foreground: var(--ink);
+  --color-muted: var(--surface-sunken);
+  --color-muted-foreground: var(--ink-muted);
+  --color-accent: var(--brand-soft);
+  --color-accent-foreground: var(--ink);
+  --color-destructive: var(--danger);
+  --color-border: var(--line);
+  --color-input: var(--line-strong);
+  --color-ring: var(--focus);
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html {
+    color-scheme: light;
+  }
+  html.dark {
+    color-scheme: dark;
+  }
+  body {
+    @apply bg-background font-sans text-foreground antialiased;
+  }
+  ::selection {
+    @apply bg-brand-soft;
+  }
+}
+
+@layer components {
+  /* Markdown Discord rendu en HTML par le serveur (logs, journal). */
+  .message-body {
+    @apply space-y-1.5 text-[0.9375rem] leading-relaxed break-words;
+  }
+  .message-body h1 {
+    @apply mt-2 text-2xl leading-tight font-bold;
+  }
+  .message-body h2 {
+    @apply mt-2 text-xl leading-tight font-bold;
+  }
+  .message-body h3 {
+    @apply mt-1.5 text-lg leading-tight font-bold;
+  }
+  .message-body .subtext {
+    @apply text-xs text-ink-muted;
+  }
+  .message-body blockquote {
+    @apply space-y-1.5 border-l-4 border-line-strong pl-3;
+  }
+  .message-body ul {
+    @apply list-disc pl-6;
+  }
+  .message-body ol {
+    @apply list-decimal pl-6;
+  }
+  .message-body a {
+    @apply text-brand underline decoration-brand/40 underline-offset-2 hover:decoration-brand;
+  }
+  .message-body code {
+    @apply rounded bg-surface-sunken px-1 py-0.5 font-mono text-[0.85em];
+  }
+  .message-body pre {
+    @apply my-1 overflow-x-auto rounded-lg border border-line bg-surface-sunken p-3 font-mono text-sm leading-normal whitespace-pre;
+  }
+  .message-body pre code {
+    @apply bg-transparent p-0 text-[1em];
+  }
+  .message-body .emoji {
+    @apply inline-block size-[1.375em] overflow-hidden object-contain align-[-0.3em];
+  }
+  .message-body .timestamp {
+    @apply rounded bg-surface-sunken px-1;
+  }
+  .message-body .mention {
+    @apply rounded bg-brand-soft px-1 font-medium text-brand;
+  }
+  .message-body .spoiler {
+    @apply cursor-pointer rounded bg-ink text-transparent transition-colors select-none;
+  }
+  .message-body .spoiler * {
+    @apply invisible;
+  }
+  .message-body .spoiler.revealed,
+  .message-body .spoiler:focus-visible {
+    @apply bg-surface-sunken text-ink select-text;
+  }
+  .message-body .spoiler.revealed *,
+  .message-body .spoiler:focus-visible * {
+    @apply visible;
+  }
+}
+
+/* Recharts : pas de contour de focus carré sur le SVG entier. */
+.recharts-wrapper svg:focus,
+.recharts-surface:focus {
+  outline: none;
+}

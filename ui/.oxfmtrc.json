@@ -1,0 +1,20 @@
+{
+  "$schema": "./node_modules/oxfmt/configuration_schema.json",
+  "printWidth": 120,
+  "semi": false,
+  "singleQuote": true,
+  "trailingComma": "all",
+  "sortImports": true,
+  "sortTailwindcss": { "stylesheet": "./src/styles.css", "functions": ["cn", "cva"] },
+  "ignorePatterns": [
+    "dist",
+    "dist-mock",
+    "node_modules",
+    "src/routeTree.gen.ts",
+    "src/api/generated",
+    "src/api/types.ts",
+    "openapi.json",
+    "package-lock.json",
+    "screenshots"
+  ]
+}

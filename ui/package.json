@@ -1,0 +1,47 @@
+{
+  "name": "bot-ui",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "dev:mock": "VITE_MOCK=1 vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "preview:mock": "VITE_MOCK=1 vite build --outDir dist-mock && vite preview --outDir dist-mock",
+    "typecheck": "tsc --noEmit",
+    "lint": "oxlint --deny-warnings",
+    "format": "oxfmt",
+    "format:check": "oxfmt --check",
+    "generate:api": "openapi-ts",
+    "check:api": "openapi-ts && tsc --noEmit -p tsconfig.contract.json"
+  },
+  "dependencies": {
+    "@fontsource-variable/inter": "5.3.0",
+    "@tanstack/react-query": "5.104.1",
+    "@tanstack/react-router": "1.170.41",
+    "class-variance-authority": "0.7.1",
+    "clsx": "2.1.1",
+    "lucide-react": "1.52.0",
+    "radix-ui": "1.6.7",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "recharts": "3.10.1",
+    "sonner": "2.0.8",
+    "tailwind-merge": "3.7.0"
+  },
+  "devDependencies": {
+    "@hey-api/openapi-ts": "0.0.0-next-20260930190945",
+    "@tailwindcss/vite": "4.3.3",
+    "@tanstack/router-plugin": "1.168.42",
+    "@types/node": "22.20.4",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@vitejs/plugin-react": "6.1.1",
+    "oxfmt": "0.71.0",
+    "oxlint": "1.86.0",
+    "tailwindcss": "4.3.3",
+    "tw-animate-css": "1.4.0",
+    "typescript": "7.0.2",
+    "vite": "8.3.2"
+  }
+}
