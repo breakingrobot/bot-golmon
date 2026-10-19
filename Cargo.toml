@@ -33,7 +33,6 @@ deunicode = "1.6"
 rand = "0.9"
 uuid = { version = "1", features = ["v4"] }
 futures-util = { version = "0.3", default-features = false, features = ["std"] }
-askama = "0.16"
 ring = "0.17"
 base64 = "0.22"
 # Spécification OpenAPI de l'API JSON (client TypeScript généré par l'interface).

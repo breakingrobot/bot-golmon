@@ -15,9 +15,9 @@ forme d'image Docker.
 | **Cotisations** | Ce que les membres rapportent au groupe (argent propre et sale), statistiques pour les gradés et leads. |
 | **Contacts** | Répertoire des groupes, entreprises et contacts du jeu (allié, neutre, hostile), notes réservées au staff. |
 | **Tickets** | Modmail compatible [Dragory/modmailbot](https://github.com/Dragory/modmailbot) : tickets par message privé, boutons de prise en charge et de réponse, fils de forum en option. |
-| **Site web** | Logs des tickets lisibles et recherchables, statistiques du staff et des serveurs, connexion Discord. |
+| **Site web** | Interface React : statistiques et graphiques, fiches des membres, cotisations, coffres, contacts (saisie comprise), permissions, configuration, logs des tickets. Connexion Discord. |
 
-<img src="docs/images/log.png" alt="Log d'un ticket" width="520"> <img src="docs/images/statistiques.png" alt="Statistiques d'un serveur" width="300">
+<img src="docs/images/statistiques.png" alt="Statistiques d'un serveur" width="520"> <img src="docs/images/mobile-log-sombre.png" alt="Log d'un ticket sur mobile" width="180">
 
 ## Démarrage rapide
 

@@ -1,9 +1,0 @@
-{% extends "base.html" %}
-{% block content %}
-<a href="/logs" class="text-sm font-medium text-accent hover:underline">← Tickets</a>
-<h1 class="mt-2 text-2xl font-semibold tracking-tight text-ink">Statistiques du staff</h1>
-<p class="mt-1 text-sm text-ink-muted">30 derniers jours. La première réponse est mesurée depuis l'ouverture du ticket.</p>
-<div class="mt-6">
-{% include "ticket_stats.html" %}
-</div>
-{% endblock %}

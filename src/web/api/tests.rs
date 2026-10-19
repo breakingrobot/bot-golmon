@@ -25,6 +25,7 @@ impl TestApp {
             port: None,
             public_url: login.then(|| "https://bot.example".to_owned()),
             client_secret: login.then(|| "secret".to_owned()),
+            ui_dir: dir.join("ui"),
         };
         let config = Config {
             token: "token-de-test".into(),
@@ -321,4 +322,72 @@ async fn contact_creation_is_validated_and_journaled() {
     .await;
     let (rows, total) = audit::recent(&ctx.db, "10", None, 10, 0).await.unwrap();
     assert_eq!((total, rows[0].actor_id.as_str(), rows[0].action.as_str()), (1, "42", "contact.add"));
+}
+
+#[tokio::test]
+async fn serves_the_react_interface() {
+    let app = TestApp::new(true).await;
+    let send_raw = |uri: &str| {
+        let ctx = app.ctx.clone();
+        let request = get(uri);
+        async move {
+            let response = crate::web::app(ctx).oneshot(request).await.unwrap();
+            let status = response.status();
+            let headers = response.headers().clone();
+            let bytes = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
+            (status, headers, String::from_utf8_lossy(&bytes).into_owned())
+        }
+    };
+
+    // Interface pas encore compilée : message clair, pas de 404 muet.
+    let (status, _, body) = send_raw("/").await;
+    assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE);
+    assert!(body.contains("npm run build"));
+
+    let ui = app.dir.join("ui");
+    std::fs::create_dir_all(ui.join("assets")).unwrap();
+    std::fs::write(ui.join("index.html"), "<!doctype html><div id=app></div>").unwrap();
+    std::fs::write(ui.join("assets/index-abc123.js"), "console.log(1)").unwrap();
+    std::fs::write(ui.join("theme-init.js"), "0").unwrap();
+
+    // Routes de l'application (et anciennes adresses) : index.html, revalidé.
+    for uri in ["/", "/serveurs/1/coffres", "/stats/1/transactions?du=2026-10-01", "/membres/5?serveur=1"] {
+        let (status, headers, body) = send_raw(uri).await;
+        assert_eq!(status, StatusCode::OK, "{uri}");
+        assert!(body.contains("id=app"), "{uri}");
+        assert_eq!(headers[header::CACHE_CONTROL], "no-cache", "{uri}");
+        assert!(headers[header::CONTENT_SECURITY_POLICY].to_str().unwrap().contains("connect-src 'self'"));
+    }
+    // Fichiers avec empreinte : mis en cache longtemps, bon type.
+    let (status, headers, _) = send_raw("/assets/index-abc123.js").await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(headers[header::CONTENT_TYPE].to_str().unwrap().starts_with("text/javascript"));
+    assert!(headers[header::CACHE_CONTROL].to_str().unwrap().contains("immutable"));
+    let (_, headers, _) = send_raw("/theme-init.js").await;
+    assert_eq!(headers[header::CACHE_CONTROL], "no-cache");
+    // Fichier d'assets absent : vrai 404 (pas la page à la place d'un script).
+    assert_eq!(send_raw("/assets/disparu.js").await.0, StatusCode::NOT_FOUND);
+    // Sortie du dossier refusée : la page de l'application, jamais le fichier.
+    let (status, _, body) = send_raw("/../bot.db").await;
+    assert!(status == StatusCode::OK && body.contains("id=app"));
+    // L'API et la santé ne passent jamais par l'interface.
+    let (status, _, body) = app.send(get("/api/inconnue")).await;
+    assert_eq!((status, body["error"].is_string()), (StatusCode::NOT_FOUND, true));
+    assert_eq!(send_raw("/healthz").await.2, "ok");
+}
+
+/// Serveur de démonstration pour un essai dans un navigateur :
+/// `UI_SMOKE_PORT=8899 cargo test serve_for_browser -- --ignored --nocapture`
+/// (sert `ui/dist`, connexion désactivée, s'arrête après 120 s).
+#[tokio::test]
+#[ignore = "manuel : essai de l'interface dans un navigateur"]
+async fn serve_for_browser() {
+    let Ok(port) = std::env::var("UI_SMOKE_PORT") else { return };
+    let mut app = TestApp::new(false).await;
+    let ui = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("ui/dist");
+    let ctx = Arc::get_mut(&mut app.ctx).expect("contexte unique");
+    ctx.config.web.ui_dir = ui;
+    let listener = tokio::net::TcpListener::bind(format!("127.0.0.1:{port}")).await.unwrap();
+    let server = axum::serve(listener, crate::web::app(app.ctx.clone()));
+    let _ = tokio::time::timeout(std::time::Duration::from_secs(120), server).await;
 }

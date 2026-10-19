@@ -127,11 +127,8 @@ pub struct LoginQuery {
 
 pub async fn login(State(ctx): State<Context>, Query(query): Query<LoginQuery>) -> Response {
     let (true, Some(redirect_uri)) = (enabled(&ctx), redirect_uri(&ctx)) else {
-        return super::pages::message_page(
-            axum::http::StatusCode::SERVICE_UNAVAILABLE,
-            "Connexion indisponible",
-            "La connexion Discord n'est pas configurée (DISCORD_CLIENT_SECRET et WEB_URL).",
-        );
+        // L'accueil explique que la connexion n'est pas configurée.
+        return Redirect::to("/?connexion=indisponible").into_response();
     };
     let mut nonce = [0u8; 24];
     if ring::rand::SystemRandom::new().fill(&mut nonce).is_err() {
@@ -172,13 +169,8 @@ struct DiscordUser {
 }
 
 pub async fn callback(State(ctx): State<Context>, headers: HeaderMap, Query(query): Query<CallbackQuery>) -> Response {
-    let refused = || {
-        super::pages::message_page(
-            axum::http::StatusCode::BAD_REQUEST,
-            "Connexion refusée",
-            "La connexion a échoué ou a expiré. Réessaie depuis la page d'accueil.",
-        )
-    };
+    // L'accueil affiche « connexion refusée ou expirée » et le bouton pour réessayer.
+    let refused = || Redirect::to("/?connexion=refusee").into_response();
     let Some(stored) = cookie(&headers, STATE_COOKIE).and_then(|v| verify(&ctx, v)) else {
         return refused();
     };

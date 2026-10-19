@@ -67,6 +67,7 @@ dans le portail.
 | `WEB_URL` | `MM_URL` | Adresse publique du site, sans `/` final. |
 | `DISCORD_CLIENT_SECRET` | — | Active la [connexion Discord](site-web.md#2-connexion-discord) du site. |
 | `PORT` | `8890` | Port du site (l'option `port` du module ticket a priorité). |
+| `WEB_UI_DIR` | `/app/ui` (image), sinon `ui/dist` | Dossier de l'interface compilée. Rien à régler avec l'image Docker. |
 | `DATABASE_URL` | `file:./data/bot.db` | Base SQLite principale. |
 | `DEPLOY_COMMANDS` | `true` | Déployer les slash commands au démarrage. `bot-discord deploy-commands` les déploie puis s'arrête. |
 | `RUST_LOG` | `info` | Détail des logs : `error`, `warn`, `info`, `debug`. Par module : `info,bot_discord::modmail=debug`. |

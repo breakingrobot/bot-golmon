@@ -1,7 +1,11 @@
 .git
 target
-web/node_modules
-web/dist
+ui/node_modules
+ui/dist
+ui/dist-mock
+ui/src/api/generated
+ui/screenshots
+.claude
 .env
 config.ini
 data

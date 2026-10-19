@@ -131,9 +131,30 @@ function GuildTile({ guild, userId }: { guild: GuildAccess; userId: string }) {
   )
 }
 
+/** Retour de `/auth/callback` ou `/login` en erreur (`/?connexion=refusee|indisponible`). */
+function loginProblem(): string | null {
+  switch (new URLSearchParams(window.location.search).get('connexion')) {
+    case 'refusee':
+      return 'La connexion a échoué ou a expiré. Réessayez.'
+    case 'indisponible':
+      return "La connexion Discord n'est pas configurée sur ce bot (DISCORD_CLIENT_SECRET et WEB_URL)."
+    default:
+      return null
+  }
+}
+
 function LoginCard({ me }: { me: Me }) {
+  const problem = loginProblem()
   return (
     <div className="mx-auto mt-8 max-w-md">
+      {problem && (
+        <p
+          role="alert"
+          className="mb-4 rounded-md border border-danger/40 bg-danger-soft px-4 py-3 text-sm text-danger"
+        >
+          {problem}
+        </p>
+      )}
       <Card>
         <CardHeader>
           <CardTitle className="text-xl">Connexion</CardTitle>

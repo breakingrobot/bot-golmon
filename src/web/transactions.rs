@@ -1,29 +1,21 @@
 //! Historique des transactions d'un serveur : filtres, totaux par mois, détail
 //! des objets et export CSV. Accès : `transaction.historique`.
 
-use super::{
-    MaybeViewer, Viewer,
-    auth::url_encode,
-    pages::{self, Layout},
-};
 use crate::{
-    context::{Context, Ctx},
+    context::Ctx,
     discord::members,
-    modules::permissions::Perm,
     modules::{
         like_contains,
         transactions::model::{Status, TYPE_CHOICES, TransactionItem, type_label},
     },
     util::{
-        format::{format_price, plural},
+        format::format_price,
         time::{DbTime, TIMEZONE, format_date_label, paris_day_start, parse_iso_day},
     },
 };
 use anyhow::Result;
-use askama::Template;
 use axum::{
-    extract::{Path, Query, State},
-    http::{StatusCode, Uri, header},
+    http::{StatusCode, header},
     response::{IntoResponse, Response},
 };
 use chrono::{Datelike, NaiveDate};
@@ -35,21 +27,6 @@ use twilight_model::id::{Id, marker::GuildMarker};
 pub(crate) const PAGE_SIZE: i64 = 25;
 const CSV_LIMIT: i64 = 10_000;
 pub(crate) const MONTHS_SHOWN: usize = 12;
-
-const MONTHS: [&str; 12] = [
-    "janvier",
-    "février",
-    "mars",
-    "avril",
-    "mai",
-    "juin",
-    "juillet",
-    "août",
-    "septembre",
-    "octobre",
-    "novembre",
-    "décembre",
-];
 
 #[derive(Debug, Default, Deserialize, utoipa::IntoParams)]
 #[into_params(parameter_in = Query)]
@@ -92,31 +69,6 @@ impl Filters {
             du: query.du.as_deref().and_then(parse_iso_day),
             au: query.au.as_deref().and_then(parse_iso_day),
         }
-    }
-
-    fn is_empty(&self) -> bool {
-        *self == Self::default()
-    }
-
-    /// Paramètres d'URL des filtres actifs (sans `?`), pour la pagination et l'export.
-    fn query_string(&self) -> String {
-        let mut parts = Vec::new();
-        if !self.groupe.is_empty() {
-            parts.push(format!("groupe={}", url_encode(&self.groupe)));
-        }
-        if let Some(statut) = self.statut {
-            parts.push(format!("statut={}", statut.as_str()));
-        }
-        if let Some(kind) = self.kind {
-            parts.push(format!("type={kind}"));
-        }
-        if let Some(du) = self.du {
-            parts.push(format!("du={du}"));
-        }
-        if let Some(au) = self.au {
-            parts.push(format!("au={au}"));
-        }
-        parts.join("&")
     }
 
     /// Clause `WHERE` et valeurs liées. Les bornes de dates sont des jours
@@ -275,293 +227,6 @@ pub(crate) fn summarize(amounts: &[Amount]) -> Summary {
     summary
 }
 
-fn month_label((year, month): (i32, u32)) -> String {
-    format!("{} {year}", MONTHS[(month as usize).saturating_sub(1) % 12])
-}
-
-/// Montant affiché : `12 500 $`, séparateurs comme le tableau de bord Discord.
-fn money(value: f64) -> String {
-    format!("{}\u{202f}$", format_price(value))
-}
-
-fn solde_tone(value: f64) -> &'static str {
-    if value < 0.0 { "text-danger" } else { "text-staff" }
-}
-
-fn status_classes(status: Status) -> &'static str {
-    match status {
-        Status::Preparation => "bg-system-soft text-system",
-        Status::EnAttenteRdv => "bg-user-soft text-user",
-        Status::AvanceAttentePaiement => "bg-internal-soft text-internal",
-        Status::LivrePaye => "bg-staff-soft text-staff",
-        Status::Annulee => "bg-danger-soft text-danger",
-        Status::Cloturee => "bg-surface-sunken text-ink-subtle",
-    }
-}
-
-fn type_classes(kind: &str) -> &'static str {
-    if kind == "ACHAT" { "bg-accent-soft text-accent" } else { "bg-staff-soft text-staff" }
-}
-
-struct Figure {
-    label: &'static str,
-    value: String,
-    hint: Option<String>,
-    tone: &'static str,
-}
-
-struct MonthView {
-    label: String,
-    achats: String,
-    ventes: String,
-    solde: String,
-    solde_tone: &'static str,
-    count: usize,
-}
-
-struct ItemView {
-    nom: String,
-    quantite: i64,
-    prix_unitaire: Option<String>,
-}
-
-struct RowView {
-    date: String,
-    groupe: String,
-    type_label: &'static str,
-    type_classes: &'static str,
-    status_label: &'static str,
-    status_classes: &'static str,
-    prix: String,
-    items: Vec<ItemView>,
-    creator: String,
-}
-
-struct Choice {
-    label: &'static str,
-    value: &'static str,
-    active: bool,
-}
-
-#[derive(Template)]
-#[template(path = "transactions.html")]
-struct TransactionsPage {
-    layout: Layout,
-    guild_id: String,
-    guild_name: String,
-    groupe: String,
-    du: String,
-    au: String,
-    statuts: Vec<Choice>,
-    types: Vec<Choice>,
-    filtered: bool,
-    figures: Vec<Figure>,
-    months: Vec<MonthView>,
-    months_hidden: usize,
-    rows: Vec<RowView>,
-    total: usize,
-    page: i64,
-    pages: i64,
-    previous_href: Option<String>,
-    next_href: Option<String>,
-    csv_href: String,
-}
-
-impl TransactionsPage {
-    fn plural(&self, count: usize) -> &'static str {
-        plural(count)
-    }
-}
-
-fn figures(summary: &Summary) -> Vec<Figure> {
-    let totals = &summary.totals;
-    let solde = totals.solde();
-    vec![
-        Figure { label: "Transactions", value: totals.count.to_string(), hint: None, tone: "text-ink" },
-        Figure {
-            label: "Total achats",
-            value: money(totals.achats),
-            hint: Some("hors annulées".into()),
-            tone: "text-ink",
-        },
-        Figure {
-            label: "Total ventes",
-            value: money(totals.ventes),
-            hint: Some("hors annulées".into()),
-            tone: "text-ink",
-        },
-        Figure { label: "Solde", value: money(solde), hint: Some("ventes − achats".into()), tone: solde_tone(solde) },
-        Figure { label: "En cours", value: summary.in_progress.to_string(), hint: None, tone: "text-ink" },
-    ]
-}
-
-fn month_views(summary: &Summary) -> Vec<MonthView> {
-    summary
-        .months
-        .iter()
-        .take(MONTHS_SHOWN)
-        .map(|(month, totals)| MonthView {
-            label: month_label(*month),
-            achats: money(totals.achats),
-            ventes: money(totals.ventes),
-            solde: money(totals.solde()),
-            solde_tone: solde_tone(totals.solde()),
-            count: totals.count,
-        })
-        .collect()
-}
-
-fn row_view(row: HistoryRow, creator: String) -> RowView {
-    let status = Status::parse(&row.statut).unwrap_or(Status::Preparation);
-    RowView {
-        date: format_date_label(row.created_at),
-        groupe: row.groupe,
-        type_label: type_label(&row.kind),
-        type_classes: type_classes(&row.kind),
-        status_label: status.label(),
-        status_classes: status_classes(status),
-        prix: money(row.prix),
-        items: row
-            .items
-            .into_iter()
-            .map(|item| ItemView {
-                nom: item.nom,
-                quantite: item.quantite,
-                prix_unitaire: item.prix_unitaire.map(money),
-            })
-            .collect(),
-        creator,
-    }
-}
-
-fn choices(filters: &Filters) -> (Vec<Choice>, Vec<Choice>) {
-    let statuts = std::iter::once(Choice { label: "Tous", value: "", active: filters.statut.is_none() })
-        .chain(Status::ALL.into_iter().map(|status| Choice {
-            label: status.label(),
-            value: status.as_str(),
-            active: filters.statut == Some(status),
-        }))
-        .collect();
-    let types = std::iter::once(Choice { label: "Tous", value: "", active: filters.kind.is_none() })
-        .chain(TYPE_CHOICES.into_iter().map(|(label, value)| Choice {
-            label,
-            value,
-            active: filters.kind == Some(value),
-        }))
-        .collect();
-    (statuts, types)
-}
-
-/// Vérifie la connexion et le droit de voir le serveur ; renvoie son nom.
-async fn authorize(
-    ctx: &Ctx,
-    viewer: MaybeViewer,
-    uri: &Uri,
-    guild_id: u64,
-) -> Result<(Viewer, super::Access, Id<GuildMarker>, String), Box<Response>> {
-    let path = uri.path_and_query().map_or(uri.path(), |p| p.as_str());
-    let (viewer, access) = pages::require_viewer(ctx, viewer, path).await?;
-    let Some(guild_id) = Id::<GuildMarker>::new_checked(guild_id) else {
-        return Err(Box::new(pages::not_found().await));
-    };
-    if !access.can(guild_id, Perm::TransactionHistorique) {
-        return Err(Box::new(pages::forbidden(ctx, &viewer, &access)));
-    }
-    let name = access.guild_name(guild_id);
-    Ok((viewer, access, guild_id, name))
-}
-
-fn creator_name(ctx: &Ctx, guild_id: Id<GuildMarker>, user_id: &str) -> String {
-    user_id.parse().ok().and_then(|id| members::display_name(ctx, guild_id, id)).unwrap_or_else(|| user_id.to_owned())
-}
-
-pub async fn history(
-    State(ctx): State<Context>,
-    viewer: MaybeViewer,
-    uri: Uri,
-    Path(guild_id): Path<u64>,
-    Query(query): Query<HistoryQuery>,
-) -> Response {
-    let (viewer, access, guild_id, guild_name) = match authorize(&ctx, viewer, &uri, guild_id).await {
-        Ok(found) => found,
-        Err(response) => return *response,
-    };
-    let filters = Filters::from_query(&query);
-    let gid = guild_id.to_string();
-    let page = query.page.as_deref().and_then(|p| p.parse::<i64>().ok()).unwrap_or(1).max(1);
-
-    let found = async {
-        let amounts = amounts(&ctx.db, &gid, &filters).await?;
-        let pages_count = ((amounts.len() as i64 + PAGE_SIZE - 1) / PAGE_SIZE).max(1);
-        let page = page.min(pages_count);
-        let rows = rows(&ctx.db, &gid, &filters, PAGE_SIZE, (page - 1) * PAGE_SIZE).await?;
-        anyhow::Ok((summarize(&amounts), rows, page, pages_count))
-    }
-    .await;
-    let (summary, rows, page, pages_count) = match found {
-        Ok(found) => found,
-        Err(error) => {
-            tracing::error!(?error, %guild_id, "historique des transactions");
-            return pages::message_page(StatusCode::INTERNAL_SERVER_ERROR, "Erreur", "L'historique est indisponible.");
-        }
-    };
-
-    let base = format!("/stats/{gid}/transactions");
-    let filter_query = filters.query_string();
-    let href = |page: i64| {
-        if filter_query.is_empty() {
-            format!("{base}?page={page}")
-        } else {
-            format!("{base}?{filter_query}&page={page}")
-        }
-    };
-    let csv_href = if filter_query.is_empty() { format!("{base}.csv") } else { format!("{base}.csv?{filter_query}") };
-    let (statuts, types) = choices(&filters);
-    let rows = rows
-        .into_iter()
-        .map(|row| {
-            let creator = creator_name(&ctx, guild_id, &row.created_by_id);
-            row_view(row, creator)
-        })
-        .collect();
-
-    pages::render(&TransactionsPage {
-        layout: Layout::new(&ctx, format!("Transactions · {guild_name}"), Some(&viewer), &access, "/stats"),
-        guild_id: gid,
-        guild_name,
-        groupe: filters.groupe.clone(),
-        du: filters.du.map(|d| d.to_string()).unwrap_or_default(),
-        au: filters.au.map(|d| d.to_string()).unwrap_or_default(),
-        statuts,
-        types,
-        filtered: !filters.is_empty(),
-        figures: figures(&summary),
-        months: month_views(&summary),
-        months_hidden: summary.months.len().saturating_sub(MONTHS_SHOWN),
-        rows,
-        total: summary.totals.count,
-        page,
-        pages: pages_count,
-        previous_href: (page > 1).then(|| href(page - 1)),
-        next_href: (page < pages_count).then(|| href(page + 1)),
-        csv_href,
-    })
-}
-
-pub async fn export(
-    State(ctx): State<Context>,
-    viewer: MaybeViewer,
-    uri: Uri,
-    Path(guild_id): Path<u64>,
-    Query(query): Query<HistoryQuery>,
-) -> Response {
-    let (_, _, guild_id, _) = match authorize(&ctx, viewer, &uri, guild_id).await {
-        Ok(found) => found,
-        Err(response) => return *response,
-    };
-    csv_response(&ctx, guild_id, &query).await
-}
-
 /// Export CSV des transactions filtrées (page et API).
 pub(crate) async fn csv_response(ctx: &Ctx, guild_id: Id<GuildMarker>, query: &HistoryQuery) -> Response {
     let filters = Filters::from_query(query);
@@ -570,10 +235,16 @@ pub(crate) async fn csv_response(ctx: &Ctx, guild_id: Id<GuildMarker>, query: &H
         Ok(rows) => rows,
         Err(error) => {
             tracing::error!(?error, %guild_id, "export des transactions");
-            return pages::message_page(StatusCode::INTERNAL_SERVER_ERROR, "Erreur", "L'export est indisponible.");
+            return (StatusCode::INTERNAL_SERVER_ERROR, "L'export est indisponible.").into_response();
         }
     };
-    let body = build_csv(&rows, |user_id| creator_name(ctx, guild_id, user_id));
+    let body = build_csv(&rows, |user_id| {
+        user_id
+            .parse()
+            .ok()
+            .and_then(|id| members::display_name(ctx, guild_id, id))
+            .unwrap_or_else(|| user_id.to_owned())
+    });
     let today = chrono::Utc::now().with_timezone(&TIMEZONE).format("%Y-%m-%d");
     (
         [
@@ -726,15 +397,10 @@ mod tests {
         assert_eq!(summary.totals.achats, 6_000.0);
         assert_eq!(summary.totals.solde(), 6_550.0);
         assert_eq!(summary.in_progress, 2);
-        let months: Vec<_> = summary.months.iter().map(|(m, t)| (month_label(*m), t.count)).collect();
+        let months: Vec<_> = summary.months.iter().map(|((y, m), t)| (format!("{y}-{m:02}"), t.count)).collect();
         assert_eq!(
             months,
-            [
-                ("novembre 2026".into(), 1),
-                ("octobre 2026".into(), 2),
-                ("septembre 2026".into(), 1),
-                ("août 2026".into(), 1)
-            ]
+            [("2026-11".into(), 1), ("2026-10".into(), 2), ("2026-09".into(), 1), ("2026-08".into(), 1)]
         );
 
         // Groupe insensible à la casse, jokers saisis pris littéralement.
@@ -765,13 +431,6 @@ mod tests {
 
         db.close().await;
         let _ = std::fs::remove_dir_all(dir);
-    }
-
-    #[test]
-    fn keeps_filters_in_links() {
-        let f = filters("groupe=Les Ballas&statut=PREPARATION&type=ACHAT&du=2026-10-01&au=2026-10-31");
-        assert_eq!(f.query_string(), "groupe=Les%20Ballas&statut=PREPARATION&type=ACHAT&du=2026-10-01&au=2026-10-31");
-        assert_eq!(Filters::default().query_string(), "");
     }
 
     #[test]
@@ -817,115 +476,5 @@ mod tests {
             Some("16/10/2026 21:40;'=Ballas;Vente;Livré et payé;12500;Pistolet x 2 | Gilet x 1;Élodie")
         );
         assert_eq!(lines.next(), Some(""));
-    }
-
-    #[test]
-    fn formats_money_like_the_dashboard() {
-        assert_eq!(money(12_500.0), "12\u{202f}500\u{202f}$");
-        assert_eq!(money(-300.0), "-300\u{202f}$");
-        assert_eq!(month_label((2026, 10)), "octobre 2026");
-    }
-
-    #[test]
-    fn renders_transactions_page() {
-        let amount = |kind: &str, prix: f64, statut: &str, when: DbTime| Amount {
-            kind: kind.into(),
-            prix,
-            statut: statut.into(),
-            created_at: when,
-        };
-        let summary = summarize(&[
-            amount("VENTE", 12_500.0, "LIVRE_PAYE", at(2026, 10, 16, 19, 40)),
-            amount("ACHAT", 4_000.0, "EN_ATTENTE_RDV", at(2026, 10, 14, 18, 5)),
-            amount("VENTE", 2_750.0, "PREPARATION", at(2026, 10, 12, 20, 15)),
-            amount("ACHAT", 18_000.0, "CLOTUREE", at(2026, 9, 28, 17, 0)),
-            amount("VENTE", 900.0, "ANNULEE", at(2026, 9, 20, 21, 0)),
-            amount("VENTE", 6_200.0, "LIVRE_PAYE", at(2026, 8, 30, 19, 0)),
-        ]);
-        let item = |nom: &str, quantite: i64, prix: Option<f64>| TransactionItem {
-            transaction_id: String::new(),
-            nom: nom.into(),
-            quantite,
-            prix_unitaire: prix,
-        };
-        let row =
-            |groupe: &str, kind: &str, prix: f64, statut: &str, when: DbTime, items: Vec<TransactionItem>, by: &str| {
-                row_view(
-                    HistoryRow {
-                        id: String::new(),
-                        groupe: groupe.into(),
-                        kind: kind.into(),
-                        prix,
-                        statut: statut.into(),
-                        created_by_id: String::new(),
-                        created_at: when,
-                        items,
-                    },
-                    by.into(),
-                )
-            };
-        let filters = Filters::default();
-        let (statuts, types) = choices(&filters);
-        let page = TransactionsPage {
-            layout: Layout::bare("Transactions"),
-            guild_id: "123".into(),
-            guild_name: "Serveur RP".into(),
-            groupe: String::new(),
-            du: String::new(),
-            au: String::new(),
-            statuts,
-            types,
-            filtered: false,
-            figures: figures(&summary),
-            months: month_views(&summary),
-            months_hidden: 0,
-            rows: vec![
-                row(
-                    "Ballas",
-                    "VENTE",
-                    12_500.0,
-                    "LIVRE_PAYE",
-                    at(2026, 10, 16, 19, 40),
-                    vec![item("Pistolet", 2, Some(4_500.0)), item("Gilet pare-balles", 1, Some(3_500.0))],
-                    "Elodie",
-                ),
-                row(
-                    "Vagos",
-                    "ACHAT",
-                    4_000.0,
-                    "EN_ATTENTE_RDV",
-                    at(2026, 10, 14, 18, 5),
-                    vec![item("Kevlar", 10, None)],
-                    "Marco",
-                ),
-                row("Families", "VENTE", 2_750.0, "PREPARATION", at(2026, 10, 12, 20, 15), vec![], "Sam"),
-                row(
-                    "Lost MC",
-                    "ACHAT",
-                    18_000.0,
-                    "CLOTUREE",
-                    at(2026, 9, 28, 17, 0),
-                    vec![item("Moto", 2, Some(9_000.0))],
-                    "Elodie",
-                ),
-                row("Marabunta", "VENTE", 900.0, "ANNULEE", at(2026, 9, 20, 21, 0), vec![], "Marco"),
-            ],
-            total: 6,
-            page: 1,
-            pages: 2,
-            previous_href: None,
-            next_href: Some("/stats/123/transactions?page=2".into()),
-            csv_href: "/stats/123/transactions.csv".into(),
-        };
-        let html = page.render().unwrap();
-        assert!(html.contains("octobre 2026") && html.contains("Exporter en CSV"));
-        assert!(html.contains("Pistolet") && html.contains("Livré et payé") && html.contains("12\u{202f}500\u{202f}$"));
-        if let Ok(path) = std::env::var("TRANSACTIONS_PREVIEW_PATH") {
-            let html = html.replace(
-                &format!(r#"<link rel="stylesheet" href="/assets/app.css?v={}">"#, crate::web::ASSET_VERSION),
-                &format!("<style>{}</style>", crate::web::CSS),
-            );
-            std::fs::write(path, html).unwrap();
-        }
     }
 }

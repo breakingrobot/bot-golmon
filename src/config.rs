@@ -30,6 +30,8 @@ pub struct WebConfig {
     pub public_url: Option<String>,
     /// `DISCORD_CLIENT_SECRET` : active la connexion Discord des pages web.
     pub client_secret: Option<String>,
+    /// `WEB_UI_DIR` : dossier de l'interface compilée (`ui/dist`) ; `/app/ui` dans l'image Docker.
+    pub ui_dir: std::path::PathBuf,
 }
 
 impl Config {
@@ -74,6 +76,7 @@ impl Config {
         let web = WebConfig {
             port: non_empty("PORT").map(|p| p.parse().with_context(|| format!("PORT invalide : {p}"))).transpose()?,
             public_url: non_empty("WEB_URL").map(|u| u.trim_end_matches('/').to_owned()),
+            ui_dir: non_empty("WEB_UI_DIR").map(std::path::PathBuf::from).unwrap_or_else(default_ui_dir),
             client_secret: non_empty("DISCORD_CLIENT_SECRET"),
         };
 
@@ -112,4 +115,10 @@ fn default_database_path() -> Result<PathBuf> {
         return Ok(legacy);
     }
     Ok(path)
+}
+
+/// Image Docker : `/app/ui` ; développement : `ui/dist` du dépôt.
+fn default_ui_dir() -> std::path::PathBuf {
+    let docker = std::path::PathBuf::from("/app/ui");
+    if docker.is_dir() { docker } else { std::path::PathBuf::from("ui/dist") }
 }

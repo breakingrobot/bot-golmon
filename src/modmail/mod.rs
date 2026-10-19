@@ -24,14 +24,11 @@ mod thread;
 mod util;
 mod web;
 pub(crate) mod web_api;
-mod web_list;
 
 use crate::context::{Context, Ctx};
 use anyhow::Result;
 use config::MmConfig;
 use sqlx::SqlitePool;
-#[cfg(test)]
-pub use staff::StaffActivity;
 pub use staff::TicketStats;
 use std::{
     collections::{HashMap, HashSet},

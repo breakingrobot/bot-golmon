@@ -1,5 +1,6 @@
-//! Serveur web du bot, toujours démarré : `/healthz` pour la plateforme,
-//! logs des tickets (si le module est configuré) et statistiques.
+//! Serveur web du bot, toujours démarré : `/healthz` pour la plateforme, API
+//! JSON (`/api`) et interface React (`ui/`), qui affiche logs des tickets,
+//! statistiques et pages des modules.
 //!
 //! Avec `DISCORD_CLIENT_SECRET` et une adresse publique, les pages sont
 //! réservées aux personnes connectées avec Discord qui en ont le droit
@@ -8,14 +9,12 @@
 
 pub mod api;
 pub mod auth;
-mod coffres;
-mod contacts;
-mod cotisations;
-mod journal;
+pub mod coffres;
+pub mod cotisations;
 pub mod markdown;
-pub mod pages;
-mod stats;
-mod transactions;
+pub mod spa;
+pub mod stats;
+pub mod transactions;
 
 use crate::{
     context::{Context, Ctx},
@@ -24,7 +23,7 @@ use crate::{
 use axum::{
     Router,
     http::{HeaderValue, header},
-    response::{IntoResponse, Response},
+    response::Response,
     routing::get,
 };
 use twilight_model::{
@@ -36,10 +35,6 @@ use twilight_model::{
 };
 
 pub use auth::{MaybeViewer, Viewer};
-
-pub const CSS: &str = include_str!("../../web/dist/app.css");
-pub const JS: &str = include_str!("../../web/src/app.js");
-pub const ASSET_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 /// Ce que la personne connectée peut consulter.
 #[derive(Default)]
@@ -81,17 +76,6 @@ impl GuildAccess {
         Perm::ALL.iter().copied().filter(|perm| self.grants.can(*perm)).collect()
     }
 }
-
-/// Pages d'un serveur, dans l'ordre d'affichage : permission, libellé, chemin
-/// sous `/stats/<serveur>`.
-const GUILD_PAGES: [(Perm, &str, &str); 6] = [
-    (Perm::SiteStats, "Statistiques", ""),
-    (Perm::TransactionHistorique, "Transactions", "/transactions"),
-    (Perm::CotisationStats, "Cotisations", "/cotisations"),
-    (Perm::CoffreVoir, "Coffres", "/coffres"),
-    (Perm::ContactNotes, "Contacts", "/contacts"),
-    (Perm::Journal, "Journal du staff", "/journal"),
-];
 
 impl Access {
     pub async fn of(ctx: &Ctx, user_id: Id<UserMarker>) -> Self {
@@ -139,24 +123,6 @@ impl Access {
     pub fn can(&self, guild_id: Id<GuildMarker>, perm: Perm) -> bool {
         self.guilds.iter().any(|g| g.id == guild_id && g.grants.can(perm))
     }
-
-    pub fn guild_name(&self, guild_id: Id<GuildMarker>) -> String {
-        self.guilds.iter().find(|g| g.id == guild_id).map(|g| g.name.clone()).unwrap_or_else(|| guild_id.to_string())
-    }
-
-    /// Serveurs où la personne a `perm`.
-    pub fn guilds_with(&self, perm: Perm) -> Vec<(Id<GuildMarker>, String)> {
-        self.guilds.iter().filter(|g| g.grants.can(perm)).map(|g| (g.id, g.name.clone())).collect()
-    }
-
-    /// Pages du serveur ouvertes à la personne : (libellé, adresse).
-    pub fn pages(&self, guild_id: Id<GuildMarker>) -> Vec<(&'static str, String)> {
-        GUILD_PAGES
-            .iter()
-            .filter(|(perm, _, _)| self.can(guild_id, *perm))
-            .map(|(_, label, path)| (*label, format!("/stats/{guild_id}{path}")))
-            .collect()
-    }
 }
 
 /// Rôles d'un membre : cache, sinon API. `None` si la personne n'est pas membre.
@@ -186,10 +152,6 @@ impl markdown::Resolver for CacheResolver<'_> {
     }
 }
 
-fn asset(content_type: &'static str, body: &'static str) -> Response {
-    ([(header::CONTENT_TYPE, content_type), (header::CACHE_CONTROL, "public, max-age=86400")], body).into_response()
-}
-
 async fn security_headers(mut response: Response) -> Response {
     let headers = response.headers_mut();
     headers.insert(header::X_CONTENT_TYPE_OPTIONS, HeaderValue::from_static("nosniff"));
@@ -199,7 +161,9 @@ async fn security_headers(mut response: Response) -> Response {
     headers.insert(
         header::CONTENT_SECURITY_POLICY,
         HeaderValue::from_static(
-            "default-src 'none'; style-src 'self'; script-src 'self'; img-src * data:; base-uri 'none'; form-action 'self'",
+            "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; \
+             connect-src 'self'; img-src 'self' data: https://cdn.discordapp.com https://media.discordapp.net; \
+             manifest-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'",
         ),
     );
     response
@@ -213,33 +177,19 @@ fn address(ctx: &Ctx) -> String {
     }
 }
 
-/// Toutes les routes du site, avec leur état.
+/// Toutes les routes du site, avec leur état : connexion, API, santé, et
+/// l'interface React pour tout le reste (routage côté navigateur).
 pub fn app(ctx: Context) -> Router {
     let mut app = Router::new()
-        .route("/", get(pages::home))
         .route("/login", get(auth::login))
         .route("/auth/callback", get(auth::callback))
         .route("/logout", get(auth::logout))
-        .route("/stats", get(stats::index))
-        .route("/stats/{guild_id}", get(stats::guild))
-        .route("/stats/{guild_id}/journal", get(journal::page))
-        .route("/cotisations", get(cotisations::index))
-        .route("/stats/{guild_id}/cotisations", get(cotisations::page))
-        .route("/stats/{guild_id}/cotisations.csv", get(cotisations::export))
-        .route("/stats/{guild_id}/coffres", get(coffres::page))
-        .route("/stats/{guild_id}/coffres.csv", get(coffres::export))
-        .route("/contacts", get(contacts::index))
-        .route("/stats/{guild_id}/contacts", get(contacts::page))
-        .route("/stats/{guild_id}/transactions", get(transactions::history))
-        .route("/stats/{guild_id}/transactions.csv", get(transactions::export))
-        .route("/assets/app.css", get(|| async { asset("text/css; charset=UTF-8", CSS) }))
-        .route("/assets/app.js", get(|| async { asset("text/javascript; charset=UTF-8", JS) }))
         .route("/healthz", get(|| async { "ok" }))
         .nest("/api", api::router());
     if ctx.modmail.is_some() {
         app = app.merge(crate::modmail::web_routes());
     }
-    app.fallback(pages::not_found).layer(axum::middleware::map_response(security_headers)).with_state(ctx)
+    app.fallback(spa::fallback).layer(axum::middleware::map_response(security_headers)).with_state(ctx)
 }
 
 pub fn spawn(ctx: Context) {

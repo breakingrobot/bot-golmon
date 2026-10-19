@@ -110,9 +110,9 @@ au client générés par Hey API ne touche que `src/api/`.
   `theme-init.js`, `favicon.svg` sans cache long).
 - Toute adresse inconnue hors `/api`, `/login`, `/logout`, `/auth/*`, `/healthz` et `/logs/:id?raw=1` renvoie
   `index.html` (routage côté client).
-- CSP compatible : aucun script ni style en ligne dans `index.html`. Il faut `connect-src 'self'` pour l'API ;
-  `style-src 'self'` suffit (sonner et Radix tentent d'injecter des `<style>`, refusés sans gêne : les styles de
-  sonner sont déjà dans la feuille compilée), `img-src` doit accepter les avatars Discord et les pièces jointes, et
-  `font-src 'self'` la police Inter auto-hébergée.
+- CSP du bot (`src/web/mod.rs`) : `script-src 'self'` (aucun script en ligne dans `index.html`),
+  `style-src 'self' 'unsafe-inline'` (Radix et sonner injectent des `<style>`, par exemple le blocage du défilement
+  des dialogues), `connect-src 'self'` pour l'API, `font-src 'self'` pour Inter auto-hébergée, `img-src` limité au
+  site et aux CDN de Discord (avatars, pièces jointes).
 - Écritures : en-têtes `Content-Type: application/json` et `X-Requested-With: fetch`. Sur 401, l'interface suit
   `loginUrl` en remplaçant `next` par l'adresse affichée.
