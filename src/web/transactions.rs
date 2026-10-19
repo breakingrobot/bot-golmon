@@ -32,9 +32,9 @@ use sqlx::{FromRow, SqlitePool};
 use std::collections::{BTreeMap, HashMap};
 use twilight_model::id::{Id, marker::GuildMarker};
 
-const PAGE_SIZE: i64 = 25;
+pub(crate) const PAGE_SIZE: i64 = 25;
 const CSV_LIMIT: i64 = 10_000;
-const MONTHS_SHOWN: usize = 12;
+pub(crate) const MONTHS_SHOWN: usize = 12;
 
 const MONTHS: [&str; 12] = [
     "janvier",
@@ -60,12 +60,12 @@ pub struct HistoryQuery {
     du: Option<String>,
     au: Option<String>,
     /// En texte : une valeur invalide ramène à la première page plutôt qu'à une erreur 400.
-    page: Option<String>,
+    pub(crate) page: Option<String>,
 }
 
 /// Filtres validés : une valeur inconnue est ignorée, jamais injectée telle quelle.
 #[derive(Clone, Debug, Default, PartialEq)]
-struct Filters {
+pub(crate) struct Filters {
     groupe: String,
     statut: Option<Status>,
     kind: Option<&'static str>,
@@ -74,7 +74,7 @@ struct Filters {
 }
 
 impl Filters {
-    fn from_query(query: &HistoryQuery) -> Self {
+    pub(crate) fn from_query(query: &HistoryQuery) -> Self {
         let text = |value: &Option<String>| value.as_deref().unwrap_or_default().trim().to_owned();
         Self {
             groupe: text(&query.groupe),
@@ -145,7 +145,7 @@ impl Filters {
 /// Le strict nécessaire pour les totaux, sur tout l'ensemble filtré.
 #[derive(Debug, FromRow)]
 #[sqlx(rename_all = "camelCase")]
-struct Amount {
+pub(crate) struct Amount {
     #[sqlx(rename = "type")]
     kind: String,
     prix: f64,
@@ -155,20 +155,20 @@ struct Amount {
 
 #[derive(Debug, FromRow)]
 #[sqlx(rename_all = "camelCase")]
-struct HistoryRow {
-    id: String,
-    groupe: String,
+pub(crate) struct HistoryRow {
+    pub(crate) id: String,
+    pub(crate) groupe: String,
     #[sqlx(rename = "type")]
-    kind: String,
-    prix: f64,
-    statut: String,
-    created_by_id: String,
-    created_at: DbTime,
+    pub(crate) kind: String,
+    pub(crate) prix: f64,
+    pub(crate) statut: String,
+    pub(crate) created_by_id: String,
+    pub(crate) created_at: DbTime,
     #[sqlx(skip)]
-    items: Vec<TransactionItem>,
+    pub(crate) items: Vec<TransactionItem>,
 }
 
-async fn amounts(db: &SqlitePool, guild_id: &str, filters: &Filters) -> Result<Vec<Amount>> {
+pub(crate) async fn amounts(db: &SqlitePool, guild_id: &str, filters: &Filters) -> Result<Vec<Amount>> {
     let (clause, binds) = filters.where_clause(guild_id);
     let sql = format!(r#"SELECT "type", "prix", "statut", "createdAt" FROM "Transaction" WHERE {clause}"#);
     let mut query = sqlx::query_as::<_, Amount>(&sql);
@@ -179,7 +179,13 @@ async fn amounts(db: &SqlitePool, guild_id: &str, filters: &Filters) -> Result<V
 }
 
 /// Transactions filtrées, les plus récentes d'abord, avec leurs objets.
-async fn rows(db: &SqlitePool, guild_id: &str, filters: &Filters, limit: i64, offset: i64) -> Result<Vec<HistoryRow>> {
+pub(crate) async fn rows(
+    db: &SqlitePool,
+    guild_id: &str,
+    filters: &Filters,
+    limit: i64,
+    offset: i64,
+) -> Result<Vec<HistoryRow>> {
     let (clause, binds) = filters.where_clause(guild_id);
     let selection = format!(
         r#"SELECT "id", "groupe", "type", "prix", "statut", "createdById", "createdAt" FROM "Transaction"
@@ -215,10 +221,10 @@ async fn rows(db: &SqlitePool, guild_id: &str, filters: &Filters, limit: i64, of
 }
 
 #[derive(Debug, Default, PartialEq)]
-struct Totals {
-    count: usize,
-    achats: f64,
-    ventes: f64,
+pub(crate) struct Totals {
+    pub(crate) count: usize,
+    pub(crate) achats: f64,
+    pub(crate) ventes: f64,
 }
 
 impl Totals {
@@ -235,20 +241,20 @@ impl Totals {
         }
     }
 
-    fn solde(&self) -> f64 {
+    pub(crate) fn solde(&self) -> f64 {
         self.ventes - self.achats
     }
 }
 
 #[derive(Debug, Default, PartialEq)]
-struct Summary {
-    totals: Totals,
-    in_progress: usize,
+pub(crate) struct Summary {
+    pub(crate) totals: Totals,
+    pub(crate) in_progress: usize,
     /// Mois (année, mois) en heure de Paris, du plus récent au plus ancien.
-    months: Vec<((i32, u32), Totals)>,
+    pub(crate) months: Vec<((i32, u32), Totals)>,
 }
 
-fn summarize(amounts: &[Amount]) -> Summary {
+pub(crate) fn summarize(amounts: &[Amount]) -> Summary {
     let mut summary = Summary::default();
     let mut months: BTreeMap<(i32, u32), Totals> = BTreeMap::new();
     for amount in amounts {
@@ -547,7 +553,12 @@ pub async fn export(
         Ok(found) => found,
         Err(response) => return *response,
     };
-    let filters = Filters::from_query(&query);
+    csv_response(&ctx, guild_id, &query).await
+}
+
+/// Export CSV des transactions filtrées (page et API).
+pub(crate) async fn csv_response(ctx: &Ctx, guild_id: Id<GuildMarker>, query: &HistoryQuery) -> Response {
+    let filters = Filters::from_query(query);
     let gid = guild_id.to_string();
     let rows = match rows(&ctx.db, &gid, &filters, CSV_LIMIT, 0).await {
         Ok(rows) => rows,
@@ -556,7 +567,7 @@ pub async fn export(
             return pages::message_page(StatusCode::INTERNAL_SERVER_ERROR, "Erreur", "L'export est indisponible.");
         }
     };
-    let body = build_csv(&rows, |user_id| creator_name(&ctx, guild_id, user_id));
+    let body = build_csv(&rows, |user_id| creator_name(ctx, guild_id, user_id));
     let today = chrono::Utc::now().with_timezone(&TIMEZONE).format("%Y-%m-%d");
     (
         [

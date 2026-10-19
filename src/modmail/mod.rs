@@ -23,6 +23,7 @@ mod store;
 mod thread;
 mod util;
 mod web;
+pub(crate) mod web_api;
 mod web_list;
 
 use crate::context::{Context, Ctx};

@@ -49,7 +49,7 @@ pub async fn config(ix: &Ix, options: &Options, guild: &str) -> Result<()> {
 
     let mut done = Vec::new();
     if let Some(role) = role {
-        service::set_member_role(&ix.ctx.db, guild, &role.to_string()).await?;
+        service::set_member_role(&ix.ctx.db, guild, Some(&role.to_string())).await?;
         done.push(format!("Rôle des membres du groupe : <@&{role}>."));
     }
     if let (Some(perm), Some(level)) = (perm, level) {

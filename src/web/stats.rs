@@ -80,15 +80,18 @@ pub async fn guild(State(ctx): State<Context>, viewer: MaybeViewer, uri: Uri, Pa
     }
     let guild_name = access.guild_name(guild_id);
     match build(&ctx, guild_id).await {
-        Ok((figures, attendance, recruits, tickets)) => pages::render(&StatsPage {
-            layout: Layout::new(&ctx, format!("Statistiques · {guild_name}"), Some(&viewer), &access, "/stats"),
-            guild_name,
-            links: access.pages(guild_id).into_iter().filter(|(label, _)| *label != "Statistiques").collect(),
-            figures,
-            attendance,
-            recruits,
-            tickets,
-        }),
+        Ok(data) => {
+            let (figures, attendance, recruits, tickets) = for_page(&ctx, guild_id, data);
+            pages::render(&StatsPage {
+                layout: Layout::new(&ctx, format!("Statistiques · {guild_name}"), Some(&viewer), &access, "/stats"),
+                guild_name,
+                links: access.pages(guild_id).into_iter().filter(|(label, _)| *label != "Statistiques").collect(),
+                figures,
+                attendance,
+                recruits,
+                tickets,
+            })
+        }
         Err(error) => {
             tracing::error!(?error, %guild_id, "statistiques");
             pages::message_page(StatusCode::INTERNAL_SERVER_ERROR, "Erreur", "Les statistiques sont indisponibles.")
@@ -101,10 +104,26 @@ async fn count(ctx: &Ctx, sql: &str, guild_id: &str) -> Result<i64> {
     Ok(n)
 }
 
+/// Chiffre clé du serveur (page et API).
+pub(crate) struct FigureData {
+    pub(crate) key: &'static str,
+    pub(crate) label: &'static str,
+    pub(crate) value: String,
+    pub(crate) hint: Option<String>,
+}
+
+/// Statistiques d'un serveur, membres en identifiants (page et API).
+pub(crate) struct StatsData {
+    pub(crate) figures: Vec<FigureData>,
+    pub(crate) attendance: Vec<presences::service::LeaderboardEntry>,
+    pub(crate) recruits: Vec<recrues::service::Entry>,
+    pub(crate) tickets: Option<crate::modmail::TicketStats>,
+}
+
 type Built = (Vec<Figure>, Vec<Attendance>, Vec<Recruit>, Option<crate::modmail::TicketStats>);
 
-async fn build(ctx: &Ctx, guild_id: Id<GuildMarker>) -> Result<Built> {
-    let gid = guild_id.to_string();
+/// Noms affichés pour la page HTML.
+fn for_page(ctx: &Ctx, guild_id: Id<GuildMarker>, data: StatsData) -> Built {
     let name = |user_id: &str| {
         user_id
             .parse()
@@ -112,6 +131,40 @@ async fn build(ctx: &Ctx, guild_id: Id<GuildMarker>) -> Result<Built> {
             .and_then(|id| members::display_name(ctx, guild_id, id))
             .unwrap_or_else(|| user_id.to_owned())
     };
+    let figures = data.figures.into_iter().map(|f| Figure { label: f.label, value: f.value, hint: f.hint }).collect();
+    let attendance = data
+        .attendance
+        .into_iter()
+        .map(|e| Attendance {
+            name: name(&e.user_id),
+            present: e.present,
+            absent: e.absent,
+            retard: e.retard,
+            percent: e.percent,
+        })
+        .collect();
+    let recruits = data
+        .recruits
+        .into_iter()
+        .map(|entry| {
+            let votes = |choix: &str| entry.votes.iter().filter(|v| v.choix == choix).count();
+            Recruit {
+                name: name(&entry.user_id),
+                pour: votes("POUR"),
+                contre: votes("CONTRE"),
+                blanc: votes("BLANC"),
+                veto: entry
+                    .veto_by_id
+                    .as_ref()
+                    .map(|lead| format!("{} : {}", name(lead), entry.veto_motif.clone().unwrap_or_default())),
+            }
+        })
+        .collect();
+    (figures, attendance, recruits, data.tickets)
+}
+
+pub(crate) async fn build(ctx: &Ctx, guild_id: Id<GuildMarker>) -> Result<StatsData> {
+    let gid = guild_id.to_string();
 
     let presences_total =
         count(ctx, r#"SELECT COUNT(*) FROM "Presence" WHERE "guildId" = ? AND "closedAt" IS NOT NULL"#, &gid).await?;
@@ -143,48 +196,22 @@ async fn build(ctx: &Ctx, guild_id: Id<GuildMarker>) -> Result<Built> {
     } else {
         leaderboard.iter().map(|e| e.percent).sum::<i64>() / leaderboard.len() as i64
     };
-    let attendance: Vec<Attendance> = leaderboard
-        .into_iter()
-        .map(|e| Attendance {
-            name: name(&e.user_id),
-            present: e.present,
-            absent: e.absent,
-            retard: e.retard,
-            percent: e.percent,
-        })
-        .collect();
-
     let session = recrues::service::current_session(&ctx.db, &gid).await?;
-    let recruits: Vec<Recruit> = session
-        .map(|s| s.entries)
-        .unwrap_or_default()
-        .into_iter()
-        .map(|entry| {
-            let votes = |choix: &str| entry.votes.iter().filter(|v| v.choix == choix).count();
-            Recruit {
-                name: name(&entry.user_id),
-                pour: votes("POUR"),
-                contre: votes("CONTRE"),
-                blanc: votes("BLANC"),
-                veto: entry
-                    .veto_by_id
-                    .as_ref()
-                    .map(|lead| format!("{} : {}", name(lead), entry.veto_motif.clone().unwrap_or_default())),
-            }
-        })
-        .collect();
+    let recruits = session.map(|s| s.entries).unwrap_or_default();
 
+    let figure = |key, label, value: String, hint| FigureData { key, label, value, hint };
     let figures = vec![
-        Figure {
-            label: "Présences clôturées",
-            value: presences_total.to_string(),
-            hint: Some(format!("{presences_month} ces 30 derniers jours")),
-        },
-        Figure { label: "Taux de présence moyen", value: format!("{average} %"), hint: None },
-        Figure { label: "Absences en cours", value: absences.to_string(), hint: None },
-        Figure { label: "Recrues en essai", value: recruits.len().to_string(), hint: None },
-        Figure { label: "Transactions en cours", value: transactions.to_string(), hint: None },
-        Figure { label: "Véhicules enregistrés", value: vehicles.to_string(), hint: None },
+        figure(
+            "presences",
+            "Présences clôturées",
+            presences_total.to_string(),
+            Some(format!("{presences_month} ces 30 derniers jours")),
+        ),
+        figure("attendance", "Taux de présence moyen", format!("{average} %"), None),
+        figure("absences", "Absences en cours", absences.to_string(), None),
+        figure("recruits", "Recrues en essai", recruits.len().to_string(), None),
+        figure("transactions", "Transactions en cours", transactions.to_string(), None),
+        figure("vehicles", "Véhicules enregistrés", vehicles.to_string(), None),
     ];
 
     let tickets = match &ctx.modmail {
@@ -192,7 +219,7 @@ async fn build(ctx: &Ctx, guild_id: Id<GuildMarker>) -> Result<Built> {
         _ => None,
     };
 
-    Ok((figures, attendance, recruits, tickets))
+    Ok(StatsData { figures, attendance: leaderboard, recruits, tickets })
 }
 
 #[cfg(test)]

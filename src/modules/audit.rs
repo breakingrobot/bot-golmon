@@ -20,7 +20,10 @@ use sqlx::{FromRow, SqlitePool};
 use twilight_model::{
     channel::ChannelType,
     guild::Permissions,
-    id::{Id, marker::GuildMarker},
+    id::{
+        Id,
+        marker::{GuildMarker, UserMarker},
+    },
 };
 use twilight_util::builder::command::{BooleanBuilder, ChannelBuilder, SubCommandBuilder};
 
@@ -48,6 +51,8 @@ pub enum Action {
     CotisationAddFor,
     CotisationDelete,
     CoffreLink,
+    CoffreUnlink,
+    CoffreName,
     ContactAdd,
     ContactUpdate,
     ContactDelete,
@@ -55,7 +60,7 @@ pub enum Action {
 }
 
 impl Action {
-    pub const ALL: [Self; 25] = [
+    pub const ALL: [Self; 27] = [
         Self::Config,
         Self::PresenceForceVote,
         Self::PresenceCancel,
@@ -77,6 +82,8 @@ impl Action {
         Self::CotisationAddFor,
         Self::CotisationDelete,
         Self::CoffreLink,
+        Self::CoffreUnlink,
+        Self::CoffreName,
         Self::ContactAdd,
         Self::ContactUpdate,
         Self::ContactDelete,
@@ -106,6 +113,8 @@ impl Action {
             Self::CotisationAddFor => "cotisation.add",
             Self::CotisationDelete => "cotisation.delete",
             Self::CoffreLink => "coffre.link",
+            Self::CoffreUnlink => "coffre.unlink",
+            Self::CoffreName => "coffre.name",
             Self::ContactAdd => "contact.add",
             Self::ContactUpdate => "contact.update",
             Self::ContactDelete => "contact.delete",
@@ -140,6 +149,8 @@ impl Action {
             Self::CotisationAddFor => "💰 Cotisation déclarée pour un membre",
             Self::CotisationDelete => "💰 Cotisation supprimée",
             Self::CoffreLink => "📦 Personnage relié à un membre",
+            Self::CoffreUnlink => "📦 Personnage détaché d'un membre",
+            Self::CoffreName => "📦 Propriété renommée",
             Self::ContactAdd => "📇 Contact ajouté",
             Self::ContactUpdate => "📇 Contact modifié",
             Self::ContactDelete => "📇 Contact supprimé",
@@ -170,6 +181,19 @@ pub async fn record(ix: &Ix, entry: Entry) {
         ix.user().map(|u| u.global_name.clone().unwrap_or_else(|| u.name.clone())).unwrap_or_default()
     });
     if let Err(error) = record_for(&ix.ctx, guild_id, &ix.user_id().to_string(), &actor_name, entry).await {
+        tracing::warn!(?error, "journal du staff : enregistrement impossible");
+    }
+}
+
+/// Enregistre une action faite depuis le site par `actor_id` (personne connectée).
+pub async fn record_web(
+    ctx: &Ctx,
+    guild_id: Id<GuildMarker>,
+    actor_id: Id<UserMarker>,
+    actor_name: &str,
+    entry: Entry,
+) {
+    if let Err(error) = record_for(ctx, guild_id, &actor_id.to_string(), actor_name, entry).await {
         tracing::warn!(?error, "journal du staff : enregistrement impossible");
     }
 }
@@ -228,6 +252,7 @@ async fn audit_channel(db: &SqlitePool, guild_id: &str) -> Result<Option<String>
 #[derive(Clone, Debug, FromRow)]
 #[sqlx(rename_all = "camelCase")]
 pub struct LogRow {
+    pub id: i64,
     pub actor_id: String,
     pub actor_name: String,
     pub action: String,
@@ -251,7 +276,7 @@ pub async fn recent(
             .fetch_one(db)
             .await?;
     let rows = sqlx::query_as(
-        r#"SELECT "actorId", "actorName", "action", "targetId", "details", "createdAt" FROM "AuditLog"
+        r#"SELECT "id", "actorId", "actorName", "action", "targetId", "details", "createdAt" FROM "AuditLog"
            WHERE "guildId" = ?1 AND (?2 IS NULL OR "action" = ?2) ORDER BY "id" DESC LIMIT ?3 OFFSET ?4"#,
     )
     .bind(guild_id)

@@ -25,7 +25,8 @@ pub async fn member_role(db: &SqlitePool, guild_id: &str) -> Result<Option<Strin
     Ok(row.and_then(|(role,)| role))
 }
 
-pub async fn set_member_role(db: &SqlitePool, guild_id: &str, role_id: &str) -> Result<()> {
+/// `None` : plus de rôle membre (le niveau « membre » ne laisse alors passer que les gradés).
+pub async fn set_member_role(db: &SqlitePool, guild_id: &str, role_id: Option<&str>) -> Result<()> {
     sqlx::query(
         r#"INSERT INTO "PermissionConfig" ("guildId", "memberRoleId", "updatedAt") VALUES (?, ?, ?)
            ON CONFLICT ("guildId") DO UPDATE SET "memberRoleId" = excluded."memberRoleId", "updatedAt" = excluded."updatedAt""#,
@@ -83,7 +84,7 @@ mod tests {
     async fn levels_round_trip() {
         let dir = std::env::temp_dir().join(format!("permission-test-{}", uuid::Uuid::new_v4()));
         let db = crate::db::open_main(&dir.join("bot.db")).await.unwrap();
-        set_member_role(&db, "g", "42").await.unwrap();
+        set_member_role(&db, "g", Some("42")).await.unwrap();
         set_level(&db, "g", Perm::ContactAjouter, Some(Level::Tous)).await.unwrap();
         set_level(&db, "g", Perm::CoffreVoir, Some(Level::Lead)).await.unwrap();
         set_level(&db, "g", Perm::CoffreVoir, None).await.unwrap();
@@ -92,5 +93,7 @@ mod tests {
         assert!(!set.contains_key("coffre.voir"));
         assert_eq!(roles(&db, "g").await.unwrap().member.as_deref(), Some("42"));
         assert!(levels(&db, "autre").await.unwrap().is_empty());
+        set_member_role(&db, "g", None).await.unwrap();
+        assert!(member_role(&db, "g").await.unwrap().is_none());
     }
 }

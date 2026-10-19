@@ -28,7 +28,7 @@ use serde::Deserialize;
 use std::collections::HashMap;
 use twilight_model::id::{Id, marker::GuildMarker};
 
-const PAGE_SIZE: i64 = 50;
+pub(crate) const PAGE_SIZE: i64 = 50;
 const CSV_LIMIT: i64 = 20_000;
 /// Période affichée sans choix explicite.
 const DEFAULT_DAYS: i64 = 30;
@@ -48,13 +48,13 @@ pub struct CoffreQuery {
 }
 
 #[derive(Clone, Default)]
-struct Parsed {
-    property: Option<String>,
-    item: Option<String>,
-    player: Option<String>,
-    kind: Option<Kind>,
-    days: Option<i64>,
-    page: i64,
+pub(crate) struct Parsed {
+    pub(crate) property: Option<String>,
+    pub(crate) item: Option<String>,
+    pub(crate) player: Option<String>,
+    pub(crate) kind: Option<Kind>,
+    pub(crate) days: Option<i64>,
+    pub(crate) page: i64,
 }
 
 fn clean(value: Option<&String>) -> Option<String> {
@@ -62,7 +62,7 @@ fn clean(value: Option<&String>) -> Option<String> {
 }
 
 impl CoffreQuery {
-    fn parse(&self) -> Parsed {
+    pub(crate) fn parse(&self) -> Parsed {
         Parsed {
             property: clean(self.propriete.as_ref()),
             item: clean(self.objet.as_ref()),
@@ -80,7 +80,7 @@ impl CoffreQuery {
 }
 
 impl Parsed {
-    fn filter(&self) -> Filter {
+    pub(crate) fn filter(&self) -> Filter {
         Filter {
             property_id: self.property.clone(),
             item: self.item.clone(),
@@ -375,6 +375,11 @@ pub async fn export(
         Ok(found) => found,
         Err(response) => return *response,
     };
+    csv_response(&ctx, guild_id, &query).await
+}
+
+/// Export CSV des mouvements filtrés (page et API).
+pub(crate) async fn csv_response(ctx: &Ctx, guild_id: Id<GuildMarker>, query: &CoffreQuery) -> Response {
     let guild = guild_id.to_string();
     let data = async {
         let rows = service::movements(&ctx.db, &guild, &query.parse().filter(), CSV_LIMIT, 0).await?;

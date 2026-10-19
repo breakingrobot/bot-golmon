@@ -31,7 +31,7 @@ use std::sync::LazyLock;
 /// Style d'un message selon son type. Les classes sont écrites en entier : le
 /// compilateur Tailwind les lit ici (`@source`).
 #[derive(Clone, Copy)]
-pub enum Tone {
+pub(crate) enum Tone {
     User,
     Staff,
     Internal,
@@ -41,6 +41,18 @@ pub enum Tone {
 }
 
 impl Tone {
+    /// Clé du type de message dans l'API (`LogEntry.kind`).
+    pub fn key(self) -> &'static str {
+        match self {
+            Self::User => "user",
+            Self::Staff => "staff",
+            Self::Internal => "internal",
+            Self::Command => "command",
+            Self::System => "system",
+            Self::Danger => "danger",
+        }
+    }
+
     pub fn card(self) -> &'static str {
         match self {
             Self::User => "border-line border-l-4 border-l-user",
@@ -73,33 +85,37 @@ impl Tone {
     }
 }
 
-struct FileLink {
-    url: String,
-    name: String,
+pub(crate) struct FileLink {
+    pub(crate) url: String,
+    pub(crate) name: String,
 }
 
-struct Edit {
-    before: String,
-    after: String,
+pub(crate) struct Edit {
+    pub(crate) before: String,
+    pub(crate) after: String,
 }
 
-struct Entry {
-    day: Option<String>,
-    tone: Tone,
-    initial: char,
-    author: String,
-    role: Option<String>,
-    badge: &'static str,
-    number: Option<i64>,
-    time_iso: String,
-    time_display: String,
-    body_html: String,
-    monospace: bool,
-    edit: Option<Edit>,
-    images: Vec<String>,
-    files: Vec<FileLink>,
-    embeds: Option<String>,
-    verbose_ids: Option<String>,
+/// Message du log, mis en forme : commun à la page HTML et à l'API.
+pub(crate) struct Entry {
+    pub(crate) id: i64,
+    /// Premier message d'un nouveau jour : libellé du jour.
+    pub(crate) day: Option<String>,
+    pub(crate) tone: Tone,
+    pub(crate) initial: char,
+    pub(crate) author: String,
+    pub(crate) role: Option<String>,
+    pub(crate) badge: &'static str,
+    pub(crate) number: Option<i64>,
+    pub(crate) created: Option<DateTime<Utc>>,
+    pub(crate) time_iso: String,
+    pub(crate) time_display: String,
+    pub(crate) body_html: String,
+    pub(crate) monospace: bool,
+    pub(crate) edit: Option<Edit>,
+    pub(crate) images: Vec<String>,
+    pub(crate) files: Vec<FileLink>,
+    pub(crate) embeds: Option<String>,
+    pub(crate) verbose_ids: Option<String>,
 }
 
 struct View {
@@ -215,6 +231,7 @@ fn entry_for(message: &ThreadMessage, verbose: bool, resolver: &dyn Resolver) ->
         .filter(|s| !s.is_empty());
 
     Entry {
+        id: message.id,
         day: None,
         tone,
         initial: author.chars().find(|c| c.is_alphanumeric()).map_or('•', |c| c.to_uppercase().next().unwrap_or(c)),
@@ -222,6 +239,7 @@ fn entry_for(message: &ThreadMessage, verbose: bool, resolver: &dyn Resolver) ->
         author,
         badge,
         number: if matches!(message.message_type, message_type::TO_USER) { message.message_number } else { None },
+        created,
         time_iso: created.map(|d| d.to_rfc3339()).unwrap_or_default(),
         time_display: created.map(|d| d.format("%H:%M").to_string()).unwrap_or_default(),
         body_html: render_body(&body),
@@ -232,6 +250,24 @@ fn entry_for(message: &ThreadMessage, verbose: bool, resolver: &dyn Resolver) ->
         embeds: (!embeds.is_empty()).then_some(embeds),
         verbose_ids,
     }
+}
+
+/// Messages du log mis en forme, avec un séparateur au premier message de chaque jour.
+pub(crate) fn build_entries(messages: &[ThreadMessage], options: LogOptions, resolver: &dyn Resolver) -> Vec<Entry> {
+    let mut entries = Vec::new();
+    let mut last_day = None;
+    for message in messages.iter().filter(|m| !options.simple || shown_in_simple_view(m)) {
+        let mut entry = entry_for(message, options.verbose, resolver);
+        if let Some(date) = parse_db_time(&message.created_at) {
+            let day = day_label(&date);
+            if last_day.as_ref() != Some(&day) {
+                entry.day = Some(day.clone());
+                last_day = Some(day);
+            }
+        }
+        entries.push(entry);
+    }
+    entries
 }
 
 fn render_page(
@@ -248,20 +284,7 @@ fn render_page(
         thread_status::SUSPENDED => ("Suspendu", "bg-internal-soft text-internal"),
         _ => ("Fermé", "bg-system-soft text-system"),
     };
-
-    let mut entries = Vec::new();
-    let mut last_day = None;
-    for message in messages.iter().filter(|m| !options.simple || shown_in_simple_view(m)) {
-        let mut entry = entry_for(message, options.verbose, resolver);
-        if let Some(date) = parse_db_time(&message.created_at) {
-            let day = day_label(&date);
-            if last_day.as_ref() != Some(&day) {
-                entry.day = Some(day.clone());
-                last_day = Some(day);
-            }
-        }
-        entries.push(entry);
-    }
+    let entries = build_entries(messages, options, resolver);
 
     let base = format!("/logs/{}", thread.id);
     LogPage {
@@ -298,7 +321,7 @@ struct LogQuery {
     raw: Option<String>,
 }
 
-fn flag(value: Option<&String>) -> bool {
+pub(crate) fn flag(value: Option<&String>) -> bool {
     value.is_some_and(|v| !v.is_empty() && v != "0" && v != "false")
 }
 

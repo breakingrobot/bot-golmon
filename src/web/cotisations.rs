@@ -26,7 +26,7 @@ use chrono::Duration;
 use serde::Deserialize;
 use twilight_model::id::{Id, marker::GuildMarker};
 
-const PAGE_SIZE: i64 = 50;
+pub(crate) const PAGE_SIZE: i64 = 50;
 const CSV_LIMIT: i64 = 10_000;
 /// Périodes proposées (jours), `None` = depuis le début.
 const PERIODS: [(Option<i64>, &str); 5] =
@@ -39,15 +39,15 @@ pub struct CotisationQuery {
     page: Option<String>,
 }
 
-struct Parsed {
-    days: Option<i64>,
-    member: Option<String>,
-    page: i64,
+pub(crate) struct Parsed {
+    pub(crate) days: Option<i64>,
+    pub(crate) member: Option<String>,
+    pub(crate) page: i64,
 }
 
 impl CotisationQuery {
     /// Valeurs invalides ignorées plutôt que refusées.
-    fn parse(&self) -> Parsed {
+    pub(crate) fn parse(&self) -> Parsed {
         let days = self.jours.as_deref().and_then(|d| d.trim().parse::<i64>().ok()).filter(|d| (1..=3650).contains(d));
         let member = self
             .membre
@@ -61,7 +61,7 @@ impl CotisationQuery {
 }
 
 impl Parsed {
-    fn filter(&self) -> Filter {
+    pub(crate) fn filter(&self) -> Filter {
         Filter {
             since: self.days.map(|days| DbTime(DbTime::now().0 - Duration::days(days))),
             until: None,
@@ -299,6 +299,11 @@ pub async fn export(
         Ok(found) => found,
         Err(response) => return *response,
     };
+    csv_response(&ctx, guild_id, &query).await
+}
+
+/// Export CSV des cotisations filtrées (page et API).
+pub(crate) async fn csv_response(ctx: &Ctx, guild_id: Id<GuildMarker>, query: &CotisationQuery) -> Response {
     let rows = match service::list(&ctx.db, &guild_id.to_string(), &query.parse().filter(), CSV_LIMIT, 0).await {
         Ok(rows) => rows,
         Err(error) => {
@@ -306,7 +311,7 @@ pub async fn export(
             return (StatusCode::INTERNAL_SERVER_ERROR, "Export indisponible").into_response();
         }
     };
-    let csv = build_csv(&rows, |id| name_of(&ctx, guild_id, id));
+    let csv = build_csv(&rows, |id| name_of(ctx, guild_id, id));
     let filename = format!("cotisations-{guild_id}-{}.csv", chrono::Utc::now().format("%Y-%m-%d"));
     (
         [
