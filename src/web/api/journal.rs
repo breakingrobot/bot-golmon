@@ -11,16 +11,20 @@ use crate::{
 };
 use axum::extract::{Path, State};
 use serde::{Deserialize, Serialize};
+use utoipa::{IntoParams, ToSchema};
 
 const PAGE_SIZE: i64 = 50;
 
-#[derive(Debug, Default, Deserialize)]
+#[derive(Debug, Default, Deserialize, IntoParams)]
+#[into_params(parameter_in = Query)]
 pub struct JournalQuery {
+    /// Code d'action (`actions[].key`).
     action: Option<String>,
+    /// Page (1 = première).
     page: Option<String>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct JournalEntry {
     pub id: String,
@@ -28,24 +32,37 @@ pub struct JournalEntry {
     pub actor: MemberRef,
     pub action: String,
     pub label: String,
+    #[schema(required = true)]
     pub target: Option<MemberRef>,
     pub details_html: String,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
+#[schema(as = JournalAction)]
 pub struct ActionChoice {
     pub key: &'static str,
     pub label: &'static str,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct JournalResponse {
     pub actions: Vec<ActionChoice>,
+    #[schema(value_type = super::openapi::JournalEntryPage)]
     pub list: Page<JournalEntry>,
 }
 
+/// Journal du staff (`site.journal`).
+#[utoipa::path(
+    get, path = "/api/guilds/{guild}/journal", tag = "journal", operation_id = "getJournal",
+    params(("guild" = String, Path, description = "Identifiant du serveur"), JournalQuery),
+    responses(
+        (status = 200, description = "Journal", body = JournalResponse),
+        (status = 401, description = "Pas connecté", body = super::ErrorBody),
+        (status = 403, description = "Droit insuffisant", body = super::ErrorBody),
+    )
+)]
 pub async fn journal(
     State(ctx): State<Context>,
     session: Session,

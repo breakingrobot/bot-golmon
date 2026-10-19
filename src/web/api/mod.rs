@@ -14,6 +14,7 @@ mod cotisations;
 mod journal;
 mod me;
 mod members;
+pub mod openapi;
 mod permissions;
 mod series;
 mod stats;
@@ -48,6 +49,7 @@ use twilight_model::id::{
 
 pub fn router() -> Router<Context> {
     Router::new()
+        .route("/openapi.json", get(openapi::serve))
         .route("/me", get(me::me))
         .route("/guilds/{guild}/members", get(members::search))
         .route("/guilds/{guild}/members/{user}", get(members::profile))
@@ -56,7 +58,7 @@ pub fn router() -> Router<Context> {
         .route("/guilds/{guild}/transactions/export.csv", get(transactions::export))
         .route("/guilds/{guild}/cotisations", get(cotisations::list).post(cotisations::create))
         .route("/guilds/{guild}/cotisations/export.csv", get(cotisations::export))
-        .route("/guilds/{guild}/cotisations/objective", get(not_yet).put(not_yet))
+        .route("/guilds/{guild}/cotisations/objective", get(objective_get).put(objective_put))
         .route("/guilds/{guild}/cotisations/{id}", axum::routing::delete(cotisations::remove))
         .route("/guilds/{guild}/coffres/meta", get(coffres::meta))
         .route("/guilds/{guild}/coffres/stock", get(coffres::stock))
@@ -64,7 +66,7 @@ pub fn router() -> Router<Context> {
         .route("/guilds/{guild}/coffres/players", get(coffres::players))
         .route("/guilds/{guild}/coffres/series", get(coffres::series))
         .route("/guilds/{guild}/coffres/export.csv", get(coffres::export))
-        .route("/guilds/{guild}/coffres/alerts", get(not_yet).put(not_yet))
+        .route("/guilds/{guild}/coffres/alerts", get(alerts_get).put(alerts_put))
         .route("/guilds/{guild}/coffres/properties/{property}", put(coffres::name_property))
         .route("/guilds/{guild}/coffres/players/{game_id}", put(coffres::link_player).delete(coffres::unlink_player))
         .route("/guilds/{guild}/contacts", get(contacts::list).post(contacts::create))
@@ -72,7 +74,7 @@ pub fn router() -> Router<Context> {
         .route("/guilds/{guild}/contacts/{id}/notes", axum::routing::post(contacts::add_note))
         .route("/guilds/{guild}/journal", get(journal::journal))
         .route("/guilds/{guild}/permissions", get(permissions::show).put(permissions::update))
-        .route("/guilds/{guild}/config", get(not_yet))
+        .route("/guilds/{guild}/config", get(config_get))
         .route("/tickets", get(tickets::list))
         .route("/tickets/staff", get(tickets::staff))
         .route("/logs/{thread}", get(tickets::log))
@@ -92,12 +94,16 @@ pub struct ApiError {
     login_url: Option<String>,
 }
 
-#[derive(Serialize)]
+/// Erreur : message lisible en français, lien de connexion pour un 401.
+#[derive(Serialize, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
-struct ErrorBody<'a> {
-    error: &'a str,
+#[schema(as = ApiError)]
+struct ErrorBody {
+    error: String,
+    /// Seulement pour un 401 : lien de connexion.
     #[serde(skip_serializing_if = "Option::is_none")]
-    login_url: Option<&'a str>,
+    #[schema(value_type = String)]
+    login_url: Option<String>,
 }
 
 impl ApiError {
@@ -150,7 +156,7 @@ impl ApiError {
 
 impl IntoResponse for ApiError {
     fn into_response(self) -> Response {
-        let body = ErrorBody { error: &self.message, login_url: self.login_url.as_deref() };
+        let body = ErrorBody { error: self.message, login_url: self.login_url };
         json_with(self.status, &body)
     }
 }
@@ -184,8 +190,92 @@ async fn method_not_allowed() -> ApiError {
 }
 
 /// Routes réservées, branchées plus tard.
-async fn not_yet() -> ApiError {
+fn not_yet() -> ApiError {
     ApiError::new(StatusCode::NOT_IMPLEMENTED, "Bientôt disponible")
+}
+
+/// Objectif hebdomadaire des cotisations (lecture `cotisation.stats`).
+#[utoipa::path(
+    get, path = "/api/guilds/{guild}/cotisations/objective", tag = "cotisations", operation_id = "getCotisationObjective",
+    params(("guild" = String, Path, description = "Identifiant du serveur")),
+    responses(
+        (status = 200, description = "Objectif, `null` sans objectif", body = Option<openapi::Objective>),
+        (status = 401, description = "Pas connecté", body = ErrorBody),
+        (status = 403, description = "Droit insuffisant", body = ErrorBody),
+        (status = 501, description = "Pas encore disponible", body = ErrorBody),
+    )
+)]
+pub async fn objective_get() -> ApiError {
+    // TODO(intégration) : objectif du module cotisations.
+    not_yet()
+}
+
+/// Règle l'objectif hebdomadaire (« Gérer le serveur »).
+#[utoipa::path(
+    put, path = "/api/guilds/{guild}/cotisations/objective", tag = "cotisations", operation_id = "updateCotisationObjective",
+    params(("guild" = String, Path, description = "Identifiant du serveur")),
+    request_body = Option<openapi::Objective>,
+    responses(
+        (status = 200, description = "Objectif enregistré", body = Option<openapi::Objective>),
+        (status = 401, description = "Pas connecté", body = ErrorBody),
+        (status = 403, description = "Réservé à « Gérer le serveur »", body = ErrorBody),
+        (status = 422, description = "Saisie refusée", body = ErrorBody),
+        (status = 501, description = "Pas encore disponible", body = ErrorBody),
+    )
+)]
+pub async fn objective_put() -> ApiError {
+    // TODO(intégration) : objectif du module cotisations.
+    not_yet()
+}
+
+/// Alertes des coffres (lecture `coffre.voir`).
+#[utoipa::path(
+    get, path = "/api/guilds/{guild}/coffres/alerts", tag = "coffres", operation_id = "getCoffreAlerts",
+    params(("guild" = String, Path, description = "Identifiant du serveur")),
+    responses(
+        (status = 200, description = "Réglage des alertes", body = openapi::CoffreAlerts),
+        (status = 401, description = "Pas connecté", body = ErrorBody),
+        (status = 403, description = "Droit insuffisant", body = ErrorBody),
+        (status = 501, description = "Pas encore disponible", body = ErrorBody),
+    )
+)]
+pub async fn alerts_get() -> ApiError {
+    // TODO(intégration) : alertes du module coffres.
+    not_yet()
+}
+
+/// Règle les alertes des coffres (« Gérer le serveur »).
+#[utoipa::path(
+    put, path = "/api/guilds/{guild}/coffres/alerts", tag = "coffres", operation_id = "updateCoffreAlerts",
+    params(("guild" = String, Path, description = "Identifiant du serveur")),
+    request_body = openapi::CoffreAlerts,
+    responses(
+        (status = 200, description = "Réglage enregistré", body = openapi::CoffreAlerts),
+        (status = 401, description = "Pas connecté", body = ErrorBody),
+        (status = 403, description = "Réservé à « Gérer le serveur »", body = ErrorBody),
+        (status = 422, description = "Saisie refusée", body = ErrorBody),
+        (status = 501, description = "Pas encore disponible", body = ErrorBody),
+    )
+)]
+pub async fn alerts_put() -> ApiError {
+    // TODO(intégration) : alertes du module coffres.
+    not_yet()
+}
+
+/// État de la configuration des modules (« Gérer le serveur »).
+#[utoipa::path(
+    get, path = "/api/guilds/{guild}/config", tag = "reglages", operation_id = "getConfigStatus",
+    params(("guild" = String, Path, description = "Identifiant du serveur")),
+    responses(
+        (status = 200, description = "État des modules", body = openapi::ConfigStatus),
+        (status = 401, description = "Pas connecté", body = ErrorBody),
+        (status = 403, description = "Réservé à « Gérer le serveur »", body = ErrorBody),
+        (status = 501, description = "Pas encore disponible", body = ErrorBody),
+    )
+)]
+pub async fn config_get() -> ApiError {
+    // TODO(intégration) : état de la configuration (autre chantier).
+    not_yet()
 }
 
 // ---------------------------------------------------------------------------
@@ -219,6 +309,7 @@ pub fn no_content() -> Response {
 }
 
 /// Page d'une liste (`Page<T>` du contrat).
+/// Schéma : un type concret par liste (`page_schema!` dans `openapi`).
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Page<T> {
@@ -257,11 +348,13 @@ pub fn paris_day(time: DbTime) -> String {
 // ---------------------------------------------------------------------------
 // Membres
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+/// Membre Discord résolu par le bot (nom affiché sur le serveur).
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct MemberRef {
     pub id: String,
     pub name: String,
+    #[schema(required = true)]
     pub avatar_url: Option<String>,
 }
 
@@ -295,11 +388,13 @@ impl<'a> Members<'a> {
 }
 
 /// Rôle Discord (`Role` du contrat).
-#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
+#[schema(as = Role)]
 pub struct RoleRef {
     pub id: String,
     pub name: String,
+    #[schema(required = true)]
     pub color: Option<u32>,
 }
 

@@ -25,27 +25,33 @@ use serde::{Deserialize, Serialize};
 use sqlx::SqlitePool;
 use std::collections::HashMap;
 use twilight_model::id::{Id, marker::GuildMarker};
+use utoipa::{IntoParams, ToSchema};
 
 /// Notes renvoyées au plus pour un contact.
 const NOTES_LIMIT: i64 = 500;
 const NOT_FOUND: &str = "Contact introuvable.";
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct Contact {
     pub id: String,
     pub name: String,
+    #[schema(value_type = super::openapi::ContactKind)]
     pub kind: &'static str,
+    #[schema(value_type = super::openapi::Relation)]
     pub relation: &'static str,
+    #[schema(required = true)]
     pub phone: Option<String>,
+    #[schema(required = true)]
     pub description: Option<String>,
     pub created_by: MemberRef,
     pub created_at: String,
     pub updated_at: String,
+    #[schema(required = true)]
     pub notes_count: Option<i64>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct ContactNote {
     pub id: String,
@@ -54,22 +60,23 @@ pub struct ContactNote {
     pub created_at: String,
 }
 
-#[derive(Debug, Default, Serialize)]
+#[derive(Debug, Default, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
+#[schema(as = ContactCounts)]
 pub struct Counts {
     pub allie: usize,
     pub neutre: usize,
     pub hostile: usize,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct ContactsResponse {
     pub counts: Counts,
     pub items: Vec<Contact>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct ContactDetail {
     pub contact: Contact,
@@ -109,14 +116,28 @@ async fn note_counts(db: &SqlitePool, guild_id: &str) -> anyhow::Result<HashMap<
     Ok(rows.into_iter().collect())
 }
 
-#[derive(Debug, Default, Deserialize)]
+#[derive(Debug, Default, Deserialize, IntoParams)]
+#[into_params(parameter_in = Query)]
 pub struct ContactQuery {
+    /// `ALLIE`, `NEUTRE` ou `HOSTILE`.
     relation: Option<String>,
+    /// `GROUPE`, `ENTREPRISE` ou `PERSONNE`.
     #[serde(rename = "type")]
     kind: Option<String>,
+    /// Texte cherché dans le nom ou la description.
     q: Option<String>,
 }
 
+/// Répertoire filtré (`contact.voir`).
+#[utoipa::path(
+    get, path = "/api/guilds/{guild}/contacts", tag = "contacts", operation_id = "getContacts",
+    params(("guild" = String, Path, description = "Identifiant du serveur"), ContactQuery),
+    responses(
+        (status = 200, description = "Contacts", body = ContactsResponse),
+        (status = 401, description = "Pas connecté", body = super::ErrorBody),
+        (status = 403, description = "Droit insuffisant", body = super::ErrorBody),
+    )
+)]
 pub async fn list(
     State(ctx): State<Context>,
     session: Session,
@@ -171,6 +192,17 @@ async fn detail_of(ctx: &Ctx, session: &Session, guild_id: Id<GuildMarker>, row:
     })
 }
 
+/// Fiche d'un contact (`contact.voir` ; notes si `contact.notes`).
+#[utoipa::path(
+    get, path = "/api/guilds/{guild}/contacts/{id}", tag = "contacts", operation_id = "getContact",
+    params(("guild" = String, Path, description = "Identifiant du serveur"), ("id" = String, Path, description = "Identifiant du contact")),
+    responses(
+        (status = 200, description = "Contact", body = ContactDetail),
+        (status = 401, description = "Pas connecté", body = super::ErrorBody),
+        (status = 403, description = "Droit insuffisant", body = super::ErrorBody),
+        (status = 404, description = "Introuvable", body = super::ErrorBody),
+    )
+)]
 pub async fn detail(
     State(ctx): State<Context>,
     session: Session,
@@ -181,11 +213,14 @@ pub async fn detail(
     Ok(json(&detail_of(&ctx, &session, guild_id, &row).await?))
 }
 
-#[derive(Debug, Deserialize)]
+/// Limites : nom 80, téléphone 30, description 500 caractères.
+#[derive(Debug, Deserialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct ContactInput {
     pub name: String,
+    #[schema(value_type = super::openapi::ContactKind)]
     pub kind: String,
+    #[schema(value_type = super::openapi::Relation)]
     pub relation: String,
     #[serde(default)]
     pub phone: Option<String>,
@@ -216,6 +251,19 @@ async fn journal(ctx: &Ctx, session: &Session, guild_id: Id<GuildMarker>, action
     audit::record_web(ctx, guild_id, session.viewer.id, &actor, Entry::new(action, None, details)).await;
 }
 
+/// Ajoute un contact (`contact.ajouter`).
+#[utoipa::path(
+    post, path = "/api/guilds/{guild}/contacts", tag = "contacts", operation_id = "createContact",
+    params(("guild" = String, Path, description = "Identifiant du serveur")),
+    request_body = ContactInput,
+    responses(
+        (status = 201, description = "Contact ajouté", body = Contact),
+        (status = 400, description = "Requête invalide", body = super::ErrorBody),
+        (status = 401, description = "Pas connecté", body = super::ErrorBody),
+        (status = 403, description = "Droit insuffisant", body = super::ErrorBody),
+        (status = 422, description = "Saisie refusée", body = super::ErrorBody),
+    )
+)]
 pub async fn create(
     State(ctx): State<Context>,
     session: Session,
@@ -235,15 +283,19 @@ pub async fn create(
 }
 
 /// `Partial<ContactInput>` : champ absent = inchangé ; `phone`/`description` à `null` = effacé.
-#[derive(Debug, Default, Deserialize)]
+#[derive(Debug, Default, Deserialize, ToSchema)]
 #[serde(rename_all = "camelCase", default)]
 pub struct ContactPatch {
     pub name: Option<String>,
+    #[schema(value_type = Option<super::openapi::ContactKind>)]
     pub kind: Option<String>,
+    #[schema(value_type = Option<super::openapi::Relation>)]
     pub relation: Option<String>,
     #[serde(deserialize_with = "double_option")]
+    #[schema(value_type = Option<String>)]
     pub phone: Option<Option<String>>,
     #[serde(deserialize_with = "double_option")]
+    #[schema(value_type = Option<String>)]
     pub description: Option<Option<String>>,
 }
 
@@ -270,6 +322,20 @@ pub fn apply_patch(before: &Row, patch: ContactPatch) -> Result<Row, String> {
     Ok(after)
 }
 
+/// Modifie un contact (`contact.modifier`) ; `phone`/`description` à `null` = effacer.
+#[utoipa::path(
+    patch, path = "/api/guilds/{guild}/contacts/{id}", tag = "contacts", operation_id = "updateContact",
+    params(("guild" = String, Path, description = "Identifiant du serveur"), ("id" = String, Path, description = "Identifiant du contact")),
+    request_body = ContactPatch,
+    responses(
+        (status = 200, description = "Contact modifié", body = Contact),
+        (status = 400, description = "Requête invalide", body = super::ErrorBody),
+        (status = 401, description = "Pas connecté", body = super::ErrorBody),
+        (status = 403, description = "Droit insuffisant", body = super::ErrorBody),
+        (status = 404, description = "Introuvable", body = super::ErrorBody),
+        (status = 422, description = "Saisie refusée", body = super::ErrorBody),
+    )
+)]
 pub async fn update(
     State(ctx): State<Context>,
     session: Session,
@@ -294,6 +360,17 @@ pub async fn update(
     Ok(json(&detail_of(&ctx, &session, guild_id, &row).await?.contact))
 }
 
+/// Supprime un contact et ses notes (`contact.modifier`).
+#[utoipa::path(
+    delete, path = "/api/guilds/{guild}/contacts/{id}", tag = "contacts", operation_id = "deleteContact",
+    params(("guild" = String, Path, description = "Identifiant du serveur"), ("id" = String, Path, description = "Identifiant du contact")),
+    responses(
+        (status = 204, description = "Supprimé"),
+        (status = 401, description = "Pas connecté", body = super::ErrorBody),
+        (status = 403, description = "Droit insuffisant", body = super::ErrorBody),
+        (status = 404, description = "Introuvable", body = super::ErrorBody),
+    )
+)]
 pub async fn remove(
     State(ctx): State<Context>,
     session: Session,
@@ -309,11 +386,26 @@ pub async fn remove(
     Ok(no_content())
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct NoteInput {
+    /// 1000 caractères au plus.
     body: String,
 }
 
+/// Ajoute une note du staff (`contact.notes`).
+#[utoipa::path(
+    post, path = "/api/guilds/{guild}/contacts/{id}/notes", tag = "contacts", operation_id = "createContactNote",
+    params(("guild" = String, Path, description = "Identifiant du serveur"), ("id" = String, Path, description = "Identifiant du contact")),
+    request_body = NoteInput,
+    responses(
+        (status = 201, description = "Note ajoutée", body = ContactNote),
+        (status = 400, description = "Requête invalide", body = super::ErrorBody),
+        (status = 401, description = "Pas connecté", body = super::ErrorBody),
+        (status = 403, description = "Droit insuffisant", body = super::ErrorBody),
+        (status = 404, description = "Introuvable", body = super::ErrorBody),
+        (status = 422, description = "Saisie refusée", body = super::ErrorBody),
+    )
+)]
 pub async fn add_note(
     State(ctx): State<Context>,
     session: Session,

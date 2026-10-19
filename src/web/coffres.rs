@@ -36,14 +36,21 @@ const DEFAULT_DAYS: i64 = 30;
 const PERIODS: [(Option<i64>, &str); 5] =
     [(Some(1), "24 h"), (Some(7), "7 jours"), (Some(30), "30 jours"), (Some(90), "90 jours"), (None, "Tout")];
 
-#[derive(Debug, Default, Deserialize)]
+#[derive(Debug, Default, Deserialize, utoipa::IntoParams)]
+#[into_params(parameter_in = Query)]
 pub struct CoffreQuery {
+    /// Une seule propriété.
     propriete: Option<String>,
+    /// Un seul objet.
     objet: Option<String>,
+    /// Identifiant de jeu d'un personnage.
     joueur: Option<String>,
+    /// `deposit` ou `withdraw`.
     #[serde(rename = "type")]
     kind: Option<String>,
+    /// Nombre de jours (30 par défaut), ou `tout`.
     jours: Option<String>,
+    /// Page (1 = première).
     page: Option<String>,
 }
 

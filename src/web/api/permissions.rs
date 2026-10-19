@@ -12,27 +12,36 @@ use axum::extract::{Path, State};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use twilight_model::id::{Id, marker::GuildMarker};
+use utoipa::ToSchema;
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
+#[schema(as = PermissionRoles)]
 pub struct Roles {
+    #[schema(required = true)]
     pub member: Option<RoleRef>,
+    #[schema(required = true)]
     pub grade: Option<RoleRef>,
+    #[schema(required = true)]
     pub lead: Option<RoleRef>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
+#[schema(as = PermissionAction)]
 pub struct ActionLevel {
+    #[schema(value_type = super::openapi::PermKey)]
     pub key: &'static str,
     pub module: &'static str,
     pub label: &'static str,
+    #[schema(value_type = super::openapi::LevelKey)]
     pub default_level: &'static str,
+    #[schema(value_type = super::openapi::LevelKey)]
     pub level: &'static str,
     pub strict: bool,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct PermissionsResponse {
     pub roles: Roles,
@@ -84,17 +93,31 @@ async fn build(ctx: &Ctx, guild_id: Id<GuildMarker>) -> anyhow::Result<Permissio
     })
 }
 
+/// Permissions du serveur (« Gérer le serveur »).
+#[utoipa::path(
+    get, path = "/api/guilds/{guild}/permissions", tag = "reglages", operation_id = "getPermissions",
+    params(("guild" = String, Path, description = "Identifiant du serveur")),
+    responses(
+        (status = 200, description = "Permissions", body = PermissionsResponse),
+        (status = 401, description = "Pas connecté", body = super::ErrorBody),
+        (status = 403, description = "Droit insuffisant", body = super::ErrorBody),
+    )
+)]
 pub async fn show(State(ctx): State<Context>, session: Session, Path(guild): Path<String>) -> ApiResult {
     let guild_id = session.require_admin(&guild)?;
     Ok(json(&build(&ctx, guild_id).await?))
 }
 
 /// Seuls les champs présents changent ; `null` dans `levels` = niveau par défaut.
-#[derive(Debug, Default, Deserialize)]
+#[derive(Debug, Default, Deserialize, ToSchema)]
 #[serde(rename_all = "camelCase", default)]
 pub struct PermissionsUpdate {
+    /// `null` : retirer le rôle membre.
     #[serde(deserialize_with = "super::double_option")]
+    #[schema(value_type = Option<String>)]
     pub member_role_id: Option<Option<String>>,
+    /// Clé d'action → niveau ; `null` = revenir au niveau par défaut.
+    #[schema(value_type = Option<std::collections::HashMap<String, super::openapi::LevelKey>>)]
     pub levels: Option<BTreeMap<String, Option<String>>>,
 }
 
@@ -149,6 +172,19 @@ pub fn summary(changes: &Changes) -> String {
     parts.join(", ")
 }
 
+/// Change le rôle membre et des niveaux, comme `/config permission` (« Gérer le serveur »).
+#[utoipa::path(
+    put, path = "/api/guilds/{guild}/permissions", tag = "reglages", operation_id = "updatePermissions",
+    params(("guild" = String, Path, description = "Identifiant du serveur")),
+    request_body = PermissionsUpdate,
+    responses(
+        (status = 200, description = "Permissions à jour", body = PermissionsResponse),
+        (status = 400, description = "Requête invalide", body = super::ErrorBody),
+        (status = 401, description = "Pas connecté", body = super::ErrorBody),
+        (status = 403, description = "Droit insuffisant", body = super::ErrorBody),
+        (status = 422, description = "Saisie refusée", body = super::ErrorBody),
+    )
+)]
 pub async fn update(
     State(ctx): State<Context>,
     session: Session,

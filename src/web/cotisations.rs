@@ -32,10 +32,14 @@ const CSV_LIMIT: i64 = 10_000;
 const PERIODS: [(Option<i64>, &str); 5] =
     [(Some(7), "7 jours"), (Some(30), "30 jours"), (Some(90), "90 jours"), (Some(365), "1 an"), (None, "Tout")];
 
-#[derive(Debug, Default, Deserialize)]
+#[derive(Debug, Default, Deserialize, utoipa::IntoParams)]
+#[into_params(parameter_in = Query)]
 pub struct CotisationQuery {
+    /// Les N derniers jours (absent : depuis le début).
     jours: Option<String>,
+    /// Identifiant Discord d'un membre.
     membre: Option<String>,
+    /// Page (1 = première).
     page: Option<String>,
 }
 

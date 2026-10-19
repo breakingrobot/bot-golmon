@@ -35,6 +35,7 @@ use chrono::{Duration, NaiveDate, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::SqlitePool;
 use twilight_model::id::{Id, marker::GuildMarker};
+use utoipa::ToSchema;
 
 /// Montant maximal par cotisation (propre ou sale), comme `/cotisation ajouter`.
 pub const MAX_AMOUNT: i64 = 100_000_000;
@@ -43,7 +44,7 @@ const ANNOUNCE_COLOR: u32 = 0x2ecc71;
 /// Semaines affichées pour « tout ».
 const DEFAULT_WEEKS: i64 = 12;
 
-#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct CotisationTotals {
     pub count: i64,
@@ -57,7 +58,7 @@ impl From<Totals> for CotisationTotals {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct WeeklyAmount {
     pub week_start: String,
@@ -65,7 +66,7 @@ pub struct WeeklyAmount {
     pub sale: i64,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct CotisationEntry {
     pub id: String,
@@ -74,11 +75,13 @@ pub struct CotisationEntry {
     pub propre: i64,
     pub sale: i64,
     pub description: String,
+    #[schema(required = true)]
     pub declared_by: Option<MemberRef>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
+#[schema(as = CotisationMember)]
 pub struct MemberTotals {
     pub member: MemberRef,
     pub propre: i64,
@@ -86,16 +89,18 @@ pub struct MemberTotals {
     pub count: i64,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct CotisationsResponse {
     pub totals: CotisationTotals,
     pub members: Vec<MemberTotals>,
     pub weekly: Vec<WeeklyAmount>,
+    #[schema(value_type = super::openapi::CotisationEntryPage)]
     pub entries: Page<CotisationEntry>,
     // TODO(intégration) : objectif hebdomadaire (module cotisations, autre chantier).
-    pub objective: Option<serde_json::Value>,
-    pub objective_progress: Vec<serde_json::Value>,
+    #[schema(required = true)]
+    pub objective: Option<super::openapi::Objective>,
+    pub objective_progress: Vec<super::openapi::ObjectiveProgress>,
 }
 
 pub fn entry(members: &Members, row: &Cotisation) -> CotisationEntry {
@@ -137,6 +142,16 @@ pub async fn weekly(
     Ok(rows.into_iter().map(|(week_start, propre, sale)| WeeklyAmount { week_start, propre, sale }).collect())
 }
 
+/// Statistiques et détail (`cotisation.stats`).
+#[utoipa::path(
+    get, path = "/api/guilds/{guild}/cotisations", tag = "cotisations", operation_id = "getCotisations",
+    params(("guild" = String, Path, description = "Identifiant du serveur"), CotisationQuery),
+    responses(
+        (status = 200, description = "Cotisations", body = CotisationsResponse),
+        (status = 401, description = "Pas connecté", body = super::ErrorBody),
+        (status = 403, description = "Droit insuffisant", body = super::ErrorBody),
+    )
+)]
 pub async fn list(
     State(ctx): State<Context>,
     session: Session,
@@ -184,6 +199,16 @@ pub async fn list(
     }))
 }
 
+/// Export CSV, mêmes filtres que la liste.
+#[utoipa::path(
+    get, path = "/api/guilds/{guild}/cotisations/export.csv", tag = "cotisations", operation_id = "exportCotisations",
+    params(("guild" = String, Path, description = "Identifiant du serveur"), CotisationQuery),
+    responses(
+        (status = 200, description = "Fichier CSV", content_type = "text/csv", body = String),
+        (status = 401, description = "Pas connecté", body = super::ErrorBody),
+        (status = 403, description = "Droit insuffisant", body = super::ErrorBody),
+    )
+)]
 pub async fn export(
     State(ctx): State<Context>,
     session: Session,
@@ -194,12 +219,16 @@ pub async fn export(
     Ok(crate::web::cotisations::csv_response(&ctx, guild_id, &query).await)
 }
 
-#[derive(Debug, Default, Deserialize)]
+/// Absent : soi-même (`memberId`) et aujourd'hui (`date`, jamais dans le futur).
+#[derive(Debug, Default, Deserialize, ToSchema)]
 #[serde(rename_all = "camelCase", default)]
 pub struct NewCotisation {
     pub member_id: Option<String>,
+    #[schema(required = true)]
     pub propre: i64,
+    #[schema(required = true)]
     pub sale: i64,
+    #[schema(required = true)]
     pub description: String,
     pub date: Option<String>,
 }
@@ -275,6 +304,19 @@ async fn announce(ctx: &Ctx, guild: &str, row: &Cotisation, declared_by: Option<
     }
 }
 
+/// Déclare une cotisation (`cotisation.ajouter`, pour un autre : `cotisation.gerer`).
+#[utoipa::path(
+    post, path = "/api/guilds/{guild}/cotisations", tag = "cotisations", operation_id = "createCotisation",
+    params(("guild" = String, Path, description = "Identifiant du serveur")),
+    request_body = NewCotisation,
+    responses(
+        (status = 201, description = "Cotisation enregistrée", body = CotisationEntry),
+        (status = 400, description = "Requête invalide", body = super::ErrorBody),
+        (status = 401, description = "Pas connecté", body = super::ErrorBody),
+        (status = 403, description = "Droit insuffisant", body = super::ErrorBody),
+        (status = 422, description = "Saisie refusée", body = super::ErrorBody),
+    )
+)]
 pub async fn create(
     State(ctx): State<Context>,
     session: Session,
@@ -317,6 +359,17 @@ pub async fn create(
     Ok(created(&entry(&Members::new(&ctx, guild_id), &row)))
 }
 
+/// Supprime une cotisation (son auteur, ou `cotisation.gerer`).
+#[utoipa::path(
+    delete, path = "/api/guilds/{guild}/cotisations/{id}", tag = "cotisations", operation_id = "deleteCotisation",
+    params(("guild" = String, Path, description = "Identifiant du serveur"), ("id" = String, Path, description = "Identifiant de la cotisation")),
+    responses(
+        (status = 204, description = "Supprimée"),
+        (status = 401, description = "Pas connecté", body = super::ErrorBody),
+        (status = 403, description = "Droit insuffisant", body = super::ErrorBody),
+        (status = 404, description = "Introuvable", body = super::ErrorBody),
+    )
+)]
 pub async fn remove(
     State(ctx): State<Context>,
     session: Session,

@@ -26,43 +26,50 @@ use chrono::{Duration, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::{FromRow, SqlitePool};
 use std::collections::HashMap;
+use utoipa::{IntoParams, ToSchema};
 
 /// Nom de propriété : comme `/coffre nommer`.
 const PROPERTY_NAME_LIMIT: usize = 80;
 /// Jours au plus dans une série (« tout »).
 const SERIES_MAX_DAYS: i64 = 3650;
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
+#[schema(as = CoffreProperty)]
 pub struct Property {
     pub id: String,
+    #[schema(required = true)]
     pub name: Option<String>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
+#[schema(as = CoffreItem)]
 pub struct ItemChoice {
     pub item: String,
     pub label: String,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
+#[schema(as = CoffreLink)]
 pub struct Link {
     pub game_id: String,
     pub name: String,
     pub member: MemberRef,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
+#[schema(as = CoffreChannel)]
 pub struct ChannelInfo {
     pub channel_id: String,
+    #[schema(required = true)]
     pub name: Option<String>,
     pub webhook_known: bool,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct CoffreMeta {
     pub properties: Vec<Property>,
@@ -71,8 +78,9 @@ pub struct CoffreMeta {
     pub channels: Vec<ChannelInfo>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
+#[schema(as = CoffreStockItem)]
 pub struct StockItem {
     pub item: String,
     pub label: String,
@@ -82,35 +90,42 @@ pub struct StockItem {
     pub low: bool,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
+#[schema(as = CoffreStockProperty)]
 pub struct StockProperty {
     pub id: String,
+    #[schema(required = true)]
     pub name: Option<String>,
     pub items: Vec<StockItem>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct CoffreStock {
     pub properties: Vec<StockProperty>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
+#[schema(as = CoffreMovementPlayer)]
 pub struct Player {
+    #[schema(required = true)]
     pub game_id: Option<String>,
     pub name: String,
+    #[schema(required = true)]
     pub member: Option<MemberRef>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct CoffreMovement {
     pub id: String,
     pub at: String,
+    #[schema(value_type = super::openapi::CoffreKind)]
     pub kind: &'static str,
     pub property_id: String,
+    #[schema(required = true)]
     pub property_name: Option<String>,
     pub item: String,
     pub item_label: String,
@@ -118,19 +133,22 @@ pub struct CoffreMovement {
     pub player: Player,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct CoffrePlayer {
+    #[schema(required = true)]
     pub game_id: Option<String>,
     pub name: String,
+    #[schema(required = true)]
     pub member: Option<MemberRef>,
     pub deposited: i64,
     pub withdrawn: i64,
     pub count: i64,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
+#[schema(as = CoffreSeriesPoint)]
 pub struct SeriesPoint {
     pub day: String,
     pub deposited: i64,
@@ -231,6 +249,16 @@ pub fn movement(
     }
 }
 
+/// Propriétés, objets, liens et salons suivis (`coffre.voir`).
+#[utoipa::path(
+    get, path = "/api/guilds/{guild}/coffres/meta", tag = "coffres", operation_id = "getCoffreMeta",
+    params(("guild" = String, Path, description = "Identifiant du serveur")),
+    responses(
+        (status = 200, description = "Méta-données", body = CoffreMeta),
+        (status = 401, description = "Pas connecté", body = super::ErrorBody),
+        (status = 403, description = "Droit insuffisant", body = super::ErrorBody),
+    )
+)]
 pub async fn meta(State(ctx): State<Context>, session: Session, Path(guild): Path<String>) -> ApiResult {
     let guild_id = session.require(&guild, Perm::CoffreVoir)?;
     let gid = guild_id.to_string();
@@ -276,11 +304,23 @@ pub async fn meta(State(ctx): State<Context>, session: Session, Path(guild): Pat
     }))
 }
 
-#[derive(Debug, Default, Deserialize)]
+#[derive(Debug, Default, Deserialize, IntoParams)]
+#[into_params(parameter_in = Query)]
 pub struct StockQuery {
+    /// Une seule propriété.
     propriete: Option<String>,
 }
 
+/// Stock par propriété (`coffre.voir`).
+#[utoipa::path(
+    get, path = "/api/guilds/{guild}/coffres/stock", tag = "coffres", operation_id = "getCoffreStock",
+    params(("guild" = String, Path, description = "Identifiant du serveur"), StockQuery),
+    responses(
+        (status = 200, description = "Stock", body = CoffreStock),
+        (status = 401, description = "Pas connecté", body = super::ErrorBody),
+        (status = 403, description = "Droit insuffisant", body = super::ErrorBody),
+    )
+)]
 pub async fn stock(
     State(ctx): State<Context>,
     session: Session,
@@ -314,6 +354,16 @@ pub async fn stock(
     Ok(json(&CoffreStock { properties }))
 }
 
+/// Mouvements filtrés (`coffre.voir`) ; `jours` absent = 30, `tout` = tout.
+#[utoipa::path(
+    get, path = "/api/guilds/{guild}/coffres/movements", tag = "coffres", operation_id = "getCoffreMovements",
+    params(("guild" = String, Path, description = "Identifiant du serveur"), CoffreQuery),
+    responses(
+        (status = 200, description = "Mouvements", body = super::openapi::CoffreMovementPage),
+        (status = 401, description = "Pas connecté", body = super::ErrorBody),
+        (status = 403, description = "Droit insuffisant", body = super::ErrorBody),
+    )
+)]
 pub async fn movements(
     State(ctx): State<Context>,
     session: Session,
@@ -338,6 +388,16 @@ pub async fn movements(
     }))
 }
 
+/// Activité par joueur, mêmes filtres que les mouvements (`page` ignoré).
+#[utoipa::path(
+    get, path = "/api/guilds/{guild}/coffres/players", tag = "coffres", operation_id = "getCoffrePlayers",
+    params(("guild" = String, Path, description = "Identifiant du serveur"), CoffreQuery),
+    responses(
+        (status = 200, description = "Joueurs", body = Vec<CoffrePlayer>),
+        (status = 401, description = "Pas connecté", body = super::ErrorBody),
+        (status = 403, description = "Droit insuffisant", body = super::ErrorBody),
+    )
+)]
 pub async fn players(
     State(ctx): State<Context>,
     session: Session,
@@ -376,10 +436,14 @@ pub async fn players(
     Ok(json(&players))
 }
 
-#[derive(Debug, Default, Deserialize)]
+#[derive(Debug, Default, Deserialize, IntoParams)]
+#[into_params(parameter_in = Query)]
 pub struct SeriesQuery {
+    /// Objet suivi (obligatoire).
     objet: Option<String>,
+    /// Une seule propriété.
     propriete: Option<String>,
+    /// Nombre de jours (30 par défaut), ou `tout`.
     jours: Option<String>,
 }
 
@@ -430,6 +494,17 @@ pub async fn item_series(
         .collect())
 }
 
+/// Évolution d'un objet, un point par jour (`coffre.voir`).
+#[utoipa::path(
+    get, path = "/api/guilds/{guild}/coffres/series", tag = "coffres", operation_id = "getCoffreSeries",
+    params(("guild" = String, Path, description = "Identifiant du serveur"), SeriesQuery),
+    responses(
+        (status = 200, description = "Série", body = Vec<SeriesPoint>),
+        (status = 400, description = "Requête invalide", body = super::ErrorBody),
+        (status = 401, description = "Pas connecté", body = super::ErrorBody),
+        (status = 403, description = "Droit insuffisant", body = super::ErrorBody),
+    )
+)]
 pub async fn series(
     State(ctx): State<Context>,
     session: Session,
@@ -469,6 +544,16 @@ pub async fn series(
     Ok(json(&item_series(&ctx.db, &gid, &item, property.as_deref(), &days).await?))
 }
 
+/// Export CSV, mêmes filtres que les mouvements.
+#[utoipa::path(
+    get, path = "/api/guilds/{guild}/coffres/export.csv", tag = "coffres", operation_id = "exportCoffres",
+    params(("guild" = String, Path, description = "Identifiant du serveur"), CoffreQuery),
+    responses(
+        (status = 200, description = "Fichier CSV", content_type = "text/csv", body = String),
+        (status = 401, description = "Pas connecté", body = super::ErrorBody),
+        (status = 403, description = "Droit insuffisant", body = super::ErrorBody),
+    )
+)]
 pub async fn export(
     State(ctx): State<Context>,
     session: Session,
@@ -479,12 +564,26 @@ pub async fn export(
     Ok(crate::web::coffres::csv_response(&ctx, guild_id, &query).await)
 }
 
-#[derive(Debug, Deserialize)]
+/// Nom vide (ou `null`) : retirer le nom.
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct PropertyName {
+    #[schema(required = true)]
     name: Option<String>,
 }
 
-/// Nomme une propriété (nom vide : retire le nom).
+/// Nomme une propriété, nom vide : retire le nom (`coffre.gerer`).
+#[utoipa::path(
+    put, path = "/api/guilds/{guild}/coffres/properties/{property}", tag = "coffres", operation_id = "nameCoffreProperty",
+    params(("guild" = String, Path, description = "Identifiant du serveur"), ("property" = String, Path, description = "Identifiant de la propriété")),
+    request_body = PropertyName,
+    responses(
+        (status = 200, description = "Propriété", body = Property),
+        (status = 400, description = "Requête invalide", body = super::ErrorBody),
+        (status = 401, description = "Pas connecté", body = super::ErrorBody),
+        (status = 403, description = "Droit insuffisant", body = super::ErrorBody),
+        (status = 422, description = "Saisie refusée", body = super::ErrorBody),
+    )
+)]
 pub async fn name_property(
     State(ctx): State<Context>,
     session: Session,
@@ -517,7 +616,7 @@ pub async fn name_property(
     Ok(json(&Property { id: property, name: Some(name).filter(|n| !n.is_empty()) }))
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct PlayerLink {
     member_id: String,
@@ -531,7 +630,19 @@ fn check_game_id(raw: &str) -> ApiResult<String> {
     Ok(game_id)
 }
 
-/// Relie un personnage du jeu à un membre (comme `/coffre lier`).
+/// Relie un personnage du jeu à un membre, comme `/coffre lier` (`coffre.gerer`).
+#[utoipa::path(
+    put, path = "/api/guilds/{guild}/coffres/players/{game_id}", tag = "coffres", operation_id = "linkCoffrePlayer",
+    params(("guild" = String, Path, description = "Identifiant du serveur"), ("game_id" = String, Path, description = "Identifiant du personnage dans le jeu")),
+    request_body = PlayerLink,
+    responses(
+        (status = 200, description = "Lien", body = Link),
+        (status = 400, description = "Requête invalide", body = super::ErrorBody),
+        (status = 401, description = "Pas connecté", body = super::ErrorBody),
+        (status = 403, description = "Droit insuffisant", body = super::ErrorBody),
+        (status = 422, description = "Saisie refusée", body = super::ErrorBody),
+    )
+)]
 pub async fn link_player(
     State(ctx): State<Context>,
     session: Session,
@@ -560,7 +671,17 @@ pub async fn link_player(
     }))
 }
 
-/// Retire le lien d'un personnage.
+/// Retire le lien d'un personnage (`coffre.gerer`).
+#[utoipa::path(
+    delete, path = "/api/guilds/{guild}/coffres/players/{game_id}", tag = "coffres", operation_id = "unlinkCoffrePlayer",
+    params(("guild" = String, Path, description = "Identifiant du serveur"), ("game_id" = String, Path, description = "Identifiant du personnage dans le jeu")),
+    responses(
+        (status = 204, description = "Lien retiré"),
+        (status = 401, description = "Pas connecté", body = super::ErrorBody),
+        (status = 403, description = "Droit insuffisant", body = super::ErrorBody),
+        (status = 404, description = "Introuvable", body = super::ErrorBody),
+    )
+)]
 pub async fn unlink_player(
     State(ctx): State<Context>,
     session: Session,

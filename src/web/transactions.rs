@@ -51,15 +51,21 @@ const MONTHS: [&str; 12] = [
     "décembre",
 ];
 
-#[derive(Debug, Default, Deserialize)]
+#[derive(Debug, Default, Deserialize, utoipa::IntoParams)]
+#[into_params(parameter_in = Query)]
 pub struct HistoryQuery {
+    /// Texte cherché dans le groupe.
     groupe: Option<String>,
+    /// Statut (`PREPARATION`…).
     statut: Option<String>,
+    /// `ACHAT` ou `VENTE`.
     #[serde(rename = "type")]
     kind: Option<String>,
+    /// Premier jour (`YYYY-MM-DD`, heure de Paris).
     du: Option<String>,
+    /// Dernier jour inclus (`YYYY-MM-DD`).
     au: Option<String>,
-    /// En texte : une valeur invalide ramène à la première page plutôt qu'à une erreur 400.
+    /// Page (1 = première). En texte : une valeur invalide ramène à la première page plutôt qu'à une erreur 400.
     pub(crate) page: Option<String>,
 }
 

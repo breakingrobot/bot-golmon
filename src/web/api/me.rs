@@ -8,10 +8,12 @@ use crate::{
 };
 use axum::{extract::State, response::Response};
 use serde::Serialize;
+use utoipa::ToSchema;
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct Me {
+    #[schema(required = true)]
     pub user: Option<User>,
     pub login_enabled: bool,
     pub login_url: String,
@@ -19,21 +21,25 @@ pub struct Me {
     pub guilds: Vec<GuildAccess>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
+#[schema(as = MeUser)]
 pub struct User {
     pub id: String,
     pub name: String,
+    #[schema(required = true)]
     pub avatar_url: Option<String>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct GuildAccess {
     pub id: String,
     pub name: String,
+    #[schema(required = true)]
     pub icon_url: Option<String>,
     pub is_admin: bool,
+    #[schema(value_type = Vec<super::openapi::PermKey>)]
     pub perms: Vec<&'static str>,
 }
 
@@ -57,6 +63,13 @@ pub fn build(ctx: &Ctx, user: Option<User>, access: &Access) -> Me {
     }
 }
 
+/// Session et droits (toujours 200, même sans connexion).
+#[utoipa::path(
+    get, path = "/api/me", tag = "session", operation_id = "getMe",
+    responses(
+        (status = 200, description = "Session", body = Me),
+    )
+)]
 pub async fn me(State(ctx): State<Context>, MaybeViewer(viewer): MaybeViewer) -> Response {
     // Sans connexion configurée, un vieux cookie ne vaut rien.
     let viewer = viewer.filter(|_| auth::enabled(&ctx));

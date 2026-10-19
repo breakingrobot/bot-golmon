@@ -26,17 +26,29 @@ use twilight_model::id::{
     Id,
     marker::{GuildMarker, UserMarker},
 };
+use utoipa::{IntoParams, ToSchema};
 
 const SEARCH_LIMIT: usize = 25;
 const RECENT: i64 = 10;
 const PROFILE_WEEKS: i64 = 12;
 
-#[derive(Debug, Default, Deserialize)]
+#[derive(Debug, Default, Deserialize, IntoParams)]
+#[into_params(parameter_in = Query)]
 pub struct SearchQuery {
+    /// Texte cherché dans le nom ou l'identifiant.
     q: Option<String>,
 }
 
 /// Membres en cache dont le nom ou l'identifiant contient `q` (25 au plus).
+#[utoipa::path(
+    get, path = "/api/guilds/{guild}/members", tag = "membres", operation_id = "searchMembers",
+    params(("guild" = String, Path, description = "Identifiant du serveur"), SearchQuery),
+    responses(
+        (status = 200, description = "Membres", body = Vec<MemberRef>),
+        (status = 401, description = "Pas connecté", body = super::ErrorBody),
+        (status = 403, description = "Droit insuffisant", body = super::ErrorBody),
+    )
+)]
 pub async fn search(
     State(ctx): State<Context>,
     session: Session,
@@ -76,27 +88,32 @@ pub fn search_members(ctx: &Ctx, guild_id: Id<GuildMarker>, query: &str) -> Vec<
     found
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
+#[schema(as = MemberRecentPresence)]
 pub struct RecentPresence {
     pub id: String,
     pub title: String,
     pub date: String,
+    #[schema(value_type = super::openapi::PresenceStatus)]
     pub status: String,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
+#[schema(as = MemberPresence)]
 pub struct PresenceSection {
     pub present: i64,
     pub retard: i64,
     pub absent: i64,
+    #[schema(required = true)]
     pub rate: Option<i64>,
     pub recent: Vec<RecentPresence>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
+#[schema(as = MemberAbsence)]
 pub struct AbsenceItem {
     pub from: String,
     pub to: String,
@@ -104,25 +121,29 @@ pub struct AbsenceItem {
     pub current: bool,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
+#[schema(as = MemberCotisations)]
 pub struct CotisationSection {
     pub totals: cotisations::CotisationTotals,
     pub weekly: Vec<cotisations::WeeklyAmount>,
     pub recent: Vec<cotisations::CotisationEntry>,
     // TODO(intégration) : progression vers l'objectif de la semaine (autre chantier).
-    pub objective: Option<serde_json::Value>,
+    #[schema(required = true)]
+    pub objective: Option<super::openapi::ObjectiveProgress>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
+#[schema(as = MemberCharacter)]
 pub struct Character {
     pub game_id: String,
     pub name: String,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
+#[schema(as = MemberCoffres)]
 pub struct CoffreSection {
     pub characters: Vec<Character>,
     pub deposited: i64,
@@ -130,45 +151,66 @@ pub struct CoffreSection {
     pub recent: Vec<coffres::CoffreMovement>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
+#[schema(as = MemberRecrueWeek)]
 pub struct RecrueWeek {
     pub week_start: String,
     pub pour: i64,
     pub contre: i64,
     pub blanc: i64,
+    #[schema(required = true)]
     pub veto: Option<Veto>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
+#[schema(as = MemberRecrue)]
 pub struct RecrueSection {
     pub weeks: Vec<RecrueWeek>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
+#[schema(as = MemberVehicle)]
 pub struct Vehicle {
     pub plate: String,
+    #[schema(required = true)]
     pub model: Option<String>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct MemberProfile {
     pub member: MemberRef,
+    #[schema(required = true)]
     pub joined_at: Option<String>,
     pub roles: Vec<RoleRef>,
+    #[schema(required = true)]
     pub presence: Option<PresenceSection>,
     pub absences: Vec<AbsenceItem>,
+    #[schema(required = true)]
     pub cotisations: Option<CotisationSection>,
+    #[schema(required = true)]
     pub coffres: Option<CoffreSection>,
+    #[schema(required = true)]
     pub recrue: Option<RecrueSection>,
+    #[schema(required = true)]
     pub phone: Option<String>,
     pub vehicles: Vec<Vehicle>,
 }
 
 /// Fiche d'un membre : `membre.fiche`, ou sa propre fiche.
+#[utoipa::path(
+    get, path = "/api/guilds/{guild}/members/{user}", tag = "membres", operation_id = "getMemberProfile",
+    params(("guild" = String, Path, description = "Identifiant du serveur"), ("user" = String, Path, description = "Identifiant Discord du membre")),
+    responses(
+        (status = 200, description = "Fiche", body = MemberProfile),
+        (status = 401, description = "Pas connecté", body = super::ErrorBody),
+        (status = 403, description = "Droit insuffisant", body = super::ErrorBody),
+        (status = 404, description = "Introuvable", body = super::ErrorBody),
+    )
+)]
 pub async fn profile(
     State(ctx): State<Context>,
     session: Session,

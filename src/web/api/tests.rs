@@ -131,6 +131,10 @@ async fn unknown_api_routes_are_json() {
         assert_eq!(status, StatusCode::NOT_FOUND, "{uri}");
         assert!(body["error"].is_string(), "{uri}");
     }
+    // Spécification publique, même avec la connexion configurée.
+    let app_login = TestApp::new(true).await;
+    let (status, _, body) = app_login.send(get("/api/openapi.json")).await;
+    assert_eq!((status, &body["openapi"]), (StatusCode::OK, &serde_json::json!("3.1.0")));
     let (status, _, body) = app.send(get("/api/guilds/1/config")).await;
     assert_eq!((status, &body["error"]), (StatusCode::NOT_IMPLEMENTED, &serde_json::json!("Bientôt disponible")));
 }
@@ -210,7 +214,7 @@ fn me_shape_matches_the_contract() {
 
     let page = serde_json::to_value(Page { items: vec![1], total: 1, page: 1, page_size: 50 }).unwrap();
     assert_eq!(keys(&page), ["items", "page", "pageSize", "total"]);
-    let error = serde_json::to_value(ErrorBody { error: "x", login_url: Some("/login") }).unwrap();
+    let error = serde_json::to_value(ErrorBody { error: "x".into(), login_url: Some("/login".into()) }).unwrap();
     assert_eq!(keys(&error), ["error", "loginUrl"]);
 }
 

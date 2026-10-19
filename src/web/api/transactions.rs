@@ -9,15 +9,18 @@ use crate::{
 };
 use axum::extract::{Path, State};
 use serde::Serialize;
+use utoipa::ToSchema;
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct Transaction {
     pub id: String,
     pub created_at: String,
     pub groupe: String,
     #[serde(rename = "type")]
+    #[schema(value_type = super::openapi::TransactionType)]
     pub kind: String,
+    #[schema(value_type = super::openapi::TransactionStatus)]
     pub status: String,
     pub status_label: &'static str,
     pub prix: f64,
@@ -25,16 +28,19 @@ pub struct Transaction {
     pub items: Vec<Item>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
+#[schema(as = TransactionItem)]
 pub struct Item {
     pub nom: String,
     pub quantite: i64,
+    #[schema(required = true)]
     pub prix_unitaire: Option<f64>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
+#[schema(as = TransactionTotals)]
 pub struct Totals {
     pub count: usize,
     pub achats: f64,
@@ -43,8 +49,9 @@ pub struct Totals {
     pub in_progress: usize,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
+#[schema(as = TransactionMonth)]
 pub struct Month {
     pub month: String,
     pub achats: f64,
@@ -52,19 +59,22 @@ pub struct Month {
     pub count: usize,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
+#[schema(as = TransactionStatusChoice)]
 pub struct StatusChoice {
+    #[schema(value_type = super::openapi::TransactionStatus)]
     pub value: &'static str,
     pub label: &'static str,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct TransactionsResponse {
     pub totals: Totals,
     pub months: Vec<Month>,
     pub statuses: Vec<StatusChoice>,
+    #[schema(value_type = super::openapi::TransactionPage)]
     pub list: Page<Transaction>,
 }
 
@@ -110,6 +120,16 @@ pub fn summary_json(summary: &Summary) -> (Totals, Vec<Month>) {
     (totals, months)
 }
 
+/// Historique filtré (`transaction.historique`).
+#[utoipa::path(
+    get, path = "/api/guilds/{guild}/transactions", tag = "transactions", operation_id = "getTransactions",
+    params(("guild" = String, Path, description = "Identifiant du serveur"), HistoryQuery),
+    responses(
+        (status = 200, description = "Historique", body = TransactionsResponse),
+        (status = 401, description = "Pas connecté", body = super::ErrorBody),
+        (status = 403, description = "Droit insuffisant", body = super::ErrorBody),
+    )
+)]
 pub async fn list(
     State(ctx): State<Context>,
     session: Session,
@@ -138,6 +158,16 @@ pub async fn list(
     }))
 }
 
+/// Export CSV, mêmes filtres que la liste.
+#[utoipa::path(
+    get, path = "/api/guilds/{guild}/transactions/export.csv", tag = "transactions", operation_id = "exportTransactions",
+    params(("guild" = String, Path, description = "Identifiant du serveur"), HistoryQuery),
+    responses(
+        (status = 200, description = "Fichier CSV", content_type = "text/csv", body = String),
+        (status = 401, description = "Pas connecté", body = super::ErrorBody),
+        (status = 403, description = "Droit insuffisant", body = super::ErrorBody),
+    )
+)]
 pub async fn export(
     State(ctx): State<Context>,
     session: Session,

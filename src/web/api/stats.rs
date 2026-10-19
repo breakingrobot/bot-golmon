@@ -23,21 +23,25 @@ use serde::Serialize;
 use sqlx::FromRow;
 use std::collections::{HashMap, HashSet};
 use twilight_model::id::{Id, marker::GuildMarker};
+use utoipa::ToSchema;
 
 /// Semaines du graphique d'assiduité.
 const ATTENDANCE_WEEKS: i64 = 12;
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
+#[schema(as = StatsFigure)]
 pub struct Figure {
     pub key: &'static str,
     pub label: &'static str,
     pub value: String,
+    #[schema(required = true)]
     pub hint: Option<String>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
+#[schema(as = StatsAttendance)]
 pub struct Attendance {
     pub member: MemberRef,
     pub present: i64,
@@ -46,33 +50,37 @@ pub struct Attendance {
     pub percent: i64,
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct AttendanceWeek {
     pub week_start: String,
+    #[schema(required = true)]
     pub rate: Option<i64>,
     pub presences: i64,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct Veto {
     pub by: MemberRef,
     pub motif: String,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
+#[schema(as = StatsRecruit)]
 pub struct Recruit {
     pub member: MemberRef,
     pub pour: usize,
     pub contre: usize,
     pub blanc: usize,
+    #[schema(required = true)]
     pub veto: Option<Veto>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
+#[schema(as = StatsAbsence)]
 pub struct CurrentAbsence {
     pub member: MemberRef,
     pub from: String,
@@ -80,7 +88,7 @@ pub struct CurrentAbsence {
     pub motif: String,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct GuildStats {
     pub figures: Vec<Figure>,
@@ -88,6 +96,7 @@ pub struct GuildStats {
     pub attendance_weekly: Vec<AttendanceWeek>,
     pub recruits: Vec<Recruit>,
     pub absences_current: Vec<CurrentAbsence>,
+    #[schema(required = true)]
     pub tickets: Option<TicketStats>,
 }
 
@@ -216,6 +225,16 @@ async fn current_absences(ctx: &Ctx, guild: &str) -> Result<Vec<AbsenceRow>> {
     .await?)
 }
 
+/// Statistiques du serveur (`site.stats`).
+#[utoipa::path(
+    get, path = "/api/guilds/{guild}/stats", tag = "stats", operation_id = "getGuildStats",
+    params(("guild" = String, Path, description = "Identifiant du serveur")),
+    responses(
+        (status = 200, description = "Statistiques", body = GuildStats),
+        (status = 401, description = "Pas connecté", body = super::ErrorBody),
+        (status = 403, description = "Droit insuffisant", body = super::ErrorBody),
+    )
+)]
 pub async fn stats(State(ctx): State<Context>, session: Session, Path(guild): Path<String>) -> ApiResult {
     let guild_id = session.require(&guild, Perm::SiteStats)?;
     let data = page::build(&ctx, guild_id).await?;
