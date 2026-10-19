@@ -3,7 +3,7 @@ import { useGuild } from '@/lib/guild-context'
 import { Forbidden } from '@/molecules/Forbidden'
 import { MembersView } from '@/pages/members/MembersView'
 
-export function MembersPage() {
+export const MembersPage = () => {
   const { guild } = useGuild()
   if (!hasPerm(guild, 'membre.fiche')) return <Forbidden />
   return <MembersView />

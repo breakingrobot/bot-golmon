@@ -10,7 +10,9 @@ import { ChartTooltipBody } from '@/molecules/ChartTooltipBody'
 
 export type AttendancePoint = { weekStart: string; rate: number | null; presences: number }
 
-export function AttendanceChart({ data }: { data: AttendancePoint[] }) {
+export type AttendanceChartProps = { data: AttendancePoint[] }
+
+export const AttendanceChart = ({ data }: AttendanceChartProps) => {
   const series = ATTENDANCE_SERIES
   const definition = defineChart({
     marks: [

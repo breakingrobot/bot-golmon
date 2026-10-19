@@ -2,7 +2,9 @@ import type { ObjectiveProgress } from '@/api/types'
 import { formatMoney } from '@/lib/format'
 import { ShareBar } from '@/molecules/ShareBar'
 
-export function ObjectiveBar({ progress, className }: { progress: ObjectiveProgress; className?: string }) {
+export type ObjectiveBarProps = { progress: ObjectiveProgress; className?: string }
+
+export const ObjectiveBar = ({ progress, className }: ObjectiveBarProps) => {
   const tone = progress.exempt
     ? 'brand'
     : progress.reached

@@ -3,8 +3,10 @@ import { CircleCheck, CircleMinus } from 'lucide-react'
 import type { ObjectiveProgress } from '@/api/types'
 import { Badge } from '@/atoms/Badge'
 
+export type ObjectiveStatusProps = { progress: ObjectiveProgress }
+
 /** Avancement d'un membre vers l'objectif de la semaine. */
-export function ObjectiveStatus({ progress }: { progress: ObjectiveProgress }) {
+export const ObjectiveStatus = ({ progress }: ObjectiveStatusProps) => {
   if (progress.exempt) {
     return (
       <Badge variant="neutral">

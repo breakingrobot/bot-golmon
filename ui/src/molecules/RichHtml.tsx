@@ -14,39 +14,39 @@ export const FORMATS: Record<string, Intl.DateTimeFormatOptions> = {
   F: { dateStyle: 'full', timeStyle: 'short' },
 }
 
-export function localizeTimes(root: HTMLElement) {
+export const localizeTimes = (root: HTMLElement) => {
   for (const element of root.querySelectorAll<HTMLTimeElement>('time[data-local]')) {
     const date = new Date(element.dateTime)
     if (Number.isNaN(date.getTime())) continue
-    const style = element.dataset.format ?? 'f'
+    const style = element.dataset['format'] ?? 'f'
     element.textContent =
       style === 'R'
         ? formatRelative(date.toISOString())
-        : new Intl.DateTimeFormat('fr-FR', FORMATS[style] ?? FORMATS.f).format(date)
+        : new Intl.DateTimeFormat('fr-FR', FORMATS[style] ?? FORMATS['f']).format(date)
     element.title = date.toLocaleString('fr-FR')
   }
 }
 
-export function reveal(target: EventTarget) {
+export const reveal = (target: EventTarget) => {
   if (target instanceof Element) target.closest('.spoiler')?.classList.add('revealed')
 }
 
-export function RichHtml({ html, className }: { html: string; className?: string }) {
-  return (
-    // Les spoilers (span tabindex=0 rendus par le serveur) se révèlent au clic ou au clavier.
-    // oxlint-disable-next-line jsx-a11y/no-static-element-interactions, jsx-a11y/click-events-have-key-events
-    <div
-      // Heures locales appliquées à chaque rendu du HTML (callback ref, pas d'état).
-      ref={(node) => {
-        if (node) localizeTimes(node)
-      }}
-      className={cn('message-body', className)}
-      onClick={(event: MouseEvent) => reveal(event.target)}
-      onKeyDown={(event: KeyboardEvent) => {
-        if (event.key === 'Enter' || event.key === ' ') reveal(event.target)
-      }}
-      // HTML assaini côté serveur (contrat : `bodyHtml`, `detailsHtml`).
-      dangerouslySetInnerHTML={{ __html: html }}
-    />
-  )
-}
+export type RichHtmlProps = { html: string; className?: string }
+
+export const RichHtml = ({ html, className }: RichHtmlProps) => (
+  // Les spoilers (span tabindex=0 rendus par le serveur) se révèlent au clic ou au clavier.
+  // oxlint-disable-next-line jsx-a11y/no-static-element-interactions, jsx-a11y/click-events-have-key-events
+  <div
+    // Heures locales appliquées à chaque rendu du HTML (callback ref, pas d'état).
+    ref={(node) => {
+      if (node) localizeTimes(node)
+    }}
+    className={cn('message-body', className)}
+    onClick={(event: MouseEvent) => reveal(event.target)}
+    onKeyDown={(event: KeyboardEvent) => {
+      if (event.key === 'Enter' || event.key === ' ') reveal(event.target)
+    }}
+    // HTML assaini côté serveur (contrat : `bodyHtml`, `detailsHtml`).
+    dangerouslySetInnerHTML={{ __html: html }}
+  />
+)

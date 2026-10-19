@@ -9,9 +9,10 @@ import {
   DropdownMenuRadioItem,
   DropdownMenuTrigger,
 } from '@/atoms/DropdownMenu'
-import { type ThemeChoice, useTheme } from '@/state/theme'
+import { useTheme } from '@/state/theme'
+import type { ThemeChoice } from '@/state/theme'
 
-export function ThemeToggle() {
+export const ThemeToggle = () => {
   const { choice, resolved, setChoice } = useTheme()
   const Icon = choice === 'system' ? Monitor : resolved === 'dark' ? Moon : Sun
   return (

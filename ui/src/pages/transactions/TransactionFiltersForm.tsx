@@ -1,7 +1,7 @@
 import { Filter, X } from 'lucide-react'
 import { useState } from 'react'
 
-import { type TransactionFilters } from '@/api/queries'
+import type { TransactionFilters } from '@/api/queries'
 import type { TransactionStatus } from '@/api/types'
 import { Button } from '@/atoms/Button'
 import { Input } from '@/atoms/Input'
@@ -10,17 +10,14 @@ import { ALL, compact, fromSelect } from '@/lib/search'
 import { Field } from '@/molecules/Field'
 import { FilterBar } from '@/molecules/FilterBar'
 
-export function TransactionFiltersForm({
-  initial,
-  statuses,
-  onApply,
-  onReset,
-}: {
+export type TransactionFiltersFormProps = {
   initial: TransactionFilters
   statuses: { value: TransactionStatus; label: string }[]
   onApply: (filters: TransactionFilters) => void
   onReset: (() => void) | undefined
-}) {
+}
+
+export const TransactionFiltersForm = ({ initial, statuses, onApply, onReset }: TransactionFiltersFormProps) => {
   const [groupe, setGroupe] = useState(initial.groupe ?? '')
   const [statut, setStatut] = useState(initial.statut ?? ALL)
   const [type, setType] = useState(initial.type ?? ALL)

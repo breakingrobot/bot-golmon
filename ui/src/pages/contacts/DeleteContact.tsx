@@ -18,7 +18,9 @@ import { Button } from '@/atoms/Button'
 import { Input } from '@/atoms/Input'
 import { useGuild } from '@/lib/guild-context'
 
-export function DeleteContact({ contact, onDeleted }: { contact: Contact; onDeleted: () => void }) {
+export type DeleteContactProps = { contact: Contact; onDeleted: () => void }
+
+export const DeleteContact = ({ contact, onDeleted }: DeleteContactProps) => {
   const { guild } = useGuild()
   const mutation = useDeleteContact(guild.id)
   const [confirm, setConfirm] = useState('')

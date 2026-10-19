@@ -4,7 +4,9 @@ import { visiblePages } from '@/lib/guild'
 import { GuildIcon } from '@/molecules/GuildIcon'
 import { GuildPageLink } from '@/molecules/GuildPageLink'
 
-export function GuildTile({ guild, userId }: { guild: GuildAccess; userId: string }) {
+export type GuildTileProps = { guild: GuildAccess; userId: string }
+
+export const GuildTile = ({ guild, userId }: GuildTileProps) => {
   const pages = visiblePages(guild)
   return (
     <Card>

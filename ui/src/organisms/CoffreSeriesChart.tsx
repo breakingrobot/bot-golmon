@@ -22,8 +22,10 @@ import { ChartDataTable } from '@/molecules/ChartDataTable'
 import { ChartLegend } from '@/molecules/ChartLegend'
 import { ChartTooltipBody } from '@/molecules/ChartTooltipBody'
 
+export type CoffreSeriesChartProps = { series: CoffreSeries; itemLabel: string }
+
 /** Évolution d'un objet : stock cumulé (courbe), puis dépôts et retraits par jour (barres). */
-export function CoffreSeriesChart({ series: points, itemLabel }: { series: CoffreSeries; itemLabel: string }) {
+export const CoffreSeriesChart = ({ series: points, itemLabel }: CoffreSeriesChartProps) => {
   const stock = STOCK_SERIES
   const moves = MOVE_SERIES
   const stockDefinition = defineChart({

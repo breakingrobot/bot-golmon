@@ -6,8 +6,10 @@ import { EmptyState } from '@/molecules/EmptyState'
 import { Forbidden } from '@/molecules/Forbidden'
 import { NotFoundState } from '@/molecules/NotFoundState'
 
+export type QueryErrorProps = { error: unknown; retry?: () => void }
+
 /** Erreur d'une requête : 403 → accès refusé, 404 → introuvable, sinon message + réessayer. */
-export function QueryError({ error, retry }: { error: unknown; retry?: () => void }) {
+export const QueryError = ({ error, retry }: QueryErrorProps) => {
   if (error instanceof ApiRequestError && error.status === 403) return <Forbidden />
   if (error instanceof ApiRequestError && error.status === 404) return <NotFoundState>{error.message}</NotFoundState>
   if (error instanceof ApiRequestError && error.status === 401) {

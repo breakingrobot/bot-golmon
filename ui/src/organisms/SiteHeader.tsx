@@ -17,7 +17,9 @@ import { LoginLink } from '@/atoms/LoginLink'
 import { MemberAvatar } from '@/molecules/MemberAvatar'
 import { ThemeToggle } from '@/molecules/ThemeToggle'
 
-export function SiteHeader({ menu }: { menu?: ReactNode }) {
+export type SiteHeaderProps = { menu?: ReactNode }
+
+export const SiteHeader = ({ menu }: SiteHeaderProps) => {
   const me = useQuery(meQuery)
   const user = me.data?.user ?? null
   return (

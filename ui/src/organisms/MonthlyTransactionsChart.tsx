@@ -10,11 +10,12 @@ import { ChartDataTable } from '@/molecules/ChartDataTable'
 import { ChartLegend } from '@/molecules/ChartLegend'
 import { ChartTooltipBody } from '@/molecules/ChartTooltipBody'
 
-export function MonthlyTransactionsChart({ months }: { months: TransactionsResponse['months'] }) {
+export type MonthlyTransactionsChartProps = { months: TransactionsResponse['months'] }
+
+export const MonthlyTransactionsChart = ({ months }: MonthlyTransactionsChartProps) => {
   const series = TRANSACTION_SERIES
   // L'API donne les mois du plus récent au plus ancien : ordre chronologique pour le graphique.
   const rows = months.toReversed()
-  const money = (value: number) => formatMoney(value)
   const long = toLong(rows, 'month', TRANSACTION_SERIES)
   const definition = defineChart({
     marks: [
@@ -57,7 +58,7 @@ export function MonthlyTransactionsChart({ months }: { months: TransactionsRespo
               label={formatMonth(row.month, true)}
               row={row}
               series={series}
-              formatValue={money}
+              formatValue={formatMoney}
               footer={`${formatNumber(row.count)} transaction(s)`}
             />
           )
@@ -68,7 +69,7 @@ export function MonthlyTransactionsChart({ months }: { months: TransactionsRespo
         xKey="month"
         series={series}
         formatLabel={(month) => formatMonth(month, true)}
-        formatValue={money}
+        formatValue={formatMoney}
       />
     </>
   )

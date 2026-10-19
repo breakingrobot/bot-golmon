@@ -21,13 +21,15 @@ export const themeChoiceAtom = atomWithStorage<ThemeChoice>(
 )
 
 const darkQuery = () =>
-  typeof window !== 'undefined' && 'matchMedia' in window ? window.matchMedia('(prefers-color-scheme: dark)') : null
+  typeof globalThis !== 'undefined' && 'matchMedia' in globalThis
+    ? globalThis.matchMedia('(prefers-color-scheme: dark)')
+    : null
 
 /** Préférence du système, tenue à jour tant qu'un composant la lit. */
 export const systemDarkAtom = atom(darkQuery()?.matches ?? false)
 systemDarkAtom.onMount = (set) => {
   const query = darkQuery()
-  if (!query) return undefined
+  if (!query) return
   set(query.matches)
   const onChange = (event: MediaQueryListEvent) => set(event.matches)
   query.addEventListener('change', onChange)
@@ -40,14 +42,14 @@ export const resolvedThemeAtom = atom<ResolvedTheme>((get) => {
   return get(systemDarkAtom) ? 'dark' : 'light'
 })
 
-export function useTheme() {
+export const useTheme = () => {
   const [choice, setChoice] = useAtom(themeChoiceAtom)
   const resolved = useAtomValue(resolvedThemeAtom)
   return { choice, resolved, setChoice }
 }
 
 /** Applique le thème résolu à <html> (classe `dark` et `color-scheme`), comme theme-init.js. */
-export function ThemeSync() {
+export const ThemeSync = () => {
   const resolved = useAtomValue(resolvedThemeAtom)
   useEffect(() => {
     document.documentElement.classList.toggle('dark', resolved === 'dark')

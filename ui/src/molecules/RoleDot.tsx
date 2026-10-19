@@ -1,6 +1,8 @@
 import { roleColor } from '@/lib/utils'
 
-export function RoleDot({ color }: { color: number | null }) {
+export type RoleDotProps = { color: number | null }
+
+export const RoleDot = ({ color }: RoleDotProps) => {
   const css = roleColor(color)
   return (
     <span

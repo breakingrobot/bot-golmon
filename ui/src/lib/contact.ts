@@ -1,7 +1,7 @@
 import type { ContactKind, Relation } from '@/api/types'
 import type { BadgeVariant } from '@/atoms/Badge'
 
-export const LIMITS = { name: 80, phone: 30, description: 500, note: 1000 } as const
+export const LIMITS = { name: 80, phone: 30, description: 500, note: 1000 } as const satisfies Record<string, number>
 
 export const KIND_LABELS: Record<ContactKind, string> = {
   GROUPE: 'Groupe',

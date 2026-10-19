@@ -6,18 +6,23 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/ato
 import { LoginLink } from '@/atoms/LoginLink'
 
 /** Retour de `/auth/callback` ou `/login` en erreur (`/?connexion=refusee|indisponible`). */
-export function loginProblem(): string | null {
-  switch (new URLSearchParams(window.location.search).get('connexion')) {
-    case 'refusee':
+export const loginProblem = (): string | null => {
+  switch (new URLSearchParams(globalThis.location.search).get('connexion')) {
+    case 'refusee': {
       return 'La connexion a échoué ou a expiré. Réessayez.'
-    case 'indisponible':
+    }
+    case 'indisponible': {
       return "La connexion Discord n'est pas configurée sur ce bot (DISCORD_CLIENT_SECRET et WEB_URL)."
-    default:
+    }
+    default: {
       return null
+    }
   }
 }
 
-export function LoginCard({ me }: { me: Me }) {
+export type LoginCardProps = { me: Me }
+
+export const LoginCard = ({ me }: LoginCardProps) => {
   const problem = loginProblem()
   return (
     <div className="mx-auto mt-8 max-w-md">

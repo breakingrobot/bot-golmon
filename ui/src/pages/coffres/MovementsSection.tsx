@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 
-import { type CoffreFilters, coffreMovementsQuery } from '@/api/queries'
+import { coffreMovementsQuery } from '@/api/queries'
+import type { CoffreFilters } from '@/api/queries'
 import { Card } from '@/atoms/Card'
 import { formatNumber } from '@/lib/format'
 import { cn } from '@/lib/utils'
@@ -11,17 +12,14 @@ import { Section } from '@/molecules/Section'
 import { TableSkeleton } from '@/molecules/TableSkeleton'
 import { MovementsTable } from '@/organisms/MovementsTable'
 
-export function MovementsSection({
-  guildId,
-  filters,
-  page,
-  onPage,
-}: {
+export type MovementsSectionProps = {
   guildId: string
   filters: CoffreFilters
   page: number
   onPage: (page: number) => void
-}) {
+}
+
+export const MovementsSection = ({ guildId, filters, page, onPage }: MovementsSectionProps) => {
   const movements = useQuery(coffreMovementsQuery(guildId, filters, page))
   return (
     <Section

@@ -6,7 +6,7 @@ import { PageSkeleton } from '@/molecules/PageSkeleton'
 import { QueryError } from '@/molecules/QueryError'
 import { PermissionsForm } from '@/pages/permissions/PermissionsForm'
 
-export function PermissionsView() {
+export const PermissionsView = () => {
   const { guild } = useGuild()
   const query = useQuery(permissionsQuery(guild.id))
   if (query.isPending) return <PageSkeleton stats={0} rows={12} />

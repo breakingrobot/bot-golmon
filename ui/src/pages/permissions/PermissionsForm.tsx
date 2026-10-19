@@ -18,7 +18,9 @@ import { RoleDot } from '@/molecules/RoleDot'
 import { Section } from '@/molecules/Section'
 import { RoleInfo } from '@/pages/permissions/RoleInfo'
 
-export function PermissionsForm({ data }: { data: PermissionsResponse }) {
+export type PermissionsFormProps = { data: PermissionsResponse }
+
+export const PermissionsForm = ({ data }: PermissionsFormProps) => {
   const { guild } = useGuild()
   const client = useQueryClient()
   const mutation = useSavePermissions(guild.id)
@@ -41,7 +43,7 @@ export function PermissionsForm({ data }: { data: PermissionsResponse }) {
   if (Object.keys(changedLevels).length > 0) update.levels = changedLevels
   const initialRole = data.roles.member?.id ?? NO_ROLE
   if (memberRole !== initialRole) update.memberRoleId = memberRole === NO_ROLE ? null : memberRole
-  const dirtyCount = Object.keys(changedLevels).length + (update.memberRoleId !== undefined ? 1 : 0)
+  const dirtyCount = Object.keys(changedLevels).length + (update.memberRoleId === undefined ? 0 : 1)
 
   const save = () =>
     mutation.mutate(update, {

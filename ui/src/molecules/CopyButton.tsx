@@ -4,13 +4,15 @@ import { toast } from 'sonner'
 
 import { Button } from '@/atoms/Button'
 
-export function CopyButton({ text, label = 'Copier' }: { text: string; label?: string }) {
+export type CopyButtonProps = { text: string; label?: string }
+
+export const CopyButton = ({ text, label = 'Copier' }: CopyButtonProps) => {
   const [copied, setCopied] = useState(false)
 
   useEffect(() => {
     if (!copied) return
-    const timer = window.setTimeout(() => setCopied(false), 1500)
-    return () => window.clearTimeout(timer)
+    const timer = globalThis.setTimeout(() => setCopied(false), 1500)
+    return () => globalThis.clearTimeout(timer)
   }, [copied])
 
   return (

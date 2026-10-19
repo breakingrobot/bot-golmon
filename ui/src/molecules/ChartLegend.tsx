@@ -1,6 +1,8 @@
 import type { Series } from '@/lib/charts'
 
-export function ChartLegend({ series }: { series: Series[] }) {
+export type ChartLegendProps = { series: Series[] }
+
+export const ChartLegend = ({ series }: ChartLegendProps) => {
   if (series.length < 2) return null
   return (
     <ul className="mb-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-ink-muted" aria-label="Légende">

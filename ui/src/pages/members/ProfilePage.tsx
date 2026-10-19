@@ -12,7 +12,7 @@ import { ProfileView } from '@/pages/members/ProfileView'
 
 const route = getRouteApi('/serveurs/$guildId/membres/$userId')
 
-export function ProfilePage() {
+export const ProfilePage = () => {
   const { guild, userId: me } = useGuild()
   const { userId } = route.useParams()
   const query = useQuery(memberProfileQuery(guild.id, userId))

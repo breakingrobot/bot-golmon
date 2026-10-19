@@ -9,7 +9,7 @@ import { PageSkeleton } from '@/molecules/PageSkeleton'
 import { QueryError } from '@/molecules/QueryError'
 import { TicketStatsBlock } from '@/organisms/TicketStatsBlock'
 
-export function StaffView() {
+export const StaffView = () => {
   const query = useQuery(ticketStaffQuery)
   return (
     <>

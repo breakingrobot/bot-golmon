@@ -18,17 +18,14 @@ import { StatGrid } from '@/molecules/StatGrid'
 import { EntriesTable } from '@/organisms/EntriesTable'
 import { WeeklyCotisationsChart } from '@/organisms/WeeklyCotisationsChart'
 
-export function CotisationsContent({
-  data,
-  filteredMember,
-  onMember,
-  onPage,
-}: {
+export type CotisationsContentProps = {
   data: CotisationsResponse
   filteredMember: boolean
   onMember: (memberId: string) => void
   onPage: (page: number) => void
-}) {
+}
+
+export const CotisationsContent = ({ data, filteredMember, onMember, onPage }: CotisationsContentProps) => {
   const { guild } = useGuild()
   const total = data.totals.propre + data.totals.sale
   return (

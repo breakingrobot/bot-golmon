@@ -6,7 +6,7 @@ import { QueryError } from '@/molecules/QueryError'
 import { HomeContent } from '@/pages/home/HomeContent'
 import { PageContainer } from '@/templates/PageContainer'
 
-export function HomePage() {
+export const HomePage = () => {
   const me = useQuery(meQuery)
   return (
     <PageContainer>

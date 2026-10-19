@@ -1,7 +1,8 @@
 import { Car, Phone } from 'lucide-react'
 
 import type { MemberProfile } from '@/api/types'
-import { Badge, type BadgeVariant } from '@/atoms/Badge'
+import { Badge } from '@/atoms/Badge'
+import type { BadgeVariant } from '@/atoms/Badge'
 import { Card, CardContent } from '@/atoms/Card'
 import {
   formatDate,
@@ -38,7 +39,9 @@ export const PRESENCE_STATUS: Record<
   NON_REPONDU: { label: 'Sans réponse', variant: 'neutral' },
 }
 
-export function ProfileView({ profile, own }: { profile: MemberProfile; own: boolean }) {
+export type ProfileViewProps = { profile: MemberProfile; own: boolean }
+
+export const ProfileView = ({ profile, own }: ProfileViewProps) => {
   const { guild } = useGuild()
   const canManage = hasPerm(guild, 'cotisation.gerer')
   const canAdd = own ? hasPerm(guild, 'cotisation.ajouter') : canManage

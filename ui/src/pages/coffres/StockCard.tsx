@@ -8,15 +8,13 @@ import { formatNumber } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { RenamePropertyDialog } from '@/organisms/RenamePropertyDialog'
 
-export function StockCard({
-  property,
-  guildId,
-  canManage,
-}: {
+export type StockCardProps = {
   property: CoffreStock['properties'][number]
   guildId: string
   canManage: boolean
-}) {
+}
+
+export const StockCard = ({ property, guildId, canManage }: StockCardProps) => {
   const lowCount = property.items.filter((item) => item.low).length
   return (
     <Card className="gap-3">

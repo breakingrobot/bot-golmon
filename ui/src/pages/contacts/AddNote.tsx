@@ -1,5 +1,6 @@
 import { StickyNote } from 'lucide-react'
-import { type FormEvent, useState } from 'react'
+import { useState } from 'react'
+import type { FormEvent } from 'react'
 
 import { useAddContactNote } from '@/api/queries'
 import { Button } from '@/atoms/Button'
@@ -8,7 +9,9 @@ import { LIMITS } from '@/lib/contact'
 import { CharCount } from '@/molecules/CharCount'
 import { Field } from '@/molecules/Field'
 
-export function AddNote({ guildId, contactId }: { guildId: string; contactId: string }) {
+export type AddNoteProps = { guildId: string; contactId: string }
+
+export const AddNote = ({ guildId, contactId }: AddNoteProps) => {
   const [body, setBody] = useState('')
   const [error, setError] = useState<string | null>(null)
   const mutation = useAddContactNote(guildId)

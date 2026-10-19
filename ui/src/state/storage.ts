@@ -14,10 +14,10 @@ export type SyncStorage<Value> = {
  * `isValid` filtre les valeurs relues (clé modifiée à la main, ancienne version) ;
  * écrire `empty` (valeur par défaut) retire la clé.
  */
-export function rawLocalStorage<Value extends string | null>(
+export const rawLocalStorage = <Value extends string | null>(
   isValid: (value: string) => value is Exclude<Value, null>,
   empty: Value,
-): SyncStorage<Value> {
+): SyncStorage<Value> => {
   const read = (key: string, initialValue: Value): Value => {
     try {
       const value = localStorage.getItem(key)
@@ -44,12 +44,12 @@ export function rawLocalStorage<Value extends string | null>(
       }
     },
     // Changement fait dans un autre onglet.
-    subscribe: (key, callback, initialValue) => {
+    subscribe: (key, notify, initialValue) => {
       const onStorage = (event: StorageEvent) => {
-        if (event.storageArea === localStorage && event.key === key) callback(read(key, initialValue))
+        if (event.storageArea === localStorage && event.key === key) notify(read(key, initialValue))
       }
-      window.addEventListener('storage', onStorage)
-      return () => window.removeEventListener('storage', onStorage)
+      globalThis.addEventListener('storage', onStorage)
+      return () => globalThis.removeEventListener('storage', onStorage)
     },
   }
 }

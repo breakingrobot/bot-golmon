@@ -6,7 +6,9 @@ import { useGuild } from '@/lib/guild-context'
 import { MemberName } from '@/molecules/MemberName'
 import { DeleteCotisation } from '@/organisms/DeleteCotisation'
 
-export function EntriesTable({ entries, showMember = true }: { entries: CotisationEntry[]; showMember?: boolean }) {
+export type EntriesTableProps = { entries: CotisationEntry[]; showMember?: boolean }
+
+export const EntriesTable = ({ entries, showMember = true }: EntriesTableProps) => {
   const { guild, userId } = useGuild()
   const canManage = hasPerm(guild, 'cotisation.gerer')
   return (

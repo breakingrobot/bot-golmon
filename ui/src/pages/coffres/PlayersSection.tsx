@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 
-import { type CoffreFilters, coffrePlayersQuery } from '@/api/queries'
+import { coffrePlayersQuery } from '@/api/queries'
+import type { CoffreFilters } from '@/api/queries'
 import type { CoffreMeta } from '@/api/types'
 import { Card } from '@/atoms/Card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/atoms/Table'
@@ -13,17 +14,14 @@ import { TableSkeleton } from '@/molecules/TableSkeleton'
 import { LinkCharacterDialog } from '@/organisms/LinkCharacterDialog'
 import { UnlinkCharacterButton } from '@/organisms/UnlinkCharacterButton'
 
-export function PlayersSection({
-  guildId,
-  filters,
-  meta,
-  canManage,
-}: {
+export type PlayersSectionProps = {
   guildId: string
   filters: CoffreFilters
   meta: CoffreMeta | undefined
   canManage: boolean
-}) {
+}
+
+export const PlayersSection = ({ guildId, filters, meta, canManage }: PlayersSectionProps) => {
   const players = useQuery(coffrePlayersQuery(guildId, filters))
   return (
     <Section title="Par joueur" description="Activité de chaque personnage sur la sélection, et membre Discord relié.">

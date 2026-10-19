@@ -18,7 +18,9 @@ export const TONE: Record<LogEntry['kind'], { card: string; avatar: string; badg
   danger: { card: 'border-danger/40', avatar: 'bg-danger-soft text-danger', badge: 'bg-danger-soft text-danger' },
 }
 
-export function LogEntryCard({ entry, verbose }: { entry: LogEntry; verbose: boolean }) {
+export type LogEntryCardProps = { entry: LogEntry; verbose: boolean }
+
+export const LogEntryCard = ({ entry, verbose }: LogEntryCardProps) => {
   const tone = TONE[entry.kind]
   return (
     <article className={cn('rounded-xl border bg-card px-4 py-3 sm:px-5', tone.card)}>

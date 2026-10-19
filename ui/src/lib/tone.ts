@@ -10,7 +10,7 @@ export const toneClass: Record<Tone, string> = {
   muted: 'text-ink-muted',
 }
 
-export function attendanceTone(percent: number): 'staff' | 'internal' | 'danger' {
+export const attendanceTone = (percent: number): 'staff' | 'internal' | 'danger' => {
   if (percent >= 75) return 'staff'
   if (percent >= 50) return 'internal'
   return 'danger'

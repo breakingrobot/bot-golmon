@@ -18,7 +18,9 @@ import { Button } from '@/atoms/Button'
 import { formatDay, formatMoney } from '@/lib/format'
 import { useGuild } from '@/lib/guild-context'
 
-export function DeleteCotisation({ entry }: { entry: CotisationEntry }) {
+export type DeleteCotisationProps = { entry: CotisationEntry }
+
+export const DeleteCotisation = ({ entry }: DeleteCotisationProps) => {
   const { guild } = useGuild()
   const mutation = useDeleteCotisation(guild.id)
   const [open, setOpen] = useState(false)

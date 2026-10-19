@@ -2,7 +2,8 @@ import { useQuery } from '@tanstack/react-query'
 import { getRouteApi, useNavigate } from '@tanstack/react-router'
 
 import { csvUrl } from '@/api/client'
-import { type CotisationFilters, cotisationsQuery } from '@/api/queries'
+import { cotisationsQuery } from '@/api/queries'
+import type { CotisationFilters } from '@/api/queries'
 import { ToggleGroup, ToggleGroupItem } from '@/atoms/ToggleGroup'
 import { hasPerm } from '@/lib/guild'
 import { useGuild } from '@/lib/guild-context'
@@ -13,13 +14,14 @@ import { PageHeader } from '@/molecules/PageHeader'
 import { PageSkeleton } from '@/molecules/PageSkeleton'
 import { QueryError } from '@/molecules/QueryError'
 import { AddCotisationDialog } from '@/organisms/AddCotisationDialog'
-import { type Period, PERIODS } from '@/pages/cotisations/cotisations-search'
+import { PERIODS } from '@/pages/cotisations/cotisations-search'
+import type { Period } from '@/pages/cotisations/cotisations-search'
 import { CotisationsContent } from '@/pages/cotisations/CotisationsContent'
 import { MemberFilter } from '@/pages/cotisations/MemberFilter'
 
 const route = getRouteApi('/serveurs/$guildId/cotisations')
 
-export function CotisationsView() {
+export const CotisationsView = () => {
   const { guild } = useGuild()
   const search = route.useSearch()
   const navigate = useNavigate({ from: '/serveurs/$guildId/cotisations' })
@@ -47,8 +49,9 @@ export function CotisationsView() {
           type="single"
           value={jours}
           onValueChange={(value) => {
-            if (value)
+            if (value) {
               void navigate({ search: (prev) => compact({ ...prev, jours: value as Period, page: undefined }) })
+            }
           }}
           aria-label="Période"
         >

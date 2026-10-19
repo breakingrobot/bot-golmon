@@ -20,7 +20,7 @@ export const STATUS: Record<
   off: { label: 'Non utilisé', variant: 'neutral' },
 }
 
-export function ModulesStatus() {
+export const ModulesStatus = () => {
   const { guild } = useGuild()
   const query = useQuery(configQuery(guild.id))
   return (

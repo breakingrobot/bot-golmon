@@ -48,7 +48,6 @@ import {
   coffreAlerts,
   daysAgo,
   GUILD_B_ID,
-  GUILD_ID,
   GUILDS,
   int,
   ITEMS,
@@ -81,20 +80,22 @@ import {
 } from './fixtures'
 
 class HttpError extends Error {
-  constructor(
-    readonly status: number,
-    message: string,
-  ) {
+  readonly status: number
+
+  constructor(status: number, message: string) {
     super(message)
+    this.name = 'HttpError'
+    this.status = status
   }
 }
 
 type Scenario = 'admin' | 'membre' | 'aucun' | 'anon'
 
-function scenario(): Scenario {
-  const fromUrl = new URL(window.location.href).searchParams.get('mock')
-  const valid = (value: string | null): value is Scenario =>
-    value === 'admin' || value === 'membre' || value === 'aucun' || value === 'anon'
+const valid = (value: string | null): value is Scenario =>
+  value === 'admin' || value === 'membre' || value === 'aucun' || value === 'anon'
+
+const scenario = (): Scenario => {
+  const fromUrl = new URL(globalThis.location.href).searchParams.get('mock')
   try {
     if (valid(fromUrl)) sessionStorage.setItem('mock', fromUrl)
     const stored = sessionStorage.getItem('mock')
@@ -116,13 +117,13 @@ const MEMBER_PERMS: Perm[] = [
   'coffre.voir',
 ]
 
-function guildsFor(current: Scenario): GuildAccess[] {
+const guildsFor = (current: Scenario): GuildAccess[] => {
   if (current === 'aucun' || current === 'anon') return []
   if (current === 'membre') return GUILDS.map((guild) => ({ ...guild, isAdmin: false, perms: MEMBER_PERMS }))
   return GUILDS
 }
 
-function me(): Me {
+const me = (): Me => {
   const current = scenario()
   return {
     user: current === 'anon' ? null : { id: ME.id, name: ME.name, avatarUrl: null },
@@ -134,7 +135,7 @@ function me(): Me {
   }
 }
 
-function requireGuild(guildId: string, perm?: Perm | 'admin'): GuildAccess {
+const requireGuild = (guildId: string, perm?: Perm | 'admin'): GuildAccess => {
   const current = scenario()
   if (current === 'anon') throw new HttpError(401, 'Connexion requise.')
   const guild = guildsFor(current).find((item) => item.id === guildId)
@@ -149,37 +150,31 @@ function requireGuild(guildId: string, perm?: Perm | 'admin'): GuildAccess {
   return guild
 }
 
-function paginate<T>(items: T[], page: number, pageSize = 25): Page<T> {
+const paginate = <T>(items: T[], page: number, pageSize = 25): Page<T> => {
   const safe = Math.max(1, page)
   return { items: items.slice((safe - 1) * pageSize, safe * pageSize), total: items.length, page: safe, pageSize }
 }
 
-function memberById(id: string): MemberRef {
+const memberById = (id: string): MemberRef => {
   const found = MEMBERS.find((item) => item.id === id)
   if (!found) throw new HttpError(404, 'Membre introuvable sur ce serveur.')
   return found
 }
 
-function memberIndex(id: string): number {
-  return MEMBERS.findIndex((item) => item.id === id)
-}
+const memberIndex = (id: string): number => MEMBERS.findIndex((item) => item.id === id)
 
 /** Les recrues de la maquette n'ont pas le rôle membre : rien n'est enregistré pour elles. */
-function requireMemberRole(person: MemberRef) {
+const requireMemberRole = (person: MemberRef) => {
   if (memberIndex(person.id) >= 14) {
     throw new HttpError(422, `${person.name} n'a pas le rôle membre : rien n'est enregistré pour cette personne.`)
   }
 }
 
-function today(): string {
-  return parisDay(NOW)
-}
+const today = (): string => parisDay(NOW)
 
-function sinceDay(days: number | null): string | null {
-  return days === null ? null : addDays(today(), -days + 1)
-}
+const sinceDay = (days: number | null): string | null => (days === null ? null : addDays(today(), -days + 1))
 
-function parseDays(raw: string | null, fallback: number | null): number | null {
+const parseDays = (raw: string | null, fallback: number | null): number | null => {
   if (raw === 'tout') return null
   const value = Number(raw)
   return raw && Number.isInteger(value) && value > 0 && value <= 3650 ? value : fallback
@@ -188,19 +183,19 @@ function parseDays(raw: string | null, fallback: number | null): number | null {
 // ---------------------------------------------------------------------------
 // Statistiques
 
-function weeks(count: number, end = today()): string[] {
+const weeks = (count: number, end = today()): string[] => {
   const last = mondayOf(end)
   return Array.from({ length: count }, (_, index) => addDays(last, (index - count + 1) * 7))
 }
 
 let statsCache: GuildStats | null = null
 
-function stats(): GuildStats {
+const stats = (): GuildStats => {
   statsCache ??= buildStats()
   return statsCache
 }
 
-function buildStats(): GuildStats {
+const buildStats = (): GuildStats => {
   const attendance = MEMBERS.slice(0, 14).map((ref, index) => {
     const present = int(12, 30) - (index % 5) * 2
     const retard = int(0, 6)
@@ -249,26 +244,24 @@ function buildStats(): GuildStats {
   }
 }
 
-function ticketStats(): TicketStats {
-  return {
-    open: 4,
-    opened: 41,
-    closed: 38,
-    unanswered: 1,
-    medianFirstResponse: '12 min',
-    staff: [
-      { name: 'Marco', replies: 64, tickets: 22, claims: 14, firstResponses: 15, averageFirstResponse: '9 min' },
-      { name: 'Inès', replies: 51, tickets: 19, claims: 11, firstResponses: 12, averageFirstResponse: '14 min' },
-      { name: 'Hugo', replies: 23, tickets: 9, claims: 5, firstResponses: 6, averageFirstResponse: '31 min' },
-      { name: 'Sacha', replies: 7, tickets: 4, claims: 1, firstResponses: 2, averageFirstResponse: null },
-    ],
-  }
-}
+const ticketStats = (): TicketStats => ({
+  open: 4,
+  opened: 41,
+  closed: 38,
+  unanswered: 1,
+  medianFirstResponse: '12 min',
+  staff: [
+    { name: 'Marco', replies: 64, tickets: 22, claims: 14, firstResponses: 15, averageFirstResponse: '9 min' },
+    { name: 'Inès', replies: 51, tickets: 19, claims: 11, firstResponses: 12, averageFirstResponse: '14 min' },
+    { name: 'Hugo', replies: 23, tickets: 9, claims: 5, firstResponses: 6, averageFirstResponse: '31 min' },
+    { name: 'Sacha', replies: 7, tickets: 4, claims: 1, firstResponses: 2, averageFirstResponse: null },
+  ],
+})
 
 // ---------------------------------------------------------------------------
 // Transactions
 
-function transactions(params: URLSearchParams): TransactionsResponse {
+const transactions = (params: URLSearchParams): TransactionsResponse => {
   const groupe = params.get('groupe')?.toLowerCase() ?? ''
   const statut = params.get('statut') ?? ''
   const type = params.get('type') ?? ''
@@ -310,7 +303,7 @@ function transactions(params: URLSearchParams): TransactionsResponse {
         ['PREPARATION', 'EN_ATTENTE_RDV', 'AVANCE_ATTENTE_PAIEMENT'].includes(item.status),
       ).length,
     },
-    months: [...months.values()].sort((a, b) => b.month.localeCompare(a.month)).slice(0, 12),
+    months: [...months.values()].toSorted((a, b) => b.month.localeCompare(a.month)).slice(0, 12),
     statuses: (Object.keys(STATUS_LABELS) as TransactionStatus[]).map((value) => ({
       value,
       label: STATUS_LABELS[value],
@@ -322,11 +315,10 @@ function transactions(params: URLSearchParams): TransactionsResponse {
 // ---------------------------------------------------------------------------
 // Cotisations
 
-function objectiveAmount(entry: { propre: number; sale: number }, counts: Objective['counts']): number {
-  return counts === 'propre' ? entry.propre : counts === 'sale' ? entry.sale : entry.propre + entry.sale
-}
+const objectiveAmount = (entry: { propre: number; sale: number }, counts: Objective['counts']): number =>
+  counts === 'propre' ? entry.propre : counts === 'sale' ? entry.sale : entry.propre + entry.sale
 
-function objectiveProgress(onlyMember?: string): ObjectiveProgress[] {
+const objectiveProgress = (onlyMember?: string): ObjectiveProgress[] => {
   const current = objective.value
   if (!current) return []
   const monday = mondayOf(today())
@@ -345,11 +337,11 @@ function objectiveProgress(onlyMember?: string): ObjectiveProgress[] {
         exempt: index === 6 || index >= 14,
       }
     })
-    .sort((a, b) => a.amount / a.target - b.amount / b.target)
+    .toSorted((a, b) => a.amount / a.target - b.amount / b.target)
 }
 
-function weeklyOf(entries: CotisationEntry[], count: number): WeeklyAmount[] {
-  return weeks(count).map((weekStart) => {
+const weeklyOf = (entries: CotisationEntry[], count: number): WeeklyAmount[] =>
+  weeks(count).map((weekStart) => {
     const end = addDays(weekStart, 7)
     const inWeek = entries.filter((entry) => entry.date >= weekStart && entry.date < end)
     return {
@@ -358,19 +350,18 @@ function weeklyOf(entries: CotisationEntry[], count: number): WeeklyAmount[] {
       sale: inWeek.reduce((sum, entry) => sum + entry.sale, 0),
     }
   })
-}
 
-function cotisationsFiltered(params: URLSearchParams): { entries: CotisationEntry[]; days: number | null } {
+const cotisationsFiltered = (params: URLSearchParams): { entries: CotisationEntry[]; days: number | null } => {
   const days = parseDays(params.get('jours'), null)
   const since = sinceDay(days)
   const membre = params.get('membre')
   const entries = COTISATIONS.filter(
     (entry) => (!since || entry.date >= since) && (!membre || entry.member.id === membre),
-  ).sort((a, b) => b.date.localeCompare(a.date))
+  ).toSorted((a, b) => b.date.localeCompare(a.date))
   return { entries, days }
 }
 
-function cotisations(params: URLSearchParams): CotisationsResponse {
+const cotisations = (params: URLSearchParams): CotisationsResponse => {
   const { entries, days } = cotisationsFiltered(params)
   const byMember = new Map<string, { member: MemberRef; propre: number; sale: number; count: number }>()
   for (const entry of entries) {
@@ -387,7 +378,7 @@ function cotisations(params: URLSearchParams): CotisationsResponse {
       propre: entries.reduce((sum, entry) => sum + entry.propre, 0),
       sale: entries.reduce((sum, entry) => sum + entry.sale, 0),
     },
-    members: [...byMember.values()].sort((a, b) => b.propre + b.sale - (a.propre + a.sale)),
+    members: [...byMember.values()].toSorted((a, b) => b.propre + b.sale - (a.propre + a.sale)),
     weekly: weeklyOf(entries, weekCount),
     entries: paginate(entries, Number(params.get('page') ?? 1)),
     objective: objective.value,
@@ -395,7 +386,7 @@ function cotisations(params: URLSearchParams): CotisationsResponse {
   }
 }
 
-function cotisationsCsv(params: URLSearchParams): string {
+const cotisationsCsv = (params: URLSearchParams): string => {
   const { entries } = cotisationsFiltered(params)
   const lines = entries.map((entry) =>
     [entry.date, entry.member.name, entry.propre, entry.sale, entry.description, entry.declaredBy?.name ?? ''].join(
@@ -405,7 +396,7 @@ function cotisationsCsv(params: URLSearchParams): string {
   return ['Date;Membre;Propre;Sale;Description;Déclarée par', ...lines].join('\n')
 }
 
-function addCotisation(body: NewCotisation): CotisationEntry {
+const addCotisation = (body: NewCotisation): CotisationEntry => {
   const propre = Math.trunc(body.propre)
   const sale = Math.trunc(body.sale)
   if (propre < 0 || sale < 0) throw new HttpError(422, 'Les montants ne peuvent pas être négatifs.')
@@ -431,12 +422,12 @@ function addCotisation(body: NewCotisation): CotisationEntry {
 // ---------------------------------------------------------------------------
 // Coffres
 
-function linkedMember(gameId: string | null): MemberRef | null {
+const linkedMember = (gameId: string | null): MemberRef | null => {
   const id = gameId ? LINKS.get(gameId) : undefined
   return id ? memberById(id) : null
 }
 
-function withLinks(movement: CoffreMovement): CoffreMovement {
+const withLinks = (movement: CoffreMovement): CoffreMovement => {
   const property = PROPERTIES.find((item) => item.id === movement.propertyId)
   return {
     ...movement,
@@ -445,7 +436,7 @@ function withLinks(movement: CoffreMovement): CoffreMovement {
   }
 }
 
-function filteredMovements(params: URLSearchParams): CoffreMovement[] {
+const filteredMovements = (params: URLSearchParams): CoffreMovement[] => {
   const property = params.get('propriete')
   const item = params.get('objet')
   const player = params.get('joueur')
@@ -459,29 +450,27 @@ function filteredMovements(params: URLSearchParams): CoffreMovement[] {
       (!player || movement.player.gameId === player) &&
       (!type || (type === 'deposit' ? movement.kind === 'DEPOSIT' : movement.kind === 'WITHDRAW')) &&
       (since === null || new Date(movement.at).getTime() >= since),
-  ).map(withLinks)
+  ).map((movement) => withLinks(movement))
 }
 
-function coffreMeta(): CoffreMeta {
-  return {
-    properties: PROPERTIES,
-    items: ITEMS,
-    links: [...LINKS.entries()].map(([gameId, memberId]) => ({
-      gameId,
-      name: CHARACTERS.find((item) => item.gameId === gameId)?.name ?? gameId,
-      member: memberById(memberId),
-    })),
-    channels: [
-      { channelId: '1290000000000000010', name: 'logs-coffre-port', webhookKnown: true },
-      { channelId: '1290000000000000011', name: 'logs-coffre-elysian', webhookKnown: true },
-      { channelId: '1290000000000000012', name: null, webhookKnown: false },
-    ],
-  }
-}
+const coffreMeta = (): CoffreMeta => ({
+  properties: PROPERTIES,
+  items: ITEMS,
+  links: [...LINKS.entries()].map(([gameId, memberId]) => ({
+    gameId,
+    name: CHARACTERS.find((item) => item.gameId === gameId)?.name ?? gameId,
+    member: memberById(memberId),
+  })),
+  channels: [
+    { channelId: '1290000000000000010', name: 'logs-coffre-port', webhookKnown: true },
+    { channelId: '1290000000000000011', name: 'logs-coffre-elysian', webhookKnown: true },
+    { channelId: '1290000000000000012', name: null, webhookKnown: false },
+  ],
+})
 
-function coffreStock(params: URLSearchParams): CoffreStock {
+const coffreStock = (params: URLSearchParams): CoffreStock => {
   const only = params.get('propriete')
-  const thresholds = coffreAlerts.value.thresholds
+  const { thresholds } = coffreAlerts.value
   return {
     properties: PROPERTIES.filter((property) => !only || property.id === only).map((property) => ({
       id: property.id,
@@ -506,7 +495,7 @@ function coffreStock(params: URLSearchParams): CoffreStock {
   }
 }
 
-function coffrePlayers(params: URLSearchParams): CoffrePlayer[] {
+const coffrePlayers = (params: URLSearchParams): CoffrePlayer[] => {
   const players = new Map<string, CoffrePlayer>()
   for (const movement of filteredMovements(params)) {
     const key = movement.player.gameId ?? movement.player.name
@@ -523,10 +512,10 @@ function coffrePlayers(params: URLSearchParams): CoffrePlayer[] {
     row.count += 1
     players.set(key, row)
   }
-  return [...players.values()].sort((a, b) => b.count - a.count)
+  return [...players.values()].toSorted((a, b) => b.count - a.count)
 }
 
-function coffreSeries(params: URLSearchParams): CoffreSeries {
+const coffreSeries = (params: URLSearchParams): CoffreSeries => {
   const item = params.get('objet')
   if (!item) throw new HttpError(400, 'Choisissez un objet.')
   const property = params.get('propriete')
@@ -554,7 +543,7 @@ function coffreSeries(params: URLSearchParams): CoffreSeries {
 const KINDS = new Set<ContactKind>(['GROUPE', 'ENTREPRISE', 'PERSONNE'])
 const RELATIONS = new Set<Relation>(['ALLIE', 'NEUTRE', 'HOSTILE'])
 
-function validateContact(input: Partial<ContactInput>, partial: boolean): void {
+const validateContact = (input: Partial<ContactInput>, partial: boolean): void => {
   if (!partial || input.name !== undefined) {
     const name = input.name?.trim() ?? ''
     if (!name) throw new HttpError(422, 'Le nom est obligatoire.')
@@ -570,7 +559,9 @@ function validateContact(input: Partial<ContactInput>, partial: boolean): void {
   }
 }
 
-function contactsList(params: URLSearchParams, canNotes: boolean): ContactsResponse {
+const countRelation = (value: Relation) => CONTACTS.filter((contact) => contact.relation === value).length
+
+const contactsList = (params: URLSearchParams, canNotes: boolean): ContactsResponse => {
   const relation = params.get('relation')?.toUpperCase()
   const kind = params.get('type')?.toUpperCase()
   const q = params.get('q')?.toLowerCase().trim()
@@ -581,12 +572,14 @@ function contactsList(params: URLSearchParams, canNotes: boolean): ContactsRespo
       (!q || contact.name.toLowerCase().includes(q) || (contact.description ?? '').toLowerCase().includes(q)),
   )
     .map((contact) => ({ ...contact, notesCount: canNotes ? (NOTES.get(contact.id)?.length ?? 0) : null }))
-    .sort((a, b) => a.name.localeCompare(b.name, 'fr'))
-  const count = (value: Relation) => CONTACTS.filter((contact) => contact.relation === value).length
-  return { counts: { allie: count('ALLIE'), neutre: count('NEUTRE'), hostile: count('HOSTILE') }, items }
+    .toSorted((a, b) => a.name.localeCompare(b.name, 'fr'))
+  return {
+    counts: { allie: countRelation('ALLIE'), neutre: countRelation('NEUTRE'), hostile: countRelation('HOSTILE') },
+    items,
+  }
 }
 
-function findContact(id: string): Contact {
+const findContact = (id: string): Contact => {
   const contact = CONTACTS.find((item) => item.id === id)
   if (!contact) throw new HttpError(404, 'Contact introuvable.')
   return contact
@@ -595,7 +588,7 @@ function findContact(id: string): Contact {
 // ---------------------------------------------------------------------------
 // Fiche membre
 
-function profile(userId: string): MemberProfile {
+const profile = (userId: string): MemberProfile => {
   const ref = memberById(userId)
   const index = memberIndex(userId)
   const recrue = index >= 14
@@ -605,14 +598,12 @@ function profile(userId: string): MemberProfile {
     .map(([gameId]) => ({ gameId, name: CHARACTERS.find((item) => item.gameId === gameId)?.name ?? gameId }))
   const moves = MOVEMENTS.filter((move) => characters.some((character) => character.gameId === move.player.gameId))
   const statuses = ['PRESENT', 'PRESENT', 'PRESENT', 'RETARD', 'ABSENT', 'NON_REPONDU'] as const
-  const recent = PRESENCE_TITLES.concat(PRESENCE_TITLES)
-    .slice(0, 8)
-    .map((title, position) => ({
-      id: nextId(),
-      title,
-      date: daysAgo(position * 3 + 1),
-      status: statuses[(position + index) % statuses.length] ?? 'PRESENT',
-    }))
+  const recent = [...PRESENCE_TITLES, ...PRESENCE_TITLES].slice(0, 8).map((title, position) => ({
+    id: nextId(),
+    title,
+    date: daysAgo(position * 3 + 1),
+    status: statuses[(position + index) % statuses.length] ?? 'PRESENT',
+  }))
   return {
     member: ref,
     joinedAt: daysAgo(400 - index * 20),
@@ -659,7 +650,7 @@ function profile(userId: string): MemberProfile {
             characters,
             deposited: moves.filter((move) => move.kind === 'DEPOSIT').reduce((sum, move) => sum + move.amount, 0),
             withdrawn: moves.filter((move) => move.kind === 'WITHDRAW').reduce((sum, move) => sum + move.amount, 0),
-            recent: moves.slice(0, 8).map(withLinks),
+            recent: moves.slice(0, 8).map((movement) => withLinks(movement)),
           },
     recrue: recrue
       ? {
@@ -683,84 +674,82 @@ function profile(userId: string): MemberProfile {
 // ---------------------------------------------------------------------------
 // Configuration
 
-function config(): ConfigStatus {
-  return {
-    modules: [
-      {
-        key: 'presences',
-        label: 'Présences',
-        status: 'ok',
-        checks: [
-          { label: 'Salon des présences', ok: true, detail: '#presences', fix: null },
-          {
-            label: 'Rôle membre',
-            ok: permissionRoles.memberRoleId !== null,
-            detail: null,
-            fix: '/config permission role_membre',
-          },
-        ],
-      },
-      {
-        key: 'cotisations',
-        label: 'Cotisations',
-        status: objective.value ? 'ok' : 'incomplete',
-        checks: [
-          { label: 'Salon des cotisations', ok: true, detail: '#cotisations', fix: null },
-          {
-            label: 'Objectif hebdomadaire',
-            ok: objective.value !== null,
-            detail: objective.value ? null : 'Aucun objectif : pas de rappel le dimanche.',
-            fix: null,
-          },
-        ],
-      },
-      {
-        key: 'coffres',
-        label: 'Coffres',
-        status: 'incomplete',
-        checks: [
-          { label: 'Salons suivis', ok: true, detail: '3 salons', fix: null },
-          {
-            label: 'Webhook du salon 1290000000000000012',
-            ok: false,
-            detail: 'Aucun message du webhook reçu pour l’instant.',
-            fix: '/config coffres salon',
-          },
-          { label: 'Alertes', ok: coffreAlerts.value.channelId !== null, detail: null, fix: null },
-        ],
-      },
-      {
-        key: 'recrues',
-        label: 'Recrues',
-        status: 'incomplete',
-        checks: [
-          { label: 'Salon d’essai', ok: true, detail: '#recrues', fix: null },
-          { label: 'Rôle recrue', ok: false, detail: 'Rôle supprimé sur Discord.', fix: '/config recrues role' },
-        ],
-      },
-      {
-        key: 'transactions',
-        label: 'Transactions',
-        status: 'ok',
-        checks: [{ label: 'Salon des transactions', ok: true, detail: '#transactions', fix: null }],
-      },
-      {
-        key: 'contacts',
-        label: 'Contacts',
-        status: 'ok',
-        checks: [{ label: 'Répertoire publié', ok: true, detail: '#repertoire', fix: null }],
-      },
-      {
-        key: 'vehicules',
-        label: 'Véhicules',
-        status: 'off',
-        checks: [
-          { label: 'Salon des véhicules', ok: false, detail: 'Module non utilisé.', fix: '/config vehicules salon' },
-        ],
-      },
-    ],
-  }
-}
+const config = (): ConfigStatus => ({
+  modules: [
+    {
+      key: 'presences',
+      label: 'Présences',
+      status: 'ok',
+      checks: [
+        { label: 'Salon des présences', ok: true, detail: '#presences', fix: null },
+        {
+          label: 'Rôle membre',
+          ok: permissionRoles.memberRoleId !== null,
+          detail: null,
+          fix: '/config permission role_membre',
+        },
+      ],
+    },
+    {
+      key: 'cotisations',
+      label: 'Cotisations',
+      status: objective.value ? 'ok' : 'incomplete',
+      checks: [
+        { label: 'Salon des cotisations', ok: true, detail: '#cotisations', fix: null },
+        {
+          label: 'Objectif hebdomadaire',
+          ok: objective.value !== null,
+          detail: objective.value ? null : 'Aucun objectif : pas de rappel le dimanche.',
+          fix: null,
+        },
+      ],
+    },
+    {
+      key: 'coffres',
+      label: 'Coffres',
+      status: 'incomplete',
+      checks: [
+        { label: 'Salons suivis', ok: true, detail: '3 salons', fix: null },
+        {
+          label: 'Webhook du salon 1290000000000000012',
+          ok: false,
+          detail: 'Aucun message du webhook reçu pour l’instant.',
+          fix: '/config coffres salon',
+        },
+        { label: 'Alertes', ok: coffreAlerts.value.channelId !== null, detail: null, fix: null },
+      ],
+    },
+    {
+      key: 'recrues',
+      label: 'Recrues',
+      status: 'incomplete',
+      checks: [
+        { label: 'Salon d’essai', ok: true, detail: '#recrues', fix: null },
+        { label: 'Rôle recrue', ok: false, detail: 'Rôle supprimé sur Discord.', fix: '/config recrues role' },
+      ],
+    },
+    {
+      key: 'transactions',
+      label: 'Transactions',
+      status: 'ok',
+      checks: [{ label: 'Salon des transactions', ok: true, detail: '#transactions', fix: null }],
+    },
+    {
+      key: 'contacts',
+      label: 'Contacts',
+      status: 'ok',
+      checks: [{ label: 'Répertoire publié', ok: true, detail: '#repertoire', fix: null }],
+    },
+    {
+      key: 'vehicules',
+      label: 'Véhicules',
+      status: 'off',
+      checks: [
+        { label: 'Salon des véhicules', ok: false, detail: 'Module non utilisé.', fix: '/config vehicules salon' },
+      ],
+    },
+  ],
+})
 
 // ---------------------------------------------------------------------------
 // Routeur
@@ -768,8 +757,8 @@ function config(): ConfigStatus {
 type Handler = (match: string[], params: URLSearchParams, body: unknown) => unknown
 
 const routes: [string, RegExp, Handler][] = []
-function route(method: string, pattern: string, handler: Handler) {
-  routes.push([method, new RegExp(`^${pattern.replace(/:[a-zA-Z]+/g, '([^/]+)')}$`), handler])
+const route = (method: string, pattern: string, handler: Handler) => {
+  routes.push([method, new RegExp(`^${pattern.replaceAll(/:[a-zA-Z]+/gu, '([^/]+)')}$`, 'u'), handler])
 }
 
 const G = '/api/guilds/:g'
@@ -802,9 +791,8 @@ route('POST', `${G}/cotisations`, (m, _p, body) => {
 route('DELETE', `${G}/cotisations/:id`, (m) => {
   requireGuild(at(m, 1), 'cotisation.ajouter')
   const index = COTISATIONS.findIndex((entry) => entry.id === at(m, 2))
-  if (index < 0) throw new HttpError(404, 'Cotisation introuvable.')
+  if (index === -1) throw new HttpError(404, 'Cotisation introuvable.')
   COTISATIONS.splice(index, 1)
-  return undefined
 })
 route('GET', `${G}/cotisations/objective`, (m) => (requireGuild(at(m, 1), 'cotisation.stats'), objective.value))
 route('PUT', `${G}/cotisations/objective`, (m, _p, body) => {
@@ -824,15 +812,10 @@ route('GET', `${G}/coffres/players`, (m, p) => (requireGuild(at(m, 1), 'coffre.v
 route('GET', `${G}/coffres/series`, (m, p) => (requireGuild(at(m, 1), 'coffre.voir'), coffreSeries(p)))
 route('GET', `${G}/coffres/export.csv`, (m, p) => {
   requireGuild(at(m, 1), 'coffre.voir')
-  return ['Date;Type;Propriété;Objet;Quantité;Personnage']
-    .concat(
-      filteredMovements(p).map((move) =>
-        [move.at, move.kind, move.propertyName ?? move.propertyId, move.itemLabel, move.amount, move.player.name].join(
-          ';',
-        ),
-      ),
-    )
-    .join('\n')
+  const lines = filteredMovements(p).map((move) =>
+    [move.at, move.kind, move.propertyName ?? move.propertyId, move.itemLabel, move.amount, move.player.name].join(';'),
+  )
+  return ['Date;Type;Propriété;Objet;Quantité;Personnage', ...lines].join('\n')
 })
 route('PUT', `${G}/coffres/properties/:id`, (m, _p, body) => {
   requireGuild(at(m, 1), 'coffre.gerer')
@@ -853,7 +836,6 @@ route('PUT', `${G}/coffres/players/:id`, (m, _p, body) => {
 route('DELETE', `${G}/coffres/players/:id`, (m) => {
   requireGuild(at(m, 1), 'coffre.gerer')
   if (!LINKS.delete(at(m, 2))) throw new HttpError(404, 'Ce personnage n’est relié à aucun membre.')
-  return undefined
 })
 route('GET', `${G}/coffres/alerts`, (m) => (requireGuild(at(m, 1), 'coffre.voir'), coffreAlerts.value))
 route('PUT', `${G}/coffres/alerts`, (m, _p, body) => {
@@ -913,9 +895,8 @@ route('PATCH', `${G}/contacts/:id`, (m, _p, body) => {
 route('DELETE', `${G}/contacts/:id`, (m) => {
   requireGuild(at(m, 1), 'contact.modifier')
   const index = CONTACTS.findIndex((item) => item.id === at(m, 2))
-  if (index < 0) throw new HttpError(404, 'Contact introuvable.')
+  if (index === -1) throw new HttpError(404, 'Contact introuvable.')
   CONTACTS.splice(index, 1)
-  return undefined
 })
 route('POST', `${G}/contacts/:id/notes`, (m, _p, body) => {
   requireGuild(at(m, 1), 'contact.notes')
@@ -949,7 +930,7 @@ route('PUT', `${G}/permissions`, (m, _p, body) => {
 route('GET', `${G}/config`, (m) => (requireGuild(at(m, 1), 'admin'), config()))
 route('GET', '/api/tickets', (_m, p): TicketsResponse => {
   if (scenario() !== 'admin') throw new HttpError(403, 'Réservé au staff des tickets.')
-  const q = (p.get('q') ?? '').toLowerCase().replace(/^#/, '')
+  const q = (p.get('q') ?? '').toLowerCase().replace(/^#/u, '')
   const status = (p.get('status') ?? '').toUpperCase()
   const list = TICKETS.filter(
     (ticket) =>
@@ -981,11 +962,18 @@ route('GET', '/api/logs/:id', (m): TicketLog => {
   }
 })
 
-export async function mockFetch(input: string, init: RequestInit): Promise<Response> {
-  const url = new URL(input, window.location.origin)
+const delay = (ms: number) =>
+  // oxlint-disable-next-line promise/avoid-new -- seule façon d'attendre un minuteur
+  new Promise<void>((resolve) => {
+    globalThis.setTimeout(resolve, ms)
+  })
+
+export const mockFetch = async (input: string, init: RequestInit): Promise<Response> => {
+  const url = new URL(input, globalThis.location.origin)
   const method = (init.method ?? 'GET').toUpperCase()
   const body: unknown = typeof init.body === 'string' ? JSON.parse(init.body) : undefined
-  await new Promise((resolve) => window.setTimeout(resolve, 120 + Math.random() * 250))
+  // Latence simulée.
+  await delay(120 + Math.random() * 250)
   if (method !== 'GET' && new Headers(init.headers).get('X-Requested-With') !== 'fetch') {
     return Response.json({ error: 'En-tête X-Requested-With manquant.' }, { status: 400 })
   }
@@ -1011,4 +999,3 @@ export async function mockFetch(input: string, init: RequestInit): Promise<Respo
 
 // Les liens d'export CSV (téléchargements directs) ne passent pas par fetch : ils restent
 // sans effet en maquette. Le serveur du bot les sert en production.
-export const MOCK_GUILD_ID = GUILD_ID

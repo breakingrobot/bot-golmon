@@ -3,7 +3,7 @@
 import { keepPreviousData, queryOptions, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 
-import { api, errorMessage, type Query } from './client'
+import { api, errorMessage } from './client'
 import type {
   CoffreAlerts,
   CoffreMeta,
@@ -190,12 +190,12 @@ export const ticketLogQuery = (threadId: string) =>
 // Écritures
 
 /** Mutation commune : message de succès en toast, erreurs du serveur en toast, invalidation du serveur. */
-function useGuildMutation<TVars, TResult>(
+const useGuildMutation = <TVars, TResult>(
   guildId: string,
   run: (vars: TVars) => Promise<TResult>,
   success: string | ((result: TResult, vars: TVars) => string),
   invalidate: string[][],
-) {
+) => {
   const client = useQueryClient()
   return useMutation({
     mutationFn: run,
@@ -209,121 +209,109 @@ function useGuildMutation<TVars, TResult>(
   })
 }
 
-export function useAddCotisation(guildId: string) {
-  return useGuildMutation(
+export const useAddCotisation = (guildId: string) =>
+  useGuildMutation(
     guildId,
     (body: NewCotisation) => api<CotisationEntry>('POST', `${g(guildId)}/cotisations`, { body }),
     'Cotisation enregistrée.',
     [['cotisations'], ['member']],
   )
-}
 
-export function useDeleteCotisation(guildId: string) {
-  return useGuildMutation(
+export const useDeleteCotisation = (guildId: string) =>
+  useGuildMutation(
     guildId,
     (id: string) => api<void>('DELETE', `${g(guildId)}/cotisations/${encodeURIComponent(id)}`),
     'Cotisation supprimée.',
     [['cotisations'], ['member']],
   )
-}
 
-export function useSaveObjective(guildId: string) {
-  return useGuildMutation(
+export const useSaveObjective = (guildId: string) =>
+  useGuildMutation(
     guildId,
     (body: Objective) => api<Objective>('PUT', `${g(guildId)}/cotisations/objective`, { body }),
     'Objectif enregistré.',
     [['objective'], ['cotisations'], ['config']],
   )
-}
 
-export function useRenameProperty(guildId: string) {
-  return useGuildMutation(
+export const useRenameProperty = (guildId: string) =>
+  useGuildMutation(
     guildId,
     ({ propertyId, name }: { propertyId: string; name: string }) =>
       api<unknown>('PUT', `${g(guildId)}/coffres/properties/${encodeURIComponent(propertyId)}`, { body: { name } }),
     (_result, vars) => (vars.name.trim() ? 'Propriété renommée.' : 'Nom de la propriété retiré.'),
     [['coffres']],
   )
-}
 
-export function useLinkPlayer(guildId: string) {
-  return useGuildMutation(
+export const useLinkPlayer = (guildId: string) =>
+  useGuildMutation(
     guildId,
     ({ gameId, memberId }: { gameId: string; memberId: string }) =>
       api<unknown>('PUT', `${g(guildId)}/coffres/players/${encodeURIComponent(gameId)}`, { body: { memberId } }),
     'Personnage relié.',
     [['coffres'], ['member']],
   )
-}
 
-export function useUnlinkPlayer(guildId: string) {
-  return useGuildMutation(
+export const useUnlinkPlayer = (guildId: string) =>
+  useGuildMutation(
     guildId,
     (gameId: string) => api<void>('DELETE', `${g(guildId)}/coffres/players/${encodeURIComponent(gameId)}`),
     'Personnage délié.',
     [['coffres'], ['member']],
   )
-}
 
-export function useSaveCoffreAlerts(guildId: string) {
-  return useGuildMutation(
+export const useSaveCoffreAlerts = (guildId: string) =>
+  useGuildMutation(
     guildId,
     (body: CoffreAlerts) => api<CoffreAlerts>('PUT', `${g(guildId)}/coffres/alerts`, { body }),
     'Alertes enregistrées.',
     [['coffres', 'alerts'], ['config']],
   )
-}
 
-export function useCreateContact(guildId: string) {
-  return useGuildMutation(
+export const useCreateContact = (guildId: string) =>
+  useGuildMutation(
     guildId,
     (body: ContactInput) => api<Contact>('POST', `${g(guildId)}/contacts`, { body }),
     (contact) => `Contact « ${contact.name} » ajouté.`,
     [['contacts']],
   )
-}
 
-export function useUpdateContact(guildId: string) {
-  return useGuildMutation(
+export const useUpdateContact = (guildId: string) =>
+  useGuildMutation(
     guildId,
     ({ id, body }: { id: string; body: Partial<ContactInput> }) =>
       api<Contact>('PATCH', `${g(guildId)}/contacts/${encodeURIComponent(id)}`, { body }),
     'Contact modifié.',
     [['contacts']],
   )
-}
 
-export function useDeleteContact(guildId: string) {
-  return useGuildMutation(
+export const useDeleteContact = (guildId: string) =>
+  useGuildMutation(
     guildId,
     (id: string) => api<void>('DELETE', `${g(guildId)}/contacts/${encodeURIComponent(id)}`),
     'Contact supprimé.',
     [['contacts']],
   )
-}
 
-export function useAddContactNote(guildId: string) {
-  return useGuildMutation(
+export const useAddContactNote = (guildId: string) =>
+  useGuildMutation(
     guildId,
     ({ id, body }: { id: string; body: string }) =>
       api<ContactNote>('POST', `${g(guildId)}/contacts/${encodeURIComponent(id)}/notes`, { body: { body } }),
     'Note ajoutée.',
     [['contacts']],
   )
-}
 
-export function useSavePermissions(guildId: string) {
-  return useGuildMutation(
+export const useSavePermissions = (guildId: string) =>
+  useGuildMutation(
     guildId,
     (body: PermissionsUpdate) => api<PermissionsResponse>('PUT', `${g(guildId)}/permissions`, { body }),
     'Permissions enregistrées.',
     [['permissions'], ['config']],
   )
-}
 
-export function useInvalidateMe() {
+export const useInvalidateMe = () => {
   const client = useQueryClient()
   return () => client.invalidateQueries({ queryKey: meQuery.queryKey })
 }
 
-export type { Query }
+export type { Query } from './client'

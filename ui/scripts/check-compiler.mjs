@@ -16,11 +16,11 @@ const files = (dir) =>
     const path = join(dir, name)
     if (skipped.some((skip) => relative(root, path).startsWith(skip))) return []
     if (statSync(path).isDirectory()) return files(path)
-    return /\.(ts|tsx)$/.test(name) && !/\.test\.tsx?$/.test(name) ? [path] : []
+    return /\.tsx?$/u.test(name) && !/\.test\.tsx?$/u.test(name) ? [path] : []
   })
 
 const problems = []
-let compiled = 0
+const stats = { compiled: 0 }
 for (const file of files(root)) {
   transformSync(readFileSync(file, 'utf8'), {
     filename: file,
@@ -34,7 +34,7 @@ for (const file of files(root)) {
           target: '19',
           logger: {
             logEvent: (filename, event) => {
-              if (event.kind === 'CompileSuccess') compiled += 1
+              if (event.kind === 'CompileSuccess') stats.compiled += 1
               if (event.kind === 'CompileError' || event.kind === 'PipelineError') {
                 const detail = event.detail?.reason ?? event.detail?.options?.reason ?? event.data ?? ''
                 problems.push(`${relative(root, filename ?? file)} : ${event.kind} ${String(detail)}`)
@@ -47,7 +47,7 @@ for (const file of files(root)) {
   })
 }
 
-process.stdout.write(`React Compiler : ${compiled} fonctions compilées.\n`)
+process.stdout.write(`React Compiler : ${stats.compiled} fonctions compilées.\n`)
 if (problems.length > 0) {
   console.error(problems.join('\n'))
   process.exit(1)

@@ -1,5 +1,6 @@
 import { Plus, Save, Trash2 } from 'lucide-react'
-import { type FormEvent, useState } from 'react'
+import { useState } from 'react'
+import type { FormEvent } from 'react'
 
 import { useSaveCoffreAlerts } from '@/api/queries'
 import type { CoffreAlerts, CoffreMeta } from '@/api/types'
@@ -14,9 +15,17 @@ import { useGuild } from '@/lib/guild-context'
 import { ALL } from '@/lib/search'
 import { Field } from '@/molecules/Field'
 
+/** Identifiant Discord (vide accepté : réglage retiré). */
+const snowflake = (value: string) => value === '' || /^\d{15,21}$/u.test(value)
+
 export type ThresholdRow = { key: number; propertyId: string; item: string; min: string }
 
-export function AlertsForm({ initial, meta }: { initial: CoffreAlerts; meta: CoffreMeta }) {
+/** Champs fixes, puis une erreur par seuil (`item-<clé>`, `min-<clé>`). */
+type FormErrors = Partial<Record<'channel' | 'role' | 'big' | `item-${number}` | `min-${number}`, string>>
+
+export type AlertsFormProps = { initial: CoffreAlerts; meta: CoffreMeta }
+
+export const AlertsForm = ({ initial, meta }: AlertsFormProps) => {
   const { guild } = useGuild()
   const mutation = useSaveCoffreAlerts(guild.id)
   const [channelId, setChannelId] = useState(initial.channelId ?? '')
@@ -33,18 +42,17 @@ export function AlertsForm({ initial, meta }: { initial: CoffreAlerts; meta: Cof
       min: String(rule.min),
     })),
   )
-  const [errors, setErrors] = useState<Record<string, string>>({})
-
-  const snowflake = (value: string) => value === '' || /^\d{15,21}$/.test(value)
+  const [errors, setErrors] = useState<FormErrors>({})
 
   const submit = (event: FormEvent) => {
     event.preventDefault()
-    const next: Record<string, string> = {}
+    const next: FormErrors = {}
     if (!snowflake(channelId.trim())) next.channel = 'Identifiant Discord du salon (chiffres seulement).'
     if (!snowflake(roleId.trim())) next.role = 'Identifiant Discord du rôle (chiffres seulement).'
     const big = bigWithdrawal.trim() === '' ? null : Number(bigWithdrawal)
-    if (big !== null && (!Number.isInteger(big) || big <= 0))
+    if (big !== null && (!Number.isInteger(big) || big <= 0)) {
       next.big = 'Quantité entière positive, ou vide pour désactiver.'
+    }
     rows.forEach((row) => {
       if (!row.item) next[`item-${row.key}`] = 'Choisissez un objet.'
       const min = Number(row.min)

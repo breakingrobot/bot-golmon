@@ -21,7 +21,7 @@ import { StatGrid } from '@/molecules/StatGrid'
 import { AttendanceChart } from '@/organisms/AttendanceChart'
 import { TicketStatsBlock } from '@/organisms/TicketStatsBlock'
 
-export function StatsView() {
+export const StatsView = () => {
   const { guild } = useGuild()
   const query = useQuery(statsQuery(guild.id))
   const canProfile = hasPerm(guild, 'membre.fiche')

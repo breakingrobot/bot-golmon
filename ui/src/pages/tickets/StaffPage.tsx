@@ -5,7 +5,7 @@ import { Forbidden } from '@/molecules/Forbidden'
 import { StaffView } from '@/pages/tickets/StaffView'
 import { PageContainer } from '@/templates/PageContainer'
 
-export function StaffPage() {
+export const StaffPage = () => {
   const me = useQuery(meQuery)
   return (
     <PageContainer>

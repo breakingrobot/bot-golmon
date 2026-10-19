@@ -7,7 +7,7 @@ import { QueryError } from '@/molecules/QueryError'
 import { Section } from '@/molecules/Section'
 import { AlertsForm } from '@/pages/configuration/AlertsForm'
 
-export function AlertsSection() {
+export const AlertsSection = () => {
   const { guild } = useGuild()
   const alerts = useQuery(coffreAlertsQuery(guild.id))
   const meta = useQuery(coffreMetaQuery(guild.id))

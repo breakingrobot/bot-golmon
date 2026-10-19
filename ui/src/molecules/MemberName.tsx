@@ -4,20 +4,16 @@ import type { MemberRef } from '@/api/types'
 import { cn } from '@/lib/utils'
 import { MemberAvatar } from '@/molecules/MemberAvatar'
 
-/** Nom d'un membre avec avatar ; lien vers sa fiche quand `guildId` est donné et la fiche visible. */
-export function MemberName({
-  member,
-  guildId,
-  linked = true,
-  avatar = true,
-  className,
-}: {
+export type MemberNameProps = {
   member: MemberRef
   guildId?: string | undefined
   linked?: boolean
   avatar?: boolean
   className?: string
-}) {
+}
+
+/** Nom d'un membre avec avatar ; lien vers sa fiche quand `guildId` est donné et la fiche visible. */
+export const MemberName = ({ member, guildId, linked = true, avatar = true, className }: MemberNameProps) => {
   const content = (
     <>
       {avatar && <MemberAvatar member={member} className="size-6" />}

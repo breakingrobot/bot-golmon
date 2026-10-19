@@ -4,7 +4,7 @@ import { atomWithStorage } from 'jotai/utils'
 
 import { rawLocalStorage } from '@/state/storage'
 
-const isSnowflake = (value: string): value is string => /^\d{1,20}$/.test(value)
+const isSnowflake = (value: string): value is string => /^\d{1,20}$/u.test(value)
 
 export const lastGuildIdAtom = atomWithStorage<string | null>(
   'dernier-serveur',

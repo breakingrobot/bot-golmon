@@ -1,21 +1,18 @@
-import { type ReactNode, useId } from 'react'
+import { useId } from 'react'
+import type { ReactNode } from 'react'
 
 import { Label } from '@/atoms/Label'
 import { cn } from '@/lib/utils'
 
-export function Field({
-  label,
-  hint,
-  error,
-  className,
-  children,
-}: {
+export type FieldProps = {
   label: ReactNode
   hint?: ReactNode
   error?: string | null | undefined
   className?: string
   children: (props: { id: string; 'aria-describedby'?: string; 'aria-invalid'?: boolean }) => ReactNode
-}) {
+}
+
+export const Field = ({ label, hint, error, className, children }: FieldProps) => {
   const id = useId()
   const hintId = `${id}-aide`
   const errorId = `${id}-erreur`

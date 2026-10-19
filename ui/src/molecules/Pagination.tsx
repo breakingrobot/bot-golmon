@@ -3,21 +3,23 @@ import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { Button } from '@/atoms/Button'
 import { formatNumber } from '@/lib/format'
 
-export function Pagination({
-  page,
-  pageSize,
-  total,
-  onPage,
-  newerLabel = 'Précédent',
-  olderLabel = 'Suivant',
-}: {
+export type PaginationProps = {
   page: number
   pageSize: number
   total: number
   onPage: (page: number) => void
   newerLabel?: string
   olderLabel?: string
-}) {
+}
+
+export const Pagination = ({
+  page,
+  pageSize,
+  total,
+  onPage,
+  newerLabel = 'Précédent',
+  olderLabel = 'Suivant',
+}: PaginationProps) => {
   const pages = Math.max(1, Math.ceil(total / Math.max(pageSize, 1)))
   if (pages <= 1) return null
   return (

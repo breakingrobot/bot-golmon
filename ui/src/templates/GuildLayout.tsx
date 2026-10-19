@@ -13,7 +13,7 @@ import { PageContainer } from '@/templates/PageContainer'
 
 const route = getRouteApi('/serveurs/$guildId')
 
-export function GuildLayout() {
+export const GuildLayout = () => {
   const { guildId } = route.useParams()
   const me = useQuery(meQuery)
 
@@ -24,7 +24,7 @@ export function GuildLayout() {
       </PageContainer>
     )
   }
-  const data = me.data
+  const { data } = me
   if (!data?.user) {
     return (
       <PageContainer>

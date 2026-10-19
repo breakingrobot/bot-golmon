@@ -16,17 +16,14 @@ import {
 } from '@/atoms/AlertDialog'
 import { Button } from '@/atoms/Button'
 
-export function UnlinkCharacterButton({
-  guildId,
-  gameId,
-  name,
-  member,
-}: {
+export type UnlinkCharacterButtonProps = {
   guildId: string
   gameId: string
   name: string
   member: MemberRef
-}) {
+}
+
+export const UnlinkCharacterButton = ({ guildId, gameId, name, member }: UnlinkCharacterButtonProps) => {
   const [open, setOpen] = useState(false)
   const mutation = useUnlinkPlayer(guildId)
   return (

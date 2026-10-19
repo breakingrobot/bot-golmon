@@ -6,6 +6,6 @@ import { JournalPage } from '@/pages/journal/JournalPage'
 
 export const Route = createFileRoute('/serveurs/$guildId/journal')({
   validateSearch: (search: Record<string, unknown>): JournalSearch =>
-    compact({ action: searchString(search.action), page: searchPage(search.page) }),
+    compact({ action: searchString(search['action']), page: searchPage(search['page']) }),
   component: JournalPage,
 })

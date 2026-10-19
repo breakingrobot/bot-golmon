@@ -1,4 +1,5 @@
-import { type ErrorComponentProps, useRouter } from '@tanstack/react-router'
+import { useRouter } from '@tanstack/react-router'
+import type { ErrorComponentProps } from '@tanstack/react-router'
 import { CircleAlert } from 'lucide-react'
 
 import { errorMessage } from '@/api/client'
@@ -6,7 +7,7 @@ import { Button } from '@/atoms/Button'
 import { SiteHeader } from '@/organisms/SiteHeader'
 import { PageContainer } from '@/templates/PageContainer'
 
-export function RootError({ error, reset }: ErrorComponentProps) {
+export const RootError = ({ error, reset }: ErrorComponentProps) => {
   const router = useRouter()
   return (
     <>

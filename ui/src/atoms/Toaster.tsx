@@ -1,8 +1,9 @@
-import { Toaster as Sonner, type ToasterProps } from 'sonner'
+import { Toaster as Sonner } from 'sonner'
+import type { ToasterProps } from 'sonner'
 
 import { useTheme } from '@/state/theme'
 
-export function Toaster(props: ToasterProps) {
+export const Toaster = (props: ToasterProps) => {
   const { resolved } = useTheme()
   return (
     <Sonner

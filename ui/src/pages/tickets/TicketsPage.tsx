@@ -5,7 +5,7 @@ import { Forbidden } from '@/molecules/Forbidden'
 import { TicketsView } from '@/pages/tickets/TicketsView'
 import { PageContainer } from '@/templates/PageContainer'
 
-export function TicketsPage() {
+export const TicketsPage = () => {
   const me = useQuery(meQuery)
   return (
     <PageContainer>

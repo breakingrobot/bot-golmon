@@ -1,4 +1,4 @@
-import { type ChartCurve } from '@tanstack/charts'
+import type { ChartCurve, ChartGuideLineStyle, ChartTheme } from '@tanstack/charts'
 import { tooltip } from '@tanstack/charts/tooltip'
 
 export type Series = { key: string; label: string; color: string }
@@ -12,9 +12,9 @@ export const THEME = {
   grid: 'var(--line)',
   background: 'transparent',
   palette: ['var(--series-1)', 'var(--series-2)', 'var(--series-3)'],
-}
+} satisfies Partial<ChartTheme>
 
-export const GRID = { stroke: 'var(--line)', strokeOpacity: 1 }
+export const GRID = { stroke: 'var(--line)', strokeOpacity: 1 } satisfies ChartGuideLineStyle
 
 export const TICK_LABELS = { fontSize: 12 }
 
@@ -50,18 +50,17 @@ export const stepAfter: ChartCurve = {
 /** Lignes « longues » (une par période et par série) pour les barres groupées ou empilées. */
 export type LongRow<T> = { x: string; serie: string; value: number; row: T }
 
-export function toLong<T extends Record<string, unknown>>(
+export const toLong = <T extends Record<string, unknown>>(
   rows: readonly T[],
   xKey: keyof T,
   series: Series[],
-): LongRow<T>[] {
-  return rows.flatMap((row) =>
+): LongRow<T>[] =>
+  rows.flatMap((row) =>
     series.map((item) => {
       const value = row[item.key]
       return { x: String(row[xKey]), serie: item.key, value: typeof value === 'number' ? value : 0, row }
     }),
   )
-}
 
 export const colorScale = (series: Series[]) => ({
   domain: series.map((item) => item.key),

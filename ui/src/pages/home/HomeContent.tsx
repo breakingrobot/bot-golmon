@@ -10,7 +10,9 @@ import { GuildTile } from '@/pages/home/GuildTile'
 import { LoginCard } from '@/pages/home/LoginCard'
 import { lastGuildIdAtom } from '@/state/last-guild'
 
-export function HomeContent({ me }: { me: Me }) {
+export type HomeContentProps = { me: Me }
+
+export const HomeContent = ({ me }: HomeContentProps) => {
   const lastGuildId = useAtomValue(lastGuildIdAtom)
   if (!me.user) return <LoginCard me={me} />
   if (!me.tickets && me.guilds.length === 0) {

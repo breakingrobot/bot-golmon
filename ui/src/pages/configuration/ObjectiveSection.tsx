@@ -7,7 +7,7 @@ import { QueryError } from '@/molecules/QueryError'
 import { Section } from '@/molecules/Section'
 import { ObjectiveForm } from '@/pages/configuration/ObjectiveForm'
 
-export function ObjectiveSection() {
+export const ObjectiveSection = () => {
   const { guild } = useGuild()
   const query = useQuery(objectiveQuery(guild.id))
   return (

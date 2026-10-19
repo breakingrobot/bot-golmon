@@ -3,16 +3,7 @@ import type { ReactNode } from 'react'
 
 import type { GuildPage } from '@/lib/guild'
 
-/** Lien vers une page d'un serveur (la fiche pointe vers le membre connecté). */
-export function GuildPageLink({
-  page,
-  guildId,
-  userId,
-  className,
-  activeClassName,
-  onNavigate,
-  children,
-}: {
+export type GuildPageLinkProps = {
   page: GuildPage
   guildId: string
   userId: string
@@ -20,7 +11,18 @@ export function GuildPageLink({
   activeClassName?: string
   onNavigate?: () => void
   children: ReactNode
-}) {
+}
+
+/** Lien vers une page d'un serveur (la fiche pointe vers le membre connecté). */
+export const GuildPageLink = ({
+  page,
+  guildId,
+  userId,
+  className,
+  activeClassName,
+  onNavigate,
+  children,
+}: GuildPageLinkProps) => {
   const activeProps = activeClassName ? { className: activeClassName } : {}
   const common = {
     className,

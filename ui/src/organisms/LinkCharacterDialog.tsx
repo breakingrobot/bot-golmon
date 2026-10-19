@@ -1,5 +1,6 @@
 import { Link2 } from 'lucide-react'
-import { type FormEvent, useState } from 'react'
+import { useState } from 'react'
+import type { FormEvent } from 'react'
 
 import { errorMessage } from '@/api/client'
 import { useLinkPlayer } from '@/api/queries'
@@ -17,17 +18,14 @@ import {
 import { Field } from '@/molecules/Field'
 import { MemberPicker } from '@/molecules/MemberPicker'
 
-export function LinkCharacterDialog({
-  guildId,
-  gameId,
-  name,
-  current,
-}: {
+export type LinkCharacterDialogProps = {
   guildId: string
   gameId: string
   name: string
   current: MemberRef | null
-}) {
+}
+
+export const LinkCharacterDialog = ({ guildId, gameId, name, current }: LinkCharacterDialogProps) => {
   const [open, setOpen] = useState(false)
   const [member, setMember] = useState<MemberRef | null>(current)
   const [error, setError] = useState<string | null>(null)

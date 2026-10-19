@@ -2,21 +2,16 @@ import type { ReactNode } from 'react'
 
 import { cn } from '@/lib/utils'
 
-export function Section({
-  title,
-  description,
-  actions,
-  children,
-  className,
-  id,
-}: {
+export type SectionProps = {
   title: ReactNode
   description?: ReactNode
   actions?: ReactNode
   children: ReactNode
   className?: string
   id?: string
-}) {
+}
+
+export const Section = ({ title, description, actions, children, className, id }: SectionProps) => {
   const headingId = id ? `${id}-titre` : undefined
   return (
     <section className={cn('mt-10 first:mt-0', className)} aria-labelledby={headingId} id={id}>

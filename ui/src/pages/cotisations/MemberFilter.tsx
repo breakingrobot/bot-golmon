@@ -6,17 +6,14 @@ import type { MemberRef } from '@/api/types'
 import { Button } from '@/atoms/Button'
 import { MemberPicker } from '@/molecules/MemberPicker'
 
-export function MemberFilter({
-  guildId,
-  memberId,
-  known,
-  onChange,
-}: {
+export type MemberFilterProps = {
   guildId: string
   memberId: string | undefined
   known: MemberRef[]
-  onChange: (memberId: string | undefined) => void
-}) {
+  onChange: (memberId?: string) => void
+}
+
+export const MemberFilter = ({ guildId, memberId, known, onChange }: MemberFilterProps) => {
   // Nom du membre filtré : pris dans le classement, sinon dans sa fiche.
   const fromList = known.find((item) => item.id === memberId)
   const profile = useQuery({ ...memberProfileQuery(guildId, memberId ?? ''), enabled: Boolean(memberId) && !fromList })
@@ -32,7 +29,7 @@ export function MemberFilter({
         />
       </div>
       {memberId && (
-        <Button variant="ghost" size="icon-sm" onClick={() => onChange(undefined)} aria-label="Voir tous les membres">
+        <Button variant="ghost" size="icon-sm" onClick={() => onChange()} aria-label="Voir tous les membres">
           <X aria-hidden />
         </Button>
       )}

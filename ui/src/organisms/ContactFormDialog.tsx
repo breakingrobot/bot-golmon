@@ -1,4 +1,5 @@
-import { type FormEvent, type ReactNode, useState } from 'react'
+import { useState } from 'react'
+import type { FormEvent, ReactNode } from 'react'
 
 import { useCreateContact, useUpdateContact } from '@/api/queries'
 import type { Contact, ContactInput, ContactKind, Relation } from '@/api/types'
@@ -19,25 +20,24 @@ import { KIND_LABELS, LIMITS, RELATION_LABELS } from '@/lib/contact'
 import { CharCount } from '@/molecules/CharCount'
 import { Field } from '@/molecules/Field'
 
-export function ContactFormDialog({
-  guildId,
-  contact,
-  trigger,
-  onSaved,
-}: {
+type FormErrors = Partial<Record<'name' | 'phone' | 'description', string>>
+
+export type ContactFormDialogProps = {
   guildId: string
   /** Absent : création. */
   contact?: Contact
   trigger: ReactNode
   onSaved?: (contact: Contact) => void
-}) {
+}
+
+export const ContactFormDialog = ({ guildId, contact, trigger, onSaved }: ContactFormDialogProps) => {
   const [open, setOpen] = useState(false)
   const [name, setName] = useState('')
   const [kind, setKind] = useState<ContactKind>('GROUPE')
   const [relation, setRelation] = useState<Relation>('NEUTRE')
   const [phone, setPhone] = useState('')
   const [description, setDescription] = useState('')
-  const [errors, setErrors] = useState<Record<string, string>>({})
+  const [errors, setErrors] = useState<FormErrors>({})
   const create = useCreateContact(guildId)
   const update = useUpdateContact(guildId)
   const pending = create.isPending || update.isPending
@@ -51,19 +51,20 @@ export function ContactFormDialog({
     setErrors({})
   }
 
+  const done = (saved: Contact) => {
+    setOpen(false)
+    onSaved?.(saved)
+  }
+
   const submit = (event: FormEvent) => {
     event.preventDefault()
-    const next: Record<string, string> = {}
+    const next: FormErrors = {}
     if (!name.trim()) next.name = 'Le nom est obligatoire.'
     if (name.trim().length > LIMITS.name) next.name = `${LIMITS.name} caractères au plus.`
     if (phone.trim().length > LIMITS.phone) next.phone = `${LIMITS.phone} caractères au plus.`
     if (description.trim().length > LIMITS.description) next.description = `${LIMITS.description} caractères au plus.`
     setErrors(next)
     if (Object.keys(next).length > 0) return
-    const done = (saved: Contact) => {
-      setOpen(false)
-      onSaved?.(saved)
-    }
     if (contact) {
       // Seuls les champs modifiés sont envoyés ; téléphone ou description vides = effacer (null).
       const body: Partial<ContactInput> = {}

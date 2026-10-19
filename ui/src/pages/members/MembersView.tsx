@@ -18,7 +18,7 @@ import { TableSkeleton } from '@/molecules/TableSkeleton'
 
 const route = getRouteApi('/serveurs/$guildId/membres/')
 
-export function MembersView() {
+export const MembersView = () => {
   const { guild } = useGuild()
   const search = route.useSearch()
   const navigate = useNavigate({ from: '/serveurs/$guildId/membres/' })

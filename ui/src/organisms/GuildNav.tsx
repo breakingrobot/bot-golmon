@@ -3,17 +3,14 @@ import { visiblePages } from '@/lib/guild'
 import { GuildPageLink } from '@/molecules/GuildPageLink'
 import { GuildSwitcher } from '@/organisms/GuildSwitcher'
 
-export function GuildNav({
-  me,
-  guild,
-  userId,
-  onNavigate,
-}: {
+export type GuildNavProps = {
   me: Me
   guild: GuildAccess
   userId: string
   onNavigate?: () => void
-}) {
+}
+
+export const GuildNav = ({ me, guild, userId, onNavigate }: GuildNavProps) => {
   const pages = visiblePages(guild)
   const sections = [
     { key: 'serveur', label: 'Serveur', pages: pages.filter((page) => page.section === 'serveur') },

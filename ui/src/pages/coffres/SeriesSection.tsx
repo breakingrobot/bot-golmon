@@ -9,19 +9,15 @@ import { QueryError } from '@/molecules/QueryError'
 import { Section } from '@/molecules/Section'
 import { CoffreSeriesChart } from '@/organisms/CoffreSeriesChart'
 
-export function SeriesSection({
-  guildId,
-  objet,
-  itemLabel,
-  propriete,
-  jours,
-}: {
+export type SeriesSectionProps = {
   guildId: string
   objet: string
   itemLabel: string
   propriete: string | undefined
   jours: string
-}) {
+}
+
+export const SeriesSection = ({ guildId, objet, itemLabel, propriete, jours }: SeriesSectionProps) => {
   const series = useQuery(coffreSeriesQuery(guildId, objet, propriete, jours))
   return (
     <Section title={`Évolution : ${itemLabel}`} description="Stock cumulé et mouvements par jour sur la période.">

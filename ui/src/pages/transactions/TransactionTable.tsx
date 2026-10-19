@@ -2,7 +2,8 @@ import { ChevronRight } from 'lucide-react'
 import { Fragment, useState } from 'react'
 
 import type { Transaction, TransactionStatus } from '@/api/types'
-import { Badge, type BadgeVariant } from '@/atoms/Badge'
+import { Badge } from '@/atoms/Badge'
+import type { BadgeVariant } from '@/atoms/Badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/atoms/Table'
 import { formatDateTime, formatMoney, formatNumber } from '@/lib/format'
 import { cn } from '@/lib/utils'
@@ -17,7 +18,9 @@ export const STATUS_VARIANT: Record<TransactionStatus, BadgeVariant> = {
   CLOTUREE: 'neutral',
 }
 
-export function TransactionTable({ items, guildId }: { items: Transaction[]; guildId: string }) {
+export type TransactionTableProps = { items: Transaction[]; guildId: string }
+
+export const TransactionTable = ({ items, guildId }: TransactionTableProps) => {
   const [open, setOpen] = useState<string | null>(null)
   return (
     <Table>

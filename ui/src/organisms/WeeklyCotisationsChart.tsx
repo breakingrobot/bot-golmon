@@ -10,9 +10,10 @@ import { ChartDataTable } from '@/molecules/ChartDataTable'
 import { ChartLegend } from '@/molecules/ChartLegend'
 import { ChartTooltipBody } from '@/molecules/ChartTooltipBody'
 
-export function WeeklyCotisationsChart({ weekly, height = 240 }: { weekly: WeeklyAmount[]; height?: number }) {
+export type WeeklyCotisationsChartProps = { weekly: WeeklyAmount[]; height?: number }
+
+export const WeeklyCotisationsChart = ({ weekly, height = 240 }: WeeklyCotisationsChartProps) => {
   const series = COTISATION_SERIES
-  const money = (value: number) => formatMoney(value)
   const long = toLong(weekly, 'weekStart', COTISATION_SERIES)
   const definition = defineChart({
     marks: [
@@ -58,13 +59,19 @@ export function WeeklyCotisationsChart({ weekly, height = 240 }: { weekly: Weekl
               label={formatWeek(row.weekStart)}
               row={row}
               series={series}
-              formatValue={money}
-              footer={`Total : ${money(row.propre + row.sale)}`}
+              formatValue={formatMoney}
+              footer={`Total : ${formatMoney(row.propre + row.sale)}`}
             />
           )
         }}
       />
-      <ChartDataTable rows={weekly} xKey="weekStart" series={series} formatLabel={formatWeek} formatValue={money} />
+      <ChartDataTable
+        rows={weekly}
+        xKey="weekStart"
+        series={series}
+        formatLabel={formatWeek}
+        formatValue={formatMoney}
+      />
     </>
   )
 }

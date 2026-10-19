@@ -1,4 +1,5 @@
-import { cva, type VariantProps } from 'class-variance-authority'
+import { cva } from 'class-variance-authority'
+import type { VariantProps } from 'class-variance-authority'
 import { Slot as SlotPrimitive } from 'radix-ui'
 import type { ComponentProps } from 'react'
 
@@ -28,14 +29,9 @@ export const buttonVariants = cva(
   },
 )
 
-export function Button({
-  className,
-  variant,
-  size,
-  asChild = false,
-  type,
-  ...props
-}: ComponentProps<'button'> & VariantProps<typeof buttonVariants> & { asChild?: boolean }) {
+export type ButtonProps = ComponentProps<'button'> & VariantProps<typeof buttonVariants> & { asChild?: boolean }
+
+export const Button = ({ className, variant, size, asChild = false, type, ...props }: ButtonProps) => {
   const Comp = asChild ? SlotPrimitive.Slot : 'button'
   return (
     <Comp

@@ -6,7 +6,7 @@ import { AlertsSection } from '@/pages/configuration/AlertsSection'
 import { ModulesStatus } from '@/pages/configuration/ModulesStatus'
 import { ObjectiveSection } from '@/pages/configuration/ObjectiveSection'
 
-export function ConfigurationPage() {
+export const ConfigurationPage = () => {
   const { guild } = useGuild()
   if (!guild.isAdmin) return <Forbidden>Réservé aux personnes qui peuvent « Gérer le serveur ».</Forbidden>
   return (

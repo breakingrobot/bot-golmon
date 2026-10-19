@@ -1,5 +1,6 @@
 import { Save } from 'lucide-react'
-import { type FormEvent, useState } from 'react'
+import { useState } from 'react'
+import type { FormEvent } from 'react'
 
 import { useSaveObjective } from '@/api/queries'
 import type { Objective } from '@/api/types'
@@ -14,7 +15,9 @@ import { useGuild } from '@/lib/guild-context'
 import { COUNTS_LABEL } from '@/lib/objective'
 import { Field } from '@/molecules/Field'
 
-export function ObjectiveForm({ initial }: { initial: Objective | null }) {
+export type ObjectiveFormProps = { initial: Objective | null }
+
+export const ObjectiveForm = ({ initial }: ObjectiveFormProps) => {
   const { guild } = useGuild()
   const mutation = useSaveObjective(guild.id)
   const [amount, setAmount] = useState(initial ? String(initial.amount) : '')
@@ -24,7 +27,7 @@ export function ObjectiveForm({ initial }: { initial: Objective | null }) {
 
   const submit = (event: FormEvent) => {
     event.preventDefault()
-    const value = Number(amount.replace(/[\s $]/g, ''))
+    const value = Number(amount.replaceAll(/[\s $]/gu, ''))
     if (!Number.isInteger(value) || value <= 0) {
       setError('Montant entier et positif, en dollars.')
       return

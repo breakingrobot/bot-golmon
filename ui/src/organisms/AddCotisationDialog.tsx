@@ -1,7 +1,8 @@
 // Dialogue « Ajouter une cotisation » : pour soi, ou pour un membre avec `cotisation.gerer`.
 
 import { Plus } from 'lucide-react'
-import { type FormEvent, useState } from 'react'
+import { useState } from 'react'
+import type { FormEvent } from 'react'
 
 import { errorMessage } from '@/api/client'
 import { useAddCotisation } from '@/api/queries'
@@ -23,26 +24,30 @@ import { formatMoney, todayParis } from '@/lib/format'
 import { Field } from '@/molecules/Field'
 import { MemberPicker } from '@/molecules/MemberPicker'
 
-export function parseAmount(text: string): number | null {
-  const cleaned = text.replace(/[\s  $]/g, '')
+export const parseAmount = (text: string): number | null => {
+  const cleaned = text.replaceAll(/[\s  $]/gu, '')
   if (cleaned === '') return 0
-  if (!/^\d+$/.test(cleaned)) return null
+  if (!/^\d+$/u.test(cleaned)) return null
   return Number(cleaned)
 }
 
-export function AddCotisationDialog({
-  guildId,
-  canManage,
-  fixedMember,
-  triggerLabel = 'Ajouter une cotisation',
-}: {
+type FormErrors = Partial<Record<'member' | 'propre' | 'sale' | 'date', string>>
+
+export type AddCotisationDialogProps = {
   guildId: string
   /** `cotisation.gerer` : déclarer pour un autre membre. */
   canManage: boolean
   /** Membre imposé (fiche d'un membre). */
   fixedMember?: MemberRef | null
   triggerLabel?: string
-}) {
+}
+
+export const AddCotisationDialog = ({
+  guildId,
+  canManage,
+  fixedMember,
+  triggerLabel = 'Ajouter une cotisation',
+}: AddCotisationDialogProps) => {
   const [open, setOpen] = useState(false)
   const [forOther, setForOther] = useState(Boolean(fixedMember))
   const [target, setTarget] = useState<MemberRef | null>(fixedMember ?? null)
@@ -50,7 +55,7 @@ export function AddCotisationDialog({
   const [sale, setSale] = useState('')
   const [description, setDescription] = useState('')
   const [date, setDate] = useState(todayParis())
-  const [errors, setErrors] = useState<Record<string, string>>({})
+  const [errors, setErrors] = useState<FormErrors>({})
   const mutation = useAddCotisation(guildId)
 
   const reset = () => {
@@ -66,7 +71,7 @@ export function AddCotisationDialog({
 
   const submit = (event: FormEvent) => {
     event.preventDefault()
-    const next: Record<string, string> = {}
+    const next: FormErrors = {}
     const propreValue = parseAmount(propre)
     const saleValue = parseAmount(sale)
     if (propreValue === null) next.propre = 'Montant entier en dollars, sans décimales.'

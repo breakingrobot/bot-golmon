@@ -23,7 +23,7 @@ import { STATUSES } from '@/pages/tickets/tickets-search'
 
 const route = getRouteApi('/tickets/')
 
-export function TicketsView() {
+export const TicketsView = () => {
   const search = route.useSearch()
   const navigate = useNavigate({ from: '/tickets/' })
   const [text, setText] = useState(search.q ?? '')
@@ -47,9 +47,8 @@ export function TicketsView() {
         className="grid gap-3 rounded-xl border bg-card p-4 shadow-xs sm:grid-cols-[1fr_12rem_auto] sm:items-end"
         onSubmit={(event) => {
           event.preventDefault()
-          void navigate({
-            search: compact({ q: text.trim() || undefined, status: searchOneOf(fromSelect(status), STATUSES) }),
-          })
+          const selected = fromSelect(status)
+          void navigate({ search: compact({ q: text.trim() || undefined, status: searchOneOf(selected, STATUSES) }) })
         }}
       >
         <Field label="Rechercher">

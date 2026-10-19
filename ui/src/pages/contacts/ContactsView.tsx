@@ -14,7 +14,8 @@ import { KIND_LABELS, RELATION_LABELS, RELATION_PLURALS, RELATION_VARIANT } from
 import { formatNumber } from '@/lib/format'
 import { hasPerm } from '@/lib/guild'
 import { useGuild } from '@/lib/guild-context'
-import { ALL, compact, fromSelect, searchOneOf, type SearchPatch } from '@/lib/search'
+import { ALL, compact, fromSelect, searchOneOf } from '@/lib/search'
+import type { SearchPatch } from '@/lib/search'
 import { cn } from '@/lib/utils'
 import { EmptyState } from '@/molecules/EmptyState'
 import { Field } from '@/molecules/Field'
@@ -29,7 +30,7 @@ import { ContactSheet } from '@/pages/contacts/ContactSheet'
 
 const route = getRouteApi('/serveurs/$guildId/contacts')
 
-export function ContactsView() {
+export const ContactsView = () => {
   const { guild } = useGuild()
   const search = route.useSearch()
   const navigate = useNavigate({ from: '/serveurs/$guildId/contacts' })
@@ -42,8 +43,9 @@ export function ContactsView() {
     void navigate({ search: (prev) => compact({ ...prev, ...patch }), replace: true })
 
   useEffect(() => {
-    if ((search.q ?? '') !== q)
+    if ((search.q ?? '') !== q) {
       void navigate({ search: (prev) => compact({ ...prev, q: q || undefined }), replace: true })
+    }
   }, [q, search.q, navigate])
 
   const filtered = Boolean(search.relation || search.type || search.q)

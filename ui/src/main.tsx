@@ -1,5 +1,6 @@
 import './styles.css'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import type { QueryClientConfig } from '@tanstack/react-query'
 import { RouterProvider } from '@tanstack/react-router'
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
@@ -9,7 +10,7 @@ import { Toaster } from '@/atoms/Toaster'
 import { createAppRouter } from '@/router'
 import { ThemeSync } from '@/state/theme'
 
-const queryClient = new QueryClient({
+const queryConfig = {
   defaultOptions: {
     queries: {
       staleTime: 30_000,
@@ -19,11 +20,13 @@ const queryClient = new QueryClient({
         !(error instanceof ApiRequestError && error.status >= 400 && error.status < 500) && failureCount < 2,
     },
   },
-})
+} satisfies QueryClientConfig
+
+const queryClient = new QueryClient(queryConfig)
 
 const router = createAppRouter(queryClient)
 
-const container = document.getElementById('app')
+const container = document.querySelector('#app')
 if (!container) throw new Error('Élément #app absent de index.html')
 
 createRoot(container).render(

@@ -16,15 +16,13 @@ import { ContactFormDialog } from '@/organisms/ContactFormDialog'
 import { AddNote } from '@/pages/contacts/AddNote'
 import { DeleteContact } from '@/pages/contacts/DeleteContact'
 
-export function ContactSheet({
-  guildId,
-  contactId,
-  onClose,
-}: {
+export type ContactSheetProps = {
   guildId: string
   contactId: string | undefined
   onClose: () => void
-}) {
+}
+
+export const ContactSheet = ({ guildId, contactId, onClose }: ContactSheetProps) => {
   const { guild } = useGuild()
   const detail = useQuery({ ...contactQuery(guildId, contactId ?? ''), enabled: Boolean(contactId) })
   const canEdit = hasPerm(guild, 'contact.modifier')

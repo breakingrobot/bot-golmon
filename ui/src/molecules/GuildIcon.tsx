@@ -4,10 +4,12 @@ import { cn, initials } from '@/lib/utils'
 const SIZES = {
   sm: { box: 'size-6 rounded-md', text: 'text-[0.625rem]' },
   lg: { box: 'size-10 rounded-lg', text: 'text-sm' },
-} as const
+} as const satisfies Record<string, { box: string; text: string }>
+
+export type GuildIconProps = { guild: GuildAccess; size?: keyof typeof SIZES }
 
 /** Icône du serveur Discord, ou ses initiales. `sm` : sélecteur ; `lg` : tuile de l'accueil. */
-export function GuildIcon({ guild, size = 'lg' }: { guild: GuildAccess; size?: keyof typeof SIZES }) {
+export const GuildIcon = ({ guild, size = 'lg' }: GuildIconProps) => {
   const { box, text } = SIZES[size]
   return guild.iconUrl ? (
     <img src={guild.iconUrl} alt="" className={box} />

@@ -24,33 +24,32 @@ import type {
 // ---------------------------------------------------------------------------
 // Outils
 
-function mulberry32(seed: number) {
+const mulberry32 = (seed: number) => {
   let state = seed
   return () => {
-    state = (state + 0x6d2b79f5) | 0
+    // Addition modulo 2^32 (entier signé 32 bits), comme `| 0`.
+    state = Math.imul(state + 0x6d_2b_79_f5, 1)
     let t = Math.imul(state ^ (state >>> 15), 1 | state)
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+    t ^= t + Math.imul(t ^ (t >>> 7), 61 | t)
+    return ((t ^ (t >>> 14)) >>> 0) / 4_294_967_296
   }
 }
 
-export const random = mulberry32(20261019)
+export const random = mulberry32(20_261_019)
 
-export function pick<T>(items: readonly T[]): T {
+export const pick = <T>(items: readonly T[]): T => {
   const item = items[Math.floor(random() * items.length)]
   if (item === undefined) throw new Error('liste vide')
   return item
 }
 
-export function int(min: number, max: number): number {
-  return Math.floor(min + random() * (max - min + 1))
-}
+export const int = (min: number, max: number): number => Math.floor(min + random() * (max - min + 1))
 
 const DAY = 86_400_000
 export const NOW = Date.now()
 
 /** Instant ISO il y a `days` jours (fraction possible), heure de soirée RP. */
-export function daysAgo(days: number, hour = int(17, 23), minute = int(0, 59)): string {
+export const daysAgo = (days: number, hour = int(17, 23), minute = int(0, 59)): string => {
   const date = new Date(NOW - Math.floor(days) * DAY)
   date.setUTCHours(hour - 2, minute, int(0, 59), 0)
   if (date.getTime() > NOW) date.setTime(NOW - int(10, 600) * 60_000)
@@ -58,25 +57,23 @@ export function daysAgo(days: number, hour = int(17, 23), minute = int(0, 59)): 
 }
 
 /** Jour `YYYY-MM-DD` (heure de Paris) d'un instant. */
-export function parisDay(iso: string | number): string {
-  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Paris' }).format(new Date(iso))
-}
+export const parisDay = (iso: string | number): string =>
+  new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Paris' }).format(new Date(iso))
 
 /** Lundi (jour de Paris) de la semaine d'un jour `YYYY-MM-DD`. */
-export function mondayOf(day: string): string {
+export const mondayOf = (day: string): string => {
   const date = new Date(`${day}T12:00:00Z`)
   const weekday = (date.getUTCDay() + 6) % 7
   return new Date(date.getTime() - weekday * DAY).toISOString().slice(0, 10)
 }
 
-export function addDays(day: string, days: number): string {
-  return new Date(new Date(`${day}T12:00:00Z`).getTime() + days * DAY).toISOString().slice(0, 10)
-}
+export const addDays = (day: string, days: number): string =>
+  new Date(new Date(`${day}T12:00:00Z`).getTime() + days * DAY).toISOString().slice(0, 10)
 
 let counter = 1
-export function nextId(): string {
+export const nextId = (): string => {
   counter += 1
-  return `${1300000000000000000n + BigInt(counter * 7919)}`
+  return `${1_300_000_000_000_000_000n + BigInt(counter * 7919)}`
 }
 
 // ---------------------------------------------------------------------------
@@ -102,12 +99,12 @@ const NAMES = [
 ] as const
 
 export const MEMBERS: MemberRef[] = NAMES.map((name, index) => ({
-  id: `${3120000000000000000n + BigInt(index * 104_729 + 17)}`,
+  id: `${3_120_000_000_000_000_000n + BigInt(index * 104_729 + 17)}`,
   name,
   avatarUrl: null,
 }))
 
-export function member(index: number): MemberRef {
+export const member = (index: number): MemberRef => {
   const found = MEMBERS[index % MEMBERS.length]
   if (!found) throw new Error('membre absent')
   return found
@@ -119,23 +116,23 @@ export const GUILD_ID = '1187000000000000042'
 export const GUILD_B_ID = '1187000000000000077'
 
 export const ROLES: Role[] = [
-  { id: '1188000000000000001', name: 'Fondateur', color: 0xc0392b },
-  { id: '1188000000000000002', name: 'Bras droit', color: 0xe67e22 },
-  { id: '1188000000000000003', name: 'Gradé', color: 0x8e44ad },
-  { id: '1188000000000000004', name: 'Membre', color: 0x3498db },
-  { id: '1188000000000000005', name: 'Recrue', color: 0x95a5a6 },
-  { id: '1188000000000000006', name: 'Mécano', color: 0x16a085 },
+  { id: '1188000000000000001', name: 'Fondateur', color: 0xc0_39_2b },
+  { id: '1188000000000000002', name: 'Bras droit', color: 0xe6_7e_22 },
+  { id: '1188000000000000003', name: 'Gradé', color: 0x8e_44_ad },
+  { id: '1188000000000000004', name: 'Membre', color: 0x34_98_db },
+  { id: '1188000000000000005', name: 'Recrue', color: 0x95_a5_a6 },
+  { id: '1188000000000000006', name: 'Mécano', color: 0x16_a0_85 },
   { id: '1188000000000000007', name: 'Bot', color: null },
 ]
 
-export function role(name: string): Role {
+export const role = (name: string): Role => {
   const found = ROLES.find((item) => item.name === name)
   if (!found) throw new Error(`rôle ${name}`)
   return found
 }
 
 /** Rôles de chaque membre (index dans MEMBERS). */
-export function memberRoles(index: number): Role[] {
+export const memberRoles = (index: number): Role[] => {
   if (index === 0) return [role('Fondateur'), role('Gradé'), role('Membre')]
   if (index === 1) return [role('Bras droit'), role('Gradé'), role('Membre')]
   if (index <= 4) return [role('Gradé'), role('Membre'), ...(index === 3 ? [role('Mécano')] : [])]
@@ -379,17 +376,15 @@ export const permissionLevels = new Map<Perm, Level>([
 
 export const permissionRoles: { memberRoleId: string | null } = { memberRoleId: role('Membre').id }
 
-export function permissionsResponse(): PermissionsResponse {
-  return {
-    roles: {
-      member: ROLES.find((item) => item.id === permissionRoles.memberRoleId) ?? null,
-      grade: role('Gradé'),
-      lead: role('Bras droit'),
-    },
-    guildRoles: ROLES,
-    actions: ACTIONS.map((action) => ({ ...action, level: permissionLevels.get(action.key) ?? action.defaultLevel })),
-  }
-}
+export const permissionsResponse = (): PermissionsResponse => ({
+  roles: {
+    member: ROLES.find((item) => item.id === permissionRoles.memberRoleId) ?? null,
+    grade: role('Gradé'),
+    lead: role('Bras droit'),
+  },
+  guildRoles: ROLES,
+  actions: ACTIONS.map((action) => ({ ...action, level: permissionLevels.get(action.key) ?? action.defaultLevel })),
+})
 
 // ---------------------------------------------------------------------------
 // Transactions
@@ -527,7 +522,7 @@ export const LINKS = new Map<string, string>([
 
 export const MOVEMENTS: CoffreMovement[] = []
 for (let index = 0; index < 340; index += 1) {
-  const age = Math.pow(random(), 1.6) * 150
+  const age = random() ** 1.6 * 150
   const property = pick(PROPERTIES)
   const item = pick(ITEMS)
   const character = pick(CHARACTERS)
@@ -677,7 +672,7 @@ for (const contact of CONTACTS) {
     author: member(int(0, 4)),
     body: pick(NOTE_TEXTS),
     createdAt: daysAgo(index * 11 + int(1, 10)),
-  })).sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+  })).toSorted((a, b) => b.createdAt.localeCompare(a.createdAt))
   NOTES.set(contact.id, notes)
   contact.notesCount = notes.length
 }
@@ -733,9 +728,9 @@ const STAFF = ['Marco', 'Inès', 'Hugo', 'Sacha']
 export const TICKETS: TicketRow[] = Array.from({ length: 63 }, (_, index) => {
   const status: TicketStatus = index < 4 ? 'OPEN' : index === 5 ? 'SUSPENDED' : 'CLOSED'
   return {
-    id: `${1296000000000000000n + BigInt(index * 3301)}`,
+    id: `${1_296_000_000_000_000_000n + BigInt(index * 3301)}`,
     number: 512 - index,
-    user: { id: `${4100000000000000000n + BigInt(index * 97)}`, name: pick(TICKET_USERS) },
+    user: { id: `${4_100_000_000_000_000_000n + BigInt(index * 97)}`, name: pick(TICKET_USERS) },
     status,
     openedAt: daysAgo(index * 0.9, int(9, 23)),
     exchanges: status === 'OPEN' && index === 0 ? 1 : int(2, 24),
@@ -746,7 +741,7 @@ export const TICKETS: TicketRow[] = Array.from({ length: 63 }, (_, index) => {
 const CAPTURE =
   "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='320' height='180'%3E%3Crect width='320' height='180' fill='%23313338'/%3E%3Crect x='16' y='16' width='120' height='12' rx='6' fill='%235865f2'/%3E%3Crect x='16' y='44' width='260' height='10' rx='5' fill='%23949ba4'/%3E%3Crect x='16' y='64' width='200' height='10' rx='5' fill='%23949ba4'/%3E%3Ctext x='16' y='150' fill='%23f23f43' font-family='sans-serif' font-size='16'%3EAcc%C3%A8s refus%C3%A9 au salon%3C/text%3E%3C/svg%3E"
 
-export function ticketLogEntries(openedAt: string): LogEntry[] {
+export const ticketLogEntries = (openedAt: string): LogEntry[] => {
   const start = new Date(openedAt).getTime()
   const at = (minutes: number) => new Date(start + minutes * 60_000).toISOString()
   const entry = (
@@ -817,12 +812,11 @@ export function ticketLogEntries(openedAt: string): LogEntry[] {
         kind: 'user',
         author: 'Elodie',
         badge: 'Utilisateur',
-        bodyHtml:
-          '<h3>Récapitulatif</h3><blockquote><p>Rôle perdu <strong>pendant la maintenance</strong> du <time class="timestamp" datetime="' +
-          at(-60 * 20) +
-          '" data-local data-format="D"></time> (<time class="timestamp" datetime="' +
-          at(-60 * 20) +
-          '" data-local data-format="R"></time>)</p></blockquote><ul><li>pseudo <code>Elodie#0001</code></li><li><s>ancien</s> <u>nouveau</u> <span class="spoiler" tabindex="0">mot de passe du coffre</span></li></ul><p class="subtext">envoyé depuis mobile</p>',
+        bodyHtml: `<h3>Récapitulatif</h3><blockquote><p>Rôle perdu <strong>pendant la maintenance</strong> du <time class="timestamp" datetime="${at(
+          -60 * 20,
+        )}" data-local data-format="D"></time> (<time class="timestamp" datetime="${at(
+          -60 * 20,
+        )}" data-local data-format="R"></time>)</p></blockquote><ul><li>pseudo <code>Elodie#0001</code></li><li><s>ancien</s> <u>nouveau</u> <span class="spoiler" tabindex="0">mot de passe du coffre</span></li></ul><p class="subtext">envoyé depuis mobile</p>`,
       },
       7,
     ),

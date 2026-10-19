@@ -3,19 +3,22 @@ import { getRouteApi, useNavigate } from '@tanstack/react-router'
 import { X } from 'lucide-react'
 
 import { csvUrl } from '@/api/client'
-import { type CoffreFilters, coffreMetaQuery } from '@/api/queries'
+import { coffreMetaQuery } from '@/api/queries'
+import type { CoffreFilters } from '@/api/queries'
 import { Button } from '@/atoms/Button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/atoms/Select'
 import { ToggleGroup, ToggleGroupItem } from '@/atoms/ToggleGroup'
 import { propertyLabel } from '@/lib/coffre'
 import { hasPerm } from '@/lib/guild'
 import { useGuild } from '@/lib/guild-context'
-import { ALL, compact, fromSelect, type SearchPatch } from '@/lib/search'
+import { ALL, compact, fromSelect } from '@/lib/search'
+import type { SearchPatch } from '@/lib/search'
 import { CsvButton } from '@/molecules/CsvButton'
 import { Field } from '@/molecules/Field'
 import { PageHeader } from '@/molecules/PageHeader'
 import { QueryError } from '@/molecules/QueryError'
-import { type CoffresSearch, type Period, PERIODS } from '@/pages/coffres/coffres-search'
+import { PERIODS } from '@/pages/coffres/coffres-search'
+import type { CoffresSearch, Period } from '@/pages/coffres/coffres-search'
 import { MovementsSection } from '@/pages/coffres/MovementsSection'
 import { PlayerSelect } from '@/pages/coffres/PlayerSelect'
 import { PlayersSection } from '@/pages/coffres/PlayersSection'
@@ -24,7 +27,7 @@ import { StockSection } from '@/pages/coffres/StockSection'
 
 const route = getRouteApi('/serveurs/$guildId/coffres')
 
-export function CoffresView() {
+export const CoffresView = () => {
   const { guild } = useGuild()
   const search = route.useSearch()
   const navigate = useNavigate({ from: '/serveurs/$guildId/coffres' })

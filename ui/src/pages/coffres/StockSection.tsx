@@ -8,15 +8,13 @@ import { QueryError } from '@/molecules/QueryError'
 import { Section } from '@/molecules/Section'
 import { StockCard } from '@/pages/coffres/StockCard'
 
-export function StockSection({
-  guildId,
-  propriete,
-  canManage,
-}: {
+export type StockSectionProps = {
   guildId: string
   propriete: string | undefined
   canManage: boolean
-}) {
+}
+
+export const StockSection = ({ guildId, propriete, canManage }: StockSectionProps) => {
   const stock = useQuery(coffreStockQuery(guildId, propriete))
   return (
     <Section

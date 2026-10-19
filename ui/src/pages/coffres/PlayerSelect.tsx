@@ -6,19 +6,15 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { ALL, fromSelect } from '@/lib/search'
 import { Field } from '@/molecules/Field'
 
-export function PlayerSelect({
-  guildId,
-  meta,
-  value,
-  jours,
-  onChange,
-}: {
+export type PlayerSelectProps = {
   guildId: string
   meta: CoffreMeta | undefined
   value: string | undefined
   jours: string
   onChange: (joueur: string | undefined) => void
-}) {
+}
+
+export const PlayerSelect = ({ guildId, meta, value, jours, onChange }: PlayerSelectProps) => {
   // Personnages vus sur la période, plus les personnages reliés à un membre.
   const players = useQuery(coffrePlayersQuery(guildId, { jours }))
   const options = new Map<string, string>()
@@ -37,7 +33,7 @@ export function PlayerSelect({
           <SelectContent>
             <SelectItem value={ALL}>Tous les joueurs</SelectItem>
             {[...options.entries()]
-              .sort((a, b) => a[1].localeCompare(b[1], 'fr'))
+              .toSorted((a, b) => a[1].localeCompare(b[1], 'fr'))
               .map(([gameId, label]) => (
                 <SelectItem key={gameId} value={gameId}>
                   {label}

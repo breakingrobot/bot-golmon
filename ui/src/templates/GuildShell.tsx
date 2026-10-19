@@ -11,7 +11,9 @@ import { GuildNav } from '@/organisms/GuildNav'
 import { guildNavOpenAtom } from '@/state/guild-nav'
 import { lastGuildIdAtom } from '@/state/last-guild'
 
-export function GuildShell({ me, guild, userId }: { me: Me; guild: GuildAccess; userId: string }) {
+export type GuildShellProps = { me: Me; guild: GuildAccess; userId: string }
+
+export const GuildShell = ({ me, guild, userId }: GuildShellProps) => {
   const [open, setOpen] = useAtom(guildNavOpenAtom)
   const setLastGuildId = useSetAtom(lastGuildIdAtom)
   const context = { me, guild, userId }

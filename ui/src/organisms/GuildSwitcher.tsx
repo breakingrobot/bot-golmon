@@ -5,7 +5,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { findGuild, visiblePages } from '@/lib/guild'
 import { GuildIcon } from '@/molecules/GuildIcon'
 
-export function GuildSwitcher({ me, guild }: { me: Me; guild: GuildAccess }) {
+export type GuildSwitcherProps = { me: Me; guild: GuildAccess }
+
+export const GuildSwitcher = ({ me, guild }: GuildSwitcherProps) => {
   const navigate = useNavigate()
   if (me.guilds.length < 2) {
     return (

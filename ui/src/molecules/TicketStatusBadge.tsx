@@ -7,7 +7,9 @@ export const STATUS: Record<TicketStatus, { label: string; variant: 'success' | 
   CLOSED: { label: 'Fermé', variant: 'neutral' },
 }
 
-export function TicketStatusBadge({ status }: { status: TicketStatus }) {
+export type TicketStatusBadgeProps = { status: TicketStatus }
+
+export const TicketStatusBadge = ({ status }: TicketStatusBadgeProps) => {
   const { label, variant } = STATUS[status]
   return <Badge variant={variant}>{label}</Badge>
 }

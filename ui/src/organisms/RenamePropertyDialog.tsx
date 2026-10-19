@@ -1,5 +1,6 @@
 import { Pencil } from 'lucide-react'
-import { type FormEvent, useState } from 'react'
+import { useState } from 'react'
+import type { FormEvent } from 'react'
 
 import { useRenameProperty } from '@/api/queries'
 import { Button } from '@/atoms/Button'
@@ -16,13 +17,12 @@ import { Input } from '@/atoms/Input'
 import { propertyLabel } from '@/lib/coffre'
 import { Field } from '@/molecules/Field'
 
-export function RenamePropertyDialog({
-  guildId,
-  property,
-}: {
+export type RenamePropertyDialogProps = {
   guildId: string
   property: { id: string; name: string | null }
-}) {
+}
+
+export const RenamePropertyDialog = ({ guildId, property }: RenamePropertyDialogProps) => {
   const [open, setOpen] = useState(false)
   const [name, setName] = useState(property.name ?? '')
   const mutation = useRenameProperty(guildId)

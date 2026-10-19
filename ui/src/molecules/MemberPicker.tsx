@@ -2,7 +2,8 @@
 
 import { useQuery } from '@tanstack/react-query'
 import { ChevronsUpDown, Search } from 'lucide-react'
-import { type KeyboardEvent, useId, useState } from 'react'
+import { useId, useState } from 'react'
+import type { KeyboardEvent } from 'react'
 
 import { memberSearchQuery } from '@/api/queries'
 import type { MemberRef } from '@/api/types'
@@ -12,21 +13,23 @@ import { useDebounced } from '@/hooks/use-debounced'
 import { cn } from '@/lib/utils'
 import { MemberAvatar } from '@/molecules/MemberAvatar'
 
-export function MemberPicker({
-  guildId,
-  value,
-  onChange,
-  placeholder = 'Choisir un membre',
-  id,
-  invalid,
-}: {
+export type MemberPickerProps = {
   guildId: string
   value: MemberRef | null
   onChange: (member: MemberRef | null) => void
   placeholder?: string
   id?: string
   invalid?: boolean
-}) {
+}
+
+export const MemberPicker = ({
+  guildId,
+  value,
+  onChange,
+  placeholder = 'Choisir un membre',
+  id,
+  invalid,
+}: MemberPickerProps) => {
   const [open, setOpen] = useState(false)
   const [text, setText] = useState('')
   const [active, setActive] = useState(0)

@@ -24,7 +24,7 @@ import { TransactionTable } from '@/pages/transactions/TransactionTable'
 
 const route = getRouteApi('/serveurs/$guildId/transactions')
 
-export function TransactionsView() {
+export const TransactionsView = () => {
   const { guild } = useGuild()
   const search = route.useSearch()
   const navigate = useNavigate({ from: '/serveurs/$guildId/transactions' })
