@@ -332,23 +332,23 @@ pub async fn stock(
     let property = query.propriete.map(|p| p.trim().to_owned()).filter(|p| !p.is_empty());
     let names = property_names(&ctx.db, &gid).await?;
     let lines = service::stock(&ctx.db, &gid, property.as_deref()).await?;
+    let thresholds = crate::modules::coffres::alerts::thresholds(&ctx.db, &gid).await?;
     let properties = group_stock(lines)
         .into_iter()
         .map(|(id, lines)| StockProperty {
             name: names.get(&id).cloned(),
-            id,
             items: lines
                 .into_iter()
                 .map(|line| StockItem {
+                    low: thresholds.is_low(&id, &line.item, line.quantity()),
                     label: item_label(&line.item),
                     quantity: line.quantity(),
                     item: line.item,
                     deposited: line.deposited,
                     withdrawn: line.withdrawn,
-                    // TODO(intégration) : seuils de stock bas (alertes des coffres, autre chantier).
-                    low: false,
                 })
                 .collect(),
+            id,
         })
         .collect();
     Ok(json(&CoffreStock { properties }))

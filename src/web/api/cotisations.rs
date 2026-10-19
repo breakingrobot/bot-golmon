@@ -97,7 +97,6 @@ pub struct CotisationsResponse {
     pub weekly: Vec<WeeklyAmount>,
     #[schema(value_type = super::openapi::CotisationEntryPage)]
     pub entries: Page<CotisationEntry>,
-    // TODO(intégration) : objectif hebdomadaire (module cotisations, autre chantier).
     #[schema(required = true)]
     pub objective: Option<super::openapi::Objective>,
     pub objective_progress: Vec<super::openapi::ObjectiveProgress>,
@@ -194,8 +193,8 @@ pub async fn list(
             page_size: PAGE_SIZE,
         },
         totals: totals.into(),
-        objective: None,
-        objective_progress: Vec::new(),
+        objective: super::reglages::current_objective(&ctx, &guild_id.to_string()).await?,
+        objective_progress: super::reglages::week_progress(&ctx, guild_id).await?,
     }))
 }
 

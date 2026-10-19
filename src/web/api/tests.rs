@@ -135,8 +135,9 @@ async fn unknown_api_routes_are_json() {
     let app_login = TestApp::new(true).await;
     let (status, _, body) = app_login.send(get("/api/openapi.json")).await;
     assert_eq!((status, &body["openapi"]), (StatusCode::OK, &serde_json::json!("3.1.0")));
+    // Réglages branchés : sans connexion, refus en JSON (plus de 501).
     let (status, _, body) = app.send(get("/api/guilds/1/config")).await;
-    assert_eq!((status, &body["error"]), (StatusCode::NOT_IMPLEMENTED, &serde_json::json!("Bientôt disponible")));
+    assert!(status.is_client_error() && body["error"].is_string(), "{status}");
 }
 
 #[tokio::test]

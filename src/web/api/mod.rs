@@ -16,6 +16,7 @@ mod me;
 mod members;
 pub mod openapi;
 mod permissions;
+mod reglages;
 mod series;
 mod stats;
 pub(crate) mod tickets;
@@ -58,7 +59,7 @@ pub fn router() -> Router<Context> {
         .route("/guilds/{guild}/transactions/export.csv", get(transactions::export))
         .route("/guilds/{guild}/cotisations", get(cotisations::list).post(cotisations::create))
         .route("/guilds/{guild}/cotisations/export.csv", get(cotisations::export))
-        .route("/guilds/{guild}/cotisations/objective", get(objective_get).put(objective_put))
+        .route("/guilds/{guild}/cotisations/objective", get(reglages::objective_get).put(reglages::objective_put))
         .route("/guilds/{guild}/cotisations/{id}", axum::routing::delete(cotisations::remove))
         .route("/guilds/{guild}/coffres/meta", get(coffres::meta))
         .route("/guilds/{guild}/coffres/stock", get(coffres::stock))
@@ -66,7 +67,7 @@ pub fn router() -> Router<Context> {
         .route("/guilds/{guild}/coffres/players", get(coffres::players))
         .route("/guilds/{guild}/coffres/series", get(coffres::series))
         .route("/guilds/{guild}/coffres/export.csv", get(coffres::export))
-        .route("/guilds/{guild}/coffres/alerts", get(alerts_get).put(alerts_put))
+        .route("/guilds/{guild}/coffres/alerts", get(reglages::alerts_get).put(reglages::alerts_put))
         .route("/guilds/{guild}/coffres/properties/{property}", put(coffres::name_property))
         .route("/guilds/{guild}/coffres/players/{game_id}", put(coffres::link_player).delete(coffres::unlink_player))
         .route("/guilds/{guild}/contacts", get(contacts::list).post(contacts::create))
@@ -74,7 +75,7 @@ pub fn router() -> Router<Context> {
         .route("/guilds/{guild}/contacts/{id}/notes", axum::routing::post(contacts::add_note))
         .route("/guilds/{guild}/journal", get(journal::journal))
         .route("/guilds/{guild}/permissions", get(permissions::show).put(permissions::update))
-        .route("/guilds/{guild}/config", get(config_get))
+        .route("/guilds/{guild}/config", get(reglages::config_get))
         .route("/tickets", get(tickets::list))
         .route("/tickets/staff", get(tickets::staff))
         .route("/logs/{thread}", get(tickets::log))
@@ -187,95 +188,6 @@ async fn not_found() -> ApiError {
 
 async fn method_not_allowed() -> ApiError {
     ApiError::new(StatusCode::METHOD_NOT_ALLOWED, "Méthode non prise en charge sur cette route.")
-}
-
-/// Routes réservées, branchées plus tard.
-fn not_yet() -> ApiError {
-    ApiError::new(StatusCode::NOT_IMPLEMENTED, "Bientôt disponible")
-}
-
-/// Objectif hebdomadaire des cotisations (lecture `cotisation.stats`).
-#[utoipa::path(
-    get, path = "/api/guilds/{guild}/cotisations/objective", tag = "cotisations", operation_id = "getCotisationObjective",
-    params(("guild" = String, Path, description = "Identifiant du serveur")),
-    responses(
-        (status = 200, description = "Objectif, `null` sans objectif", body = Option<openapi::Objective>),
-        (status = 401, description = "Pas connecté", body = ErrorBody),
-        (status = 403, description = "Droit insuffisant", body = ErrorBody),
-        (status = 501, description = "Pas encore disponible", body = ErrorBody),
-    )
-)]
-pub async fn objective_get() -> ApiError {
-    // TODO(intégration) : objectif du module cotisations.
-    not_yet()
-}
-
-/// Règle l'objectif hebdomadaire (« Gérer le serveur »).
-#[utoipa::path(
-    put, path = "/api/guilds/{guild}/cotisations/objective", tag = "cotisations", operation_id = "updateCotisationObjective",
-    params(("guild" = String, Path, description = "Identifiant du serveur")),
-    request_body = Option<openapi::Objective>,
-    responses(
-        (status = 200, description = "Objectif enregistré", body = Option<openapi::Objective>),
-        (status = 401, description = "Pas connecté", body = ErrorBody),
-        (status = 403, description = "Réservé à « Gérer le serveur »", body = ErrorBody),
-        (status = 422, description = "Saisie refusée", body = ErrorBody),
-        (status = 501, description = "Pas encore disponible", body = ErrorBody),
-    )
-)]
-pub async fn objective_put() -> ApiError {
-    // TODO(intégration) : objectif du module cotisations.
-    not_yet()
-}
-
-/// Alertes des coffres (lecture `coffre.voir`).
-#[utoipa::path(
-    get, path = "/api/guilds/{guild}/coffres/alerts", tag = "coffres", operation_id = "getCoffreAlerts",
-    params(("guild" = String, Path, description = "Identifiant du serveur")),
-    responses(
-        (status = 200, description = "Réglage des alertes", body = openapi::CoffreAlerts),
-        (status = 401, description = "Pas connecté", body = ErrorBody),
-        (status = 403, description = "Droit insuffisant", body = ErrorBody),
-        (status = 501, description = "Pas encore disponible", body = ErrorBody),
-    )
-)]
-pub async fn alerts_get() -> ApiError {
-    // TODO(intégration) : alertes du module coffres.
-    not_yet()
-}
-
-/// Règle les alertes des coffres (« Gérer le serveur »).
-#[utoipa::path(
-    put, path = "/api/guilds/{guild}/coffres/alerts", tag = "coffres", operation_id = "updateCoffreAlerts",
-    params(("guild" = String, Path, description = "Identifiant du serveur")),
-    request_body = openapi::CoffreAlerts,
-    responses(
-        (status = 200, description = "Réglage enregistré", body = openapi::CoffreAlerts),
-        (status = 401, description = "Pas connecté", body = ErrorBody),
-        (status = 403, description = "Réservé à « Gérer le serveur »", body = ErrorBody),
-        (status = 422, description = "Saisie refusée", body = ErrorBody),
-        (status = 501, description = "Pas encore disponible", body = ErrorBody),
-    )
-)]
-pub async fn alerts_put() -> ApiError {
-    // TODO(intégration) : alertes du module coffres.
-    not_yet()
-}
-
-/// État de la configuration des modules (« Gérer le serveur »).
-#[utoipa::path(
-    get, path = "/api/guilds/{guild}/config", tag = "reglages", operation_id = "getConfigStatus",
-    params(("guild" = String, Path, description = "Identifiant du serveur")),
-    responses(
-        (status = 200, description = "État des modules", body = openapi::ConfigStatus),
-        (status = 401, description = "Pas connecté", body = ErrorBody),
-        (status = 403, description = "Réservé à « Gérer le serveur »", body = ErrorBody),
-        (status = 501, description = "Pas encore disponible", body = ErrorBody),
-    )
-)]
-pub async fn config_get() -> ApiError {
-    // TODO(intégration) : état de la configuration (autre chantier).
-    not_yet()
 }
 
 // ---------------------------------------------------------------------------

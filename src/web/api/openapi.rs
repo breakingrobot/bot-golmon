@@ -166,7 +166,7 @@ pub struct CoffreAlerts {
     pub unknown_player: bool,
 }
 
-#[derive(Clone, Debug, Serialize, ToSchema)]
+#[derive(Clone, Debug, Serialize, Deserialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct ConfigCheck {
     pub label: String,
@@ -178,7 +178,7 @@ pub struct ConfigCheck {
     pub fix: Option<String>,
 }
 
-#[derive(Clone, Debug, Serialize, ToSchema)]
+#[derive(Clone, Debug, Serialize, Deserialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct ConfigModule {
     pub key: String,
@@ -188,7 +188,7 @@ pub struct ConfigModule {
     pub checks: Vec<ConfigCheck>,
 }
 
-#[derive(Clone, Debug, Serialize, ToSchema)]
+#[derive(Clone, Debug, Serialize, Deserialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct ConfigStatus {
     pub modules: Vec<ConfigModule>,
@@ -214,16 +214,16 @@ pub struct ConfigStatus {
         cotisations::export,
         cotisations::create,
         cotisations::remove,
-        super::objective_get,
-        super::objective_put,
+        super::reglages::objective_get,
+        super::reglages::objective_put,
         coffres::meta,
         coffres::stock,
         coffres::movements,
         coffres::players,
         coffres::series,
         coffres::export,
-        super::alerts_get,
-        super::alerts_put,
+        super::reglages::alerts_get,
+        super::reglages::alerts_put,
         coffres::name_property,
         coffres::link_player,
         coffres::unlink_player,
@@ -236,7 +236,7 @@ pub struct ConfigStatus {
         journal::journal,
         permissions::show,
         permissions::update,
-        super::config_get,
+        super::reglages::config_get,
         tickets::list,
         tickets::staff,
         tickets::log,

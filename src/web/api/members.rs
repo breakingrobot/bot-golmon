@@ -128,7 +128,6 @@ pub struct CotisationSection {
     pub totals: cotisations::CotisationTotals,
     pub weekly: Vec<cotisations::WeeklyAmount>,
     pub recent: Vec<cotisations::CotisationEntry>,
-    // TODO(intégration) : progression vers l'objectif de la semaine (autre chantier).
     #[schema(required = true)]
     pub objective: Option<super::openapi::ObjectiveProgress>,
 }
@@ -371,7 +370,7 @@ async fn cotisation_section(ctx: &Ctx, guild_id: Id<GuildMarker>, user: &str) ->
         totals: totals.into(),
         weekly: cotisations::weekly(&ctx.db, &guild, Some(user), None, &weeks).await?,
         recent: rows.iter().map(|row| cotisations::entry(&lookup, row)).collect(),
-        objective: None,
+        objective: super::reglages::member_week(ctx, guild_id, user).await?,
     }))
 }
 

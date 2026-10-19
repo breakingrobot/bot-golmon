@@ -2703,16 +2703,6 @@
               }
             },
             "description": "Droit insuffisant"
-          },
-          "501": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiError"
-                }
-              }
-            },
-            "description": "Pas encore disponible"
           }
         },
         "summary": "Alertes des coffres (lecture `coffre.voir`).",
@@ -2783,16 +2773,6 @@
               }
             },
             "description": "Saisie refusée"
-          },
-          "501": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiError"
-                }
-              }
-            },
-            "description": "Pas encore disponible"
           }
         },
         "summary": "Règle les alertes des coffres (« Gérer le serveur »).",
@@ -3615,16 +3595,6 @@
               }
             },
             "description": "Réservé à « Gérer le serveur »"
-          },
-          "501": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiError"
-                }
-              }
-            },
-            "description": "Pas encore disponible"
           }
         },
         "summary": "État de la configuration des modules (« Gérer le serveur »).",
@@ -4414,16 +4384,6 @@
               }
             },
             "description": "Droit insuffisant"
-          },
-          "501": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiError"
-                }
-              }
-            },
-            "description": "Pas encore disponible"
           }
         },
         "summary": "Objectif hebdomadaire des cotisations (lecture `cotisation.stats`).",
@@ -4507,16 +4467,6 @@
               }
             },
             "description": "Saisie refusée"
-          },
-          "501": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiError"
-                }
-              }
-            },
-            "description": "Pas encore disponible"
           }
         },
         "summary": "Règle l'objectif hebdomadaire (« Gérer le serveur »).",
