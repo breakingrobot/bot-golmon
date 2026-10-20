@@ -280,6 +280,9 @@ async fn add(ix: &Ix, options: &Options, guild_id: Id<GuildMarker>) -> Result<()
     if !permissions::require(ix, perm).await? {
         return Ok(());
     }
+    if !permissions::require_member(ix, target, &options.user_name(target)).await? {
+        return Ok(());
+    }
     let propre = options.integer("propre").unwrap_or(0);
     let sale = options.integer("sale").unwrap_or(0);
     if !(0..=MAX_AMOUNT).contains(&propre) || !(0..=MAX_AMOUNT).contains(&sale) {

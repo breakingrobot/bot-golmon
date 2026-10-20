@@ -11,6 +11,10 @@
     "exactOptionalPropertyTypes": true,
     "noImplicitOverride": true,
     "noFallthroughCasesInSwitch": true,
+    "noPropertyAccessFromIndexSignature": true,
+    "noImplicitReturns": true,
+    "useUnknownInCatchVariables": true,
+    "erasableSyntaxOnly": true,
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "verbatimModuleSyntax": true,
@@ -19,8 +23,15 @@
     "noEmit": true,
     "allowImportingTsExtensions": true,
     "resolveJsonModule": true,
-    "paths": { "@/*": ["./src/*"] }
+    "paths": {
+      "@/atoms/*": ["./src/atoms/*"],
+      "@/molecules/*": ["./src/molecules/*"],
+      "@/organisms/*": ["./src/organisms/*"],
+      "@/templates/*": ["./src/templates/*"],
+      "@/pages/*": ["./src/pages/*"],
+      "@/*": ["./src/*"]
+    }
   },
-  "include": ["src", "vite.config.ts", "openapi-ts.config.ts"],
+  "include": ["src", "vite.config.ts", "vitest.config.ts", "openapi-ts.config.ts"],
   "exclude": ["src/api/generated", "src/api/contract-check.ts"]
 }

@@ -25,19 +25,22 @@ type Fetcher = (input: string, init: RequestInit) => Promise<Response>
 
 let fetcher: Promise<Fetcher> | null = null
 
-function getFetcher(): Promise<Fetcher> {
-  if (!fetcher) {
-    fetcher =
-      import.meta.env.VITE_MOCK === '1'
-        ? import('../mocks/server').then((module) => module.mockFetch)
-        : Promise.resolve((input: string, init: RequestInit) => fetch(input, init))
+// La condition est remplacée à la compilation : en production, la maquette n'est pas dans dist/.
+const loadFetcher = async (): Promise<Fetcher> => {
+  if (import.meta.env.VITE_MOCK === '1') {
+    const { mockFetch } = await import('../mocks/server')
+    return mockFetch
   }
+  return (input, init) => fetch(input, init)
+}
+
+const getFetcher = (): Promise<Fetcher> => {
+  fetcher ??= loadFetcher()
   return fetcher
 }
 
-function isApiError(value: unknown): value is ApiError {
-  return typeof value === 'object' && value !== null && typeof (value as { error?: unknown }).error === 'string'
-}
+const isApiError = (value: unknown): value is ApiError =>
+  typeof value === 'object' && value !== null && typeof (value as { error?: unknown }).error === 'string'
 
 const FALLBACK_MESSAGES: Record<number, string> = {
   400: 'Saisie refusée.',
@@ -54,11 +57,11 @@ let redirecting = false
  * Adresse de connexion qui ramène à la page courante : le serveur donne `/login?next=/`,
  * `next` est remplacé par l'adresse affichée (chemin + paramètres, même origine).
  */
-export function loginHref(loginUrl: string): string {
+export const loginHref = (loginUrl: string): string => {
   try {
-    const url = new URL(loginUrl, window.location.origin)
-    if (url.origin !== window.location.origin) return loginUrl
-    url.searchParams.set('next', `${window.location.pathname}${window.location.search}`)
+    const url = new URL(loginUrl, globalThis.location.origin)
+    if (url.origin !== globalThis.location.origin) return loginUrl
+    url.searchParams.set('next', `${globalThis.location.pathname}${globalThis.location.search}`)
     return `${url.pathname}${url.search}`
   } catch {
     return loginUrl
@@ -68,7 +71,7 @@ export function loginHref(loginUrl: string): string {
 export type Query = Record<string, string | number | boolean | null | undefined>
 
 /** Chaîne de requête sans les valeurs vides. */
-export function toQueryString(query: Query | undefined): string {
+export const toQueryString = (query: Query | undefined): string => {
   if (!query) return ''
   const params = new URLSearchParams()
   for (const [key, value] of Object.entries(query)) {
@@ -79,11 +82,11 @@ export function toQueryString(query: Query | undefined): string {
   return text ? `?${text}` : ''
 }
 
-export async function api<T>(
+export const api = async <T>(
   method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE',
   path: string,
   options: { query?: Query; body?: unknown; signal?: AbortSignal } = {},
-): Promise<T> {
+): Promise<T> => {
   const doFetch = await getFetcher()
   const headers: Record<string, string> = { Accept: 'application/json' }
   const init: RequestInit = { method, headers, credentials: 'same-origin' }
@@ -121,20 +124,18 @@ export async function api<T>(
     const loginUrl = isApiError(payload) ? (payload.loginUrl ?? null) : null
     if (response.status === 401 && loginUrl && !redirecting) {
       redirecting = true
-      window.location.assign(loginHref(loginUrl))
+      globalThis.location.assign(loginHref(loginUrl))
     }
     throw new ApiRequestError(response.status, message, loginUrl)
   }
   return payload as T
 }
 
-export function errorMessage(error: unknown): string {
+export const errorMessage = (error: unknown): string => {
   if (error instanceof ApiRequestError) return error.message
   if (error instanceof Error && error.message) return error.message
   return 'Une erreur inattendue est survenue.'
 }
 
 /** Lien d'export CSV (téléchargement direct, même origine). */
-export function csvUrl(path: string, query?: Query): string {
-  return `/api${path}${toQueryString(query)}`
-}
+export const csvUrl = (path: string, query?: Query): string => `/api${path}${toQueryString(query)}`

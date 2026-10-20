@@ -6,7 +6,7 @@ cargo clippy --all-targets -- -D warnings
 cargo test
 
 cd ui && npm ci
-npm run format:check && npm run lint && npm run typecheck && npm run check:api && npm run build
+npm run format:check && npm run lint && npm run typecheck && npm run check:api && npm test && npm run build
 ```
 
 La CI (`.github/workflows/ci.yml`) vérifie tout cela (Rust et interface) et le build Docker.
@@ -20,7 +20,7 @@ La CI (`.github/workflows/ci.yml`) vérifie tout cela (Rust et interface) et le 
 | `src/web/api/` | API JSON du site (une route par fichier de domaine) et spécification OpenAPI (`openapi.rs`) |
 | `src/util/` | Dates (Europe/Paris), mise en forme, identifiants |
 | `migrations/` | Migrations SQL de la base principale, appliquées au démarrage |
-| `ui/` | Interface React : Vite, TanStack Router et Query, Tailwind CSS v4, shadcn/ui, Recharts ([README](../ui/README.md)) |
+| `ui/` | Interface React : Vite, TanStack Router et Query, Tailwind CSS v4, shadcn/ui, TanStack Charts, Jotai, React Compiler, Vitest ; conception atomique (`atoms/` → `templates/`), pages séparées des routes ([README](../ui/README.md)) |
 
 **Nouvelle colonne en base** : ajouter `migrations/000N_description.sql`, ne jamais modifier une migration
 déjà déployée.

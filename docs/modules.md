@@ -16,14 +16,22 @@ Les heures saisies sont en **heure de Paris** ; les dates affichées s'adaptent 
 
 ## Permissions
 
-Chaque action du bot a un **niveau** : tout le monde, membres du groupe, gradés, leads ou « Gérer le
-serveur ». Les niveaux s'emboîtent : un lead peut tout ce que peut un gradé, qui peut tout ce que peut un
-membre.
+Le **rôle membre** est le passage obligé : sans lui (ou sans rôle gradé ou lead), une personne ne peut utiliser
+aucune commande du bot, et **rien n'est enregistré à son nom** : cotisation, absence, réponse à une présence,
+numéro, véhicule, personnage des coffres. Seul « Gérer le serveur » passe outre, pour administrer. Les recrues
+sont suivies par leur propre module (avis, vétos), sans avoir besoin du rôle membre.
+
+```
+/config permission role_membre:@Membres     ← à régler en premier
+```
+
+Ensuite, chaque action a un **niveau** : membres du groupe, gradés, leads ou « Gérer le serveur ». Les niveaux
+s'emboîtent : un lead peut tout ce que peut un gradé, qui peut tout ce que peut un membre.
 
 | Niveau | Qui |
 |---|---|
-| Membres du groupe | Rôle réglé par `/config permission role_membre:@…`. Sans ce réglage, le niveau ne laisse passer que les gradés et au-dessus. |
-| Gradés | Rôle gradé de `/config recrue`, ou permission Discord « Gérer les messages » sur le serveur (accordée dans un seul salon, elle ne compte pas). |
+| Membres du groupe | Rôle membre de `/config permission` (ou rôle gradé ou lead). |
+| Gradés | Rôle gradé de `/config recrue`, ou un membre qui a « Gérer les messages » sur le serveur (accordée dans un seul salon, elle ne compte pas). |
 | Leads | Rôle lead de `/config recrue`. |
 | « Gérer le serveur » | Permission Discord. Elle ouvre **toutes** les actions, sauf les actions *strictes*. |
 
@@ -32,8 +40,7 @@ serveur » ni « Gérer les messages » n'y donnent accès.
 
 ```
 /config permission                                         ← affiche tous les niveaux (✏️ = modifié)
-/config permission role_membre:@Membres
-/config permission action:contact.ajouter niveau:Tout le monde
+/config permission action:contact.ajouter niveau:Gradés
 /config permission action:coffre.voir niveau:Leads
 /config permission action:coffre.voir niveau:Par défaut    ← revient au niveau par défaut
 ```
@@ -43,36 +50,37 @@ Les pages du site suivent les mêmes réglages (`site.stats`, `cotisation.stats`
 
 | Action | Module | Ce qu'elle permet | Par défaut |
 |---|---|---|---|
-| `presence.creer` | Présences | Créer, relancer et clôturer une présence | Tout le monde |
-| `presence.stats` | Présences | Statistiques et historique d'une présence | Tout le monde |
+| `presence.creer` | Présences | Créer, relancer et clôturer une présence | Membres du groupe |
+| `presence.stats` | Présences | Statistiques et historique d'une présence | Membres du groupe |
 | `presence.gerer` | Présences | Forcer une réponse, annuler une présence, planning | Gradés |
 | `presence.reset` | Présences | Réinitialiser les statistiques de présence | « Gérer le serveur » |
 | `presence.blocklist` | Présences | Ajouter ou retirer un membre de la blocklist | Gradés |
 | `absence.autrui` | Absences | Absence d'un autre membre, panneau des absences | Gradés |
-| `transaction.utiliser` | Transactions | Créer, compléter, changer le statut, annuler | Tout le monde |
+| `transaction.utiliser` | Transactions | Créer, compléter, changer le statut, annuler | Membres du groupe |
 | `transaction.supprimer` | Transactions | Supprimer définitivement une transaction | Gradés |
 | `transaction.historique` | Transactions | Historique et export sur le site | « Gérer le serveur » |
-| `vehicule.utiliser` | Véhicules | Enregistrer, consulter, modifier, retirer un véhicule | Tout le monde |
+| `vehicule.utiliser` | Véhicules | Enregistrer, consulter, modifier, retirer un véhicule | Membres du groupe |
 | `numero.ajouter_autrui` | Numéros | Enregistrer le numéro d'un autre membre | « Gérer le serveur » |
 | `numero.supprimer_autrui` | Numéros | Supprimer le numéro d'un autre membre | Gradés |
 | `recrue.suivi` | Recrues | Liste, détail et historique des avis, ajout et retrait, salon d'essai *(stricte)* | Gradés |
 | `recrue.avis` | Recrues | Donner un avis sur une recrue *(stricte)* | Gradés |
 | `recrue.veto` | Recrues | Poser ou lever un véto *(stricte)* | Leads |
 | `recrue.reset` | Recrues | Forcer une nouvelle semaine d'avis | « Gérer le serveur » |
-| `cotisation.ajouter` | Cotisations | Déclarer ses cotisations | Tout le monde |
+| `cotisation.ajouter` | Cotisations | Déclarer ses cotisations | Membres du groupe |
 | `cotisation.gerer` | Cotisations | Cotisations des autres : déclarer, consulter, supprimer | Gradés |
 | `cotisation.stats` | Cotisations | Statistiques (Discord et site) | Gradés |
-| `coffre.voir` | Coffres | Stock, historique et seuils (Discord et site) | Gradés |
-| `coffre.gerer` | Coffres | Relier un personnage, nommer une propriété, régler un seuil de stock bas | Gradés |
-| `contact.voir` | Contacts | Consulter le répertoire | Tout le monde |
+| `coffre.voir` | Coffres | Stock et historique (Discord et site) | Gradés |
+| `coffre.gerer` | Coffres | Relier un personnage, nommer une propriété | Gradés |
+| `contact.voir` | Contacts | Consulter le répertoire | Membres du groupe |
 | `contact.ajouter` | Contacts | Ajouter un contact | Membres du groupe |
 | `contact.modifier` | Contacts | Modifier ou supprimer un contact | Gradés |
 | `contact.notes` | Contacts | Lire et écrire les notes du staff (Discord et site) | Gradés |
+| `membre.fiche` | Membres | Fiche d'un membre (présences, cotisations, coffres, recrue…) | Gradés |
 | `site.stats` | Site | Statistiques du serveur sur le site | « Gérer le serveur » |
 | `site.journal` | Site | Journal du staff sur le site | « Gérer le serveur » |
 
-Déclarer ses propres absences, répondre aux présences, enregistrer ou supprimer son propre numéro et
-supprimer ses propres cotisations restent ouverts à tous.
+Déclarer ses propres absences, répondre aux présences, enregistrer ou supprimer son propre numéro et supprimer
+ses propres cotisations demandent seulement d'être membre du groupe.
 
 ## Présences
 
@@ -227,11 +235,11 @@ Ce que chaque membre rapporte au groupe, en argent **propre** et/ou **sale**.
 
 | Commande | Pour qui | Effet |
 |---|---|---|
-| `ajouter` | Tout le monde | Déclare une cotisation : description obligatoire, au moins un montant (propre et/ou sale, 100 000 000 au plus chacun), date du jour par défaut (pas dans le futur). Déclarer pour un autre membre : gradés et leads. |
-| `historique [membre] [jours]` | Tout le monde (soi) ; gradés et leads (les autres) | Dernières cotisations et totaux propre / sale. |
+| `ajouter` | Membres | Déclare une cotisation : description obligatoire, au moins un montant (propre et/ou sale, 100 000 000 au plus chacun), date du jour par défaut (pas dans le futur). Déclarer pour un autre membre : gradés et leads. |
+| `historique [membre] [jours]` | Membres (soi) ; gradés et leads (les autres) | Dernières cotisations et totaux propre / sale. |
 | `stats [jours] [membre]` | Gradés (`cotisation.stats`) | Totaux du groupe sur toute la période ou les N derniers jours, et classement des membres. |
 | `supprimer` | Celui qui l'a déclarée, ou gradés et leads | Supprime une cotisation saisie par erreur (journalisé). |
-| `objectif` | Tout le monde | Où tu en es de l'objectif de la semaine. Les gradés (`cotisation.stats`) voient aussi tous les membres suivis. |
+| `objectif` | Membres | Où tu en es de l'objectif de la semaine. Les gradés (`cotisation.stats`) voient aussi tous les membres suivis. |
 
 Les gradés et leads sont ceux des rôles configurés avec `/config recrue`. `/config cotisation salon:#…`
 annonce chaque nouvelle cotisation dans un salon ; `sans_annonce:true` arrête les annonces.
@@ -348,8 +356,8 @@ des **notes réservées au staff**.
 
 | Commande | Pour qui | Effet |
 |---|---|---|
-| `voir contact` | Tout le monde | Fiche du contact (type, relation, téléphone, description), en privé. Les gradés et leads y voient aussi les 10 dernières notes du staff (auteur et date). |
-| `liste [relation] [type]` | Tout le monde | Tous les contacts, groupés par relation, en privé. |
+| `voir contact` | Membres | Fiche du contact (type, relation, téléphone, description), en privé. Les gradés et leads y voient aussi les 10 dernières notes du staff (auteur et date). |
+| `liste [relation] [type]` | Membres | Tous les contacts, groupés par relation, en privé. |
 | `ajouter nom type relation [telephone] [description]` | Membres du groupe (`contact.ajouter`) | Ajoute un contact. Nom unique sur le serveur (sans tenir compte des majuscules), 80 caractères au plus ; description 500 au plus. |
 | `modifier contact [nom] [type] [relation] [telephone] [description]` | Gradés (`contact.modifier`) | Change les champs indiqués ; `-` efface le téléphone ou la description. |
 | `supprimer contact` | Gradés (`contact.modifier`) | Supprime le contact et toutes ses notes. |
@@ -383,7 +391,7 @@ Clic droit sur un membre ou un message → **Applications** :
 
 | Action | Sur | Effet | Visible par défaut |
 |---|---|---|---|
-| Présences du membre | Membre | Sa fiche de présence (comme `/presence stats joueur`) | Tout le monde |
+| Présences du membre | Membre | Sa fiche de présence (comme `/presence stats joueur`) | Membres |
 | Fiche du membre | Membre | Résumé privé : taux de présence, absence en cours, cotisations (semaine, 30 jours, objectif), activité des coffres (personnages reliés), recrue, numéro, véhicules, et lien vers sa fiche sur le site | `membre.fiche` (gradés par défaut) ; chacun peut voir la sienne |
 | Ajouter aux recrues | Membre | L'ajoute aux recrues de la semaine et crée son salon d'essai | `recrue.suivi` (gradés par défaut) |
 | Ouvrir un ticket | Membre | Ouvre un ticket avec lui (comme `!newthread`) | « Gérer les messages » ; module ticket requis |

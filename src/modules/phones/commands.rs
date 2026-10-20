@@ -106,6 +106,9 @@ async fn ajouter(ix: &Ix, options: &Options, guild: &str) -> Result<()> {
     }
 
     let target = membre.unwrap_or(ix.user_id());
+    if !permissions::require_member(ix, target, &options.user_name(target)).await? {
+        return Ok(());
+    }
     ix.defer(true).await?;
     if !service::set(&ix.ctx.db, guild, &target.to_string(), &numero).await? {
         return ix.edit_text(service::NUMBER_TAKEN).await;

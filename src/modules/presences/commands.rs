@@ -438,6 +438,9 @@ async fn force_vote(ix: &Ix, options: &Options) -> Result<()> {
         return ix.reply(Reply::ephemeral(GUILD_ONLY)).await;
     };
     let target = options.user("utilisateur").expect("option requise");
+    if !permissions::require_member(ix, target, &options.user_name(target)).await? {
+        return Ok(());
+    }
     let Some(status) = options.string("statut").as_deref().and_then(ResponseStatus::parse) else {
         return ix.reply(Reply::ephemeral("Statut inconnu.")).await;
     };
@@ -681,6 +684,9 @@ pub(super) async fn declare_absence(ix: &Ix, form: AbsenceForm) -> Result<()> {
     let target = form.target;
     let for_someone_else = target != ix.user_id();
     if for_someone_else && !permissions::require(ix, Perm::AbsenceAutrui).await? {
+        return Ok(());
+    }
+    if !permissions::require_member(ix, target, &format!("<@{target}>")).await? {
         return Ok(());
     }
 

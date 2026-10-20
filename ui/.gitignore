@@ -3,3 +3,4 @@ dist/
 dist-mock/
 *.local
 src/api/generated/
+coverage/

@@ -1,7 +1,8 @@
 import type { QueryClient } from '@tanstack/react-query'
 import { createRouter } from '@tanstack/react-router'
+import type { RouterHistory } from '@tanstack/react-router'
 
-import { PageSkeleton } from '@/components/page'
+import { PageSkeleton } from '@/molecules/PageSkeleton'
 import { routeTree } from '@/routeTree.gen'
 
 /**
@@ -9,11 +10,9 @@ import { routeTree } from '@/routeTree.gen'
  * défaut du routeur (`?jours=%227%22`) : liens lisibles, identiques à ceux que
  * le bot envoie sur Discord. Chaque page valide ses paramètres (`validateSearch`).
  */
-function parseSearch(search: string): Record<string, unknown> {
-  return Object.fromEntries(new URLSearchParams(search))
-}
+const parseSearch = (search: string): Record<string, unknown> => Object.fromEntries(new URLSearchParams(search))
 
-function stringifySearch(search: Record<string, unknown>): string {
+const stringifySearch = (search: Record<string, unknown>): string => {
   const params = new URLSearchParams()
   for (const [key, value] of Object.entries(search)) {
     if (value === undefined || value === null || value === '') continue
@@ -23,8 +22,10 @@ function stringifySearch(search: Record<string, unknown>): string {
   return text ? `?${text}` : ''
 }
 
-export function createAppRouter(queryClient: QueryClient) {
-  return createRouter({
+/** `history` : historique en mémoire pour les tests ; par défaut, celui du navigateur. */
+export const createAppRouter = (queryClient: QueryClient, history?: RouterHistory) =>
+  createRouter({
+    ...(history ? { history } : {}),
     routeTree,
     context: { queryClient },
     parseSearch,
@@ -35,9 +36,10 @@ export function createAppRouter(queryClient: QueryClient) {
     defaultPendingComponent: () => <PageSkeleton />,
     scrollRestoration: true,
   })
-}
 
+// Fusion de déclarations : seule une interface peut compléter `Register` du routeur.
 declare module '@tanstack/react-router' {
+  // oxlint-disable-next-line typescript/consistent-type-definitions
   interface Register {
     router: ReturnType<typeof createAppRouter>
   }

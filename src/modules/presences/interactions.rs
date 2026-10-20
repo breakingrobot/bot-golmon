@@ -28,6 +28,12 @@ pub async fn button(ix: &Ix, custom_id: &CustomId<'_>) -> Result<()> {
     if presence.closed_at.is_some() {
         return ix.reply(Reply::ephemeral("Cette présence est clôturée.")).await;
     }
+    // Répondre enregistre une réponse au nom de la personne : membres du groupe seulement.
+    if matches!(custom_id.action, "present" | "absent" | "retard")
+        && !permissions::require_member(ix, ix.user_id(), "").await?
+    {
+        return Ok(());
+    }
 
     let status = match custom_id.action {
         "present" => Some(ResponseStatus::Present),

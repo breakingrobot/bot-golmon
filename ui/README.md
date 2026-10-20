@@ -9,21 +9,26 @@ Le contrat de l'API est `src/api/types.ts` ; la spécification OpenAPI du bot (`
 
 ## Pile
 
-| Outil                                      | Version                                         | Rôle                                                            |
-| ------------------------------------------ | ----------------------------------------------- | --------------------------------------------------------------- |
-| React                                      | 19.3.0                                          | Interface                                                       |
-| Vite                                       | 8.3.2                                           | Serveur de développement, compilation (`dist/`)                 |
-| TanStack Router                            | 1.170.41 (+ `@tanstack/router-plugin` 1.168.42) | Routes par fichiers (`src/routes`), découpage du code par route |
-| TanStack Query                             | 5.104.1                                         | Toutes les requêtes à l'API                                     |
-| Tailwind CSS                               | 4.3.3                                           | Styles, jetons du thème dans `src/styles.css`                   |
-| shadcn/ui (Radix, paquet `radix-ui` 1.6.7) | —                                               | Composants (`src/components/ui`), écrits dans le style shadcn   |
-| Recharts                                   | 3.10.1                                          | Graphiques, chargés seulement par les pages qui en ont          |
-| lucide-react                               | 1.52.0                                          | Icônes                                                          |
-| sonner                                     | 2.0.8                                           | Notifications (toasts)                                          |
-| TypeScript                                 | 7.0.2 (compilateur natif)                       | `npm run typecheck` (`tsc --noEmit`) ; Vite transpile           |
-| Oxlint                                     | 1.86.0                                          | Lint (`.oxlintrc.json`)                                         |
-| Oxfmt                                      | 0.71.0                                          | Format (`.oxfmtrc.json`)                                        |
-| Hey API (`@hey-api/openapi-ts`)            | 0.0.0-next-20260930190945 (étiquette `next`)    | Génération du client typé depuis `openapi.json`                 |
+| Outil                                                      | Version                                                        | Rôle                                                            |
+| ---------------------------------------------------------- | -------------------------------------------------------------- | --------------------------------------------------------------- |
+| React                                                      | 19.3.0                                                         | Interface                                                       |
+| Vite                                                       | 8.3.2                                                          | Serveur de développement, compilation (`dist/`)                 |
+| TanStack Router                                            | 1.170.41 (+ `@tanstack/router-plugin` 1.168.42)                | Routes par fichiers (`src/routes`), découpage du code par route |
+| TanStack Query                                             | 5.104.1                                                        | Toutes les requêtes à l'API                                     |
+| Tailwind CSS                                               | 4.3.3                                                          | Styles, jetons du thème dans `src/styles.css`                   |
+| shadcn/ui (Radix, paquet `radix-ui` 1.6.7)                 | —                                                              | Primitives (`src/atoms`), écrites dans le style shadcn          |
+| TanStack Charts                                            | 1.0.0 (`@tanstack/react-charts` + `@tanstack/charts`)          | Graphiques SVG, chargés seulement par les pages qui en ont      |
+| Jotai                                                      | 3.0.1                                                          | État d'interface (thème, tiroir, dernier serveur)               |
+| lucide-react                                               | 1.52.0                                                         | Icônes                                                          |
+| sonner                                                     | 2.0.8                                                          | Notifications (toasts)                                          |
+| React Compiler (`babel-plugin-react-compiler`)             | 1.0.0 (+ `@rolldown/plugin-babel` 0.2.4, `@babel/core` 7.29.7) | Mémoïsation automatique à la compilation (cible React 19)       |
+| TypeScript                                                 | 7.0.2 (compilateur natif)                                      | `npm run typecheck` (`tsc --noEmit`) ; Vite transpile           |
+| Oxlint                                                     | 1.86.0                                                         | Lint (`.oxlintrc.json`)                                         |
+| Oxfmt                                                      | 0.71.0                                                         | Format (`.oxfmtrc.json`)                                        |
+| Hey API (`@hey-api/openapi-ts`)                            | 0.0.0-next-20260930190945 (étiquette `next`)                   | Génération du client typé depuis `openapi.json`                 |
+| Vitest (+ `@vitest/coverage-v8`)                           | 5.0.3                                                          | Tests (`npm test`)                                              |
+| happy-dom                                                  | 20.14.5                                                        | DOM des tests                                                   |
+| Testing Library (`react`, `dom`, `user-event`, `jest-dom`) | 16.3.3, 10.4.2, 14.6.7, 7.0.1                                  | Rendu et interactions dans les tests                            |
 
 Versions exactes, publiées au moins deux semaines avant leur adoption. Hey API est pris sur l'étiquette `next` : la
 version stable ne prend pas encore TypeScript 7 en charge. Le client fetch de Hey API est généré dans le dossier de
@@ -33,10 +38,6 @@ sortie (pas de paquet `@hey-api/client-fetch` à installer).
 ligne (données d'hydratation `$_TSR`, restauration du défilement) indispensables au démarrage. La CSP du bot
 (`script-src 'self'`) les bloque, et leurs empreintes changent à chaque compilation. Vite + TanStack Router produit
 un `index.html` sans script en ligne et ne construit pas de serveur Node inutile.
-
-TypeScript strict : `strict`, `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`, `noImplicitOverride`,
-`noFallthroughCasesInSwitch`, `noUnusedLocals`, `noUnusedParameters`, `verbatimModuleSyntax`, `isolatedModules`. Pas
-de `any`, pas d'assertion non nulle.
 
 ## Scripts
 
@@ -50,13 +51,139 @@ npm run typecheck      # tsc --noEmit (TypeScript 7)
 npm run lint           # oxlint, avertissements = erreurs
 npm run format         # oxfmt (écrit)
 npm run format:check   # oxfmt --check
+npm run test           # vitest run (une passe, quelques secondes)
+npm run test:watch     # vitest en continu
+npm run test:coverage  # couverture v8 (coverage/, non versionné)
 npm run generate:api   # client Hey API depuis openapi.json → src/api/generated (non versionné)
 npm run check:api      # génère, puis vérifie que la spécification convient aux types de src/api/types.ts
+npm run check:compiler # le React Compiler compile chaque composant et hook (aucun abandon)
 ```
 
-`lint`, `format:check`, `typecheck` et `build` doivent passer avant chaque commit. Les fichiers générés
-(`src/routeTree.gen.ts`, `src/api/generated/`) sont exclus du lint et du format ; `src/routeTree.gen.ts` est
-versionné (il est réécrit par Vite à chaque lancement).
+`format:check`, `lint`, `typecheck`, `check:api`, `test` et `build` doivent passer avant chaque commit (la CI les
+lance tous). Les fichiers générés (`src/routeTree.gen.ts`, `src/api/generated/`) sont exclus du lint et du format ;
+`src/routeTree.gen.ts` est versionné (il est réécrit par Vite à chaque lancement).
+
+## TypeScript
+
+`strict`, `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`, `noPropertyAccessFromIndexSignature`,
+`noImplicitReturns`, `useUnknownInCatchVariables`, `noImplicitOverride`, `noFallthroughCasesInSwitch`,
+`noUnusedLocals`, `noUnusedParameters`, `verbatimModuleSyntax`, `isolatedModules`, `erasableSyntaxOnly` (ni `enum`,
+ni `namespace`, ni propriétés de paramètres : des unions de chaînes à la place). Pas de `any`, pas d'assertion non
+nulle. Les objets de configuration sont vérifiés par `satisfies` (thème des graphiques, client TanStack Query…), les
+variables d'environnement lues sont déclarées dans `src/vite-env.d.ts`.
+
+## React Compiler
+
+`babel-plugin-react-compiler` passe sur tout le code de `src/` (préréglage `reactCompilerPreset` de
+`@vitejs/plugin-react` dans `@rolldown/plugin-babel`, cible React 19, `react/compiler-runtime`). Il mémoïse
+composants, valeurs calculées et fonctions passées en props : pas de `useMemo`, `useCallback` ni `memo` écrits à la
+main. Les définitions des graphiques, par exemple, ne sont recalculées que si leurs données changent.
+`npm run check:compiler` échoue si une fonction est abandonnée par le compilateur (règle des hooks enfreinte,
+mutation pendant le rendu…) ; dans `dist/`, les morceaux compilés contiennent le cache du runtime (`react.memo_cache_sentinel`).
+
+## Architecture
+
+```
+src/
+  atoms/        primitives d'interface (shadcn sur Radix) : Button, Input, Card, Dialog, Select, Table…
+  molecules/    petites combinaisons : StatCard, Field, MemberAvatar, Pagination, ChartLegend, ThemeToggle…
+  organisms/    blocs autonomes : tableaux, graphiques, dialogues, navigation du serveur, en-tête, entrée de log
+  templates/    mises en page : RootLayout, GuildLayout (garde : connexion, accès) et GuildShell, PageContainer
+  pages/        un dossier par domaine : XxxPage (requêtes, états de chargement), XxxView (rendu), sections
+                propres à la page, xxx-search.ts (paramètres d'adresse de la page)
+  routes/       déclarations de routes seulement (TanStack Router, routes par fichiers)
+  state/        atomes Jotai, un fichier par sujet
+  api/          types.ts (contrat), client.ts (fetch, erreurs, 401), queries.ts (options TanStack Query et
+                mutations, seul point d'accès à l'API), hey-api.ts, contract-check.ts (spécification ↔ types)
+  lib/          fonctions sans React : format (Intl, « 12 500 $ »), droits par page, paramètres d'adresse,
+                constantes partagées (graphiques, contacts, niveaux de permission, tons)
+  hooks/        hooks réutilisables (use-debounced)
+  mocks/        maquette de l'API (exclue du build)
+  test/         préparation des tests (setup.ts, render.tsx)
+public/         theme-init.js (thème avant le premier rendu), favicon
+```
+
+Une couche n'importe que des couches inférieures : atomes ← molécules ← organismes ← modèles ← pages ← routes.
+Un composant n'existe dans une couche partagée que s'il sert ailleurs que sur sa page ; sinon il reste dans
+`pages/<domaine>/`.
+
+**Pages et routes.** Un fichier de `src/routes/` ne fait que déclarer la route : chemin, `validateSearch`,
+`beforeLoad` (redirections) et `component`. Le composant vient de `src/pages/`, qui lit paramètres et adresse par
+`getRouteApi('/serveurs/$guildId/coffres')` (pas d'import du fichier de route, donc pas de cycle). Le découpage
+automatique du routeur (`autoCodeSplitting`) place chaque page dans son propre morceau, chargé à la navigation.
+
+**Alias.** `@/atoms`, `@/molecules`, `@/organisms`, `@/templates`, `@/pages` (déclarés dans `tsconfig.json` et
+`vite.config.ts`), puis `@/` pour le reste de `src/`. Pas de fichier « barrel » (`index.ts`) : chaque import vise le
+fichier du composant, ce qui garde le découpage par page exact.
+
+## Conventions
+
+- **Fonctions fléchées partout** : composants (`export const StatCard = ({ … }: StatCardProps) => …`), hooks et
+  fonctions utilitaires ; pas de déclaration `function` (règles `func-style: expression` et
+  `react/function-component-definition`). Les gardes de type sont aussi des flèches
+  (`(value: string): value is Level => …`).
+- **Types de retour** : inférés. Ils ne sont écrits que lorsqu'ils font partie du contrat (gardes de type, fonctions
+  publiques de `lib/` dont le type documente l'usage, génériques) ; aucune règle ne les impose.
+- **Props** : un type `XxxProps` par composant, juste au-dessus de lui ; `type` plutôt qu'`interface` (sauf fusion de
+  déclarations : `Register` du routeur, `ImportMetaEnv`).
+- **Exports nommés seulement** (`import/no-default-export`) ; seuls les fichiers de configuration d'outils
+  (`vite.config.ts`, `vitest.config.ts`, `openapi-ts.config.ts`) exportent par défaut.
+- **Imports de types séparés** : `import type { … }` (règles `consistent-type-imports` et
+  `consistent-type-specifier-style`), tri par Oxfmt.
+- **Fichiers** : un composant par fichier, nommé comme lui en PascalCase (`StatCard.tsx`) ; une famille composée
+  shadcn reste ensemble (`Card.tsx` exporte `Card`, `CardHeader`…). Tout le reste en kebab-case
+  (`format.ts`, `use-debounced.ts`, `coffres-search.ts`, `guild-nav.ts`). Les noms des fichiers de routes suivent la
+  convention de TanStack Router (`serveurs.$guildId.coffres.tsx`).
+- **Textes** de l'interface en français ; montants, nombres et dates par `src/lib/format.ts`.
+
+## Lint (Oxlint)
+
+Catégories `correctness`, `suspicious`, `perf`, `pedantic` et `style` en erreur, avertissements refusés
+(`--deny-warnings`), extensions `eslint`, `typescript`, `react` (dont les règles des hooks), `jsx-a11y`, `import`,
+`unicorn`, `promise`, `oxc`, et `vitest` pour les fichiers de test. Oxlint 1.86 n'a pas de règle propre au React
+Compiler : `npm run check:compiler` en tient lieu. Règles écartées ou réglées :
+
+| Règle                                                                                                   | Choix                               | Raison                                                                                                     |
+| ------------------------------------------------------------------------------------------------------- | ----------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `react/react-in-jsx-scope`                                                                              | désactivée                          | transformation JSX automatique                                                                             |
+| `import/no-named-export`, `import/prefer-default-export`, `import/group-exports`, `import/exports-last` | désactivées                         | exports nommés imposés, déclarés à côté de leur code                                                       |
+| `eslint/sort-imports`, `unicorn/number-literal-case`                                                    | désactivées                         | Oxfmt trie les imports et écrit les littéraux ; les deux outils se contrediraient                          |
+| `eslint/sort-keys`                                                                                      | désactivée                          | l'ordre des clés suit le sens (formulaires, colonnes, réglages)                                            |
+| `eslint/no-magic-numbers`                                                                               | désactivée                          | tailles, seuils et marges d'interface : une constante par nombre nuirait à la lecture                      |
+| `eslint/no-ternary`, `eslint/no-nested-ternary`, `unicorn/no-nested-ternary`                            | désactivées                         | chaînes « chargement / erreur / données » en JSX, mises en forme par Oxfmt                                 |
+| `eslint/one-var`, `eslint/init-declarations`, `eslint/id-length`, `eslint/capitalized-comments`         | désactivées                         | une déclaration par ligne ; `a`/`b` de tri et `x`/`y` de coordonnées ; commentaires en français libre      |
+| `eslint/curly`                                                                                          | `multi-line`                        | `if (…) return` sur une ligne admis, accolades dès que le corps s'étend                                    |
+| `eslint/max-lines`                                                                                      | 300 lignes                          | sauf `src/mocks/` (données de la maquette) et tests                                                        |
+| `eslint/max-lines-per-function`, `eslint/max-statements`, `import/max-dependencies`                     | désactivées                         | un composant de page est une seule fonction JSX ; découpés par sens, pas par longueur                      |
+| `eslint/no-continue`                                                                                    | désactivée                          | boucles de filtrage plus lisibles avec `continue`                                                          |
+| `eslint/no-duplicate-imports`                                                                           | types séparés admis                 | cohérent avec `import type` séparé                                                                         |
+| `react/jsx-props-no-spreading`                                                                          | désactivée                          | primitives shadcn et `Field` transmettent les props par conception                                         |
+| `react/jsx-max-depth`, `react/no-unescaped-entities`, `react/only-export-components`                    | désactivées                         | balisage de mise en page ; apostrophes françaises ; variantes `cva` exportées avec leur composant          |
+| greffon `react-perf`                                                                                    | non chargé                          | le React Compiler mémoïse les objets et fonctions passés en props                                          |
+| `unicorn/no-null`                                                                                       | désactivée                          | le contrat de l'API et React utilisent `null`                                                              |
+| `unicorn/filename-case`                                                                                 | PascalCase ou kebab-case            | composants / reste ; désactivée dans `src/routes/` (noms imposés par le routeur)                           |
+| `jsx-a11y/no-autofocus`, `jsx-a11y/prefer-tag-over-role`                                                | désactivées                         | focus initial voulu dans les dialogues ; listes de suggestions ARIA (`listbox`)                            |
+| `import/no-namespace`                                                                                   | désactivée pour `contract-check.ts` | comparaison de deux espaces de types complets                                                              |
+| `vitest/*` dans les tests                                                                               | quelques-unes désactivées           | titres en français avec noms de composants, `findBy…` de Testing Library, préparation commune (`setup.ts`) |
+
+Les rares désactivations ponctuelles (`oxlint-disable-next-line`) portent leur raison en commentaire.
+
+## Tests
+
+Vitest 5 avec happy-dom et Testing Library, sur la configuration Vite de l'application (routeur, React Compiler,
+alias) : on teste le code tel qu'il est livré. Fichiers `*.test.ts(x)` à côté du code testé.
+
+- `lib/` : formats français (« 12 500 $ », dates du jour de Paris, durées relatives), paramètres d'adresse ;
+- `api/client.ts` : en-têtes des écritures, message du serveur dans `ApiRequestError`, messages de repli, 401 suivi
+  une seule fois vers `loginUrl` en revenant à la page affichée ;
+- `state/theme.ts` : valeur brute partagée avec `theme-init.js`, valeur inconnue ignorée ;
+- molécules et organismes : `StatCard`, validation et envoi du formulaire de contact, niveaux de permission (seules
+  les lignes modifiées partent, retour au défaut = `null`) ;
+- une page complète (`JournalPage.test.tsx`) : routeur en mémoire, maquette de l'API (`vi.stubEnv('VITE_MOCK',
+'1')`), filtre écrit dans l'adresse.
+
+`src/test/render.tsx` fournit un client TanStack Query neuf et le contexte d'un serveur ; `src/test/setup.ts` complète
+happy-dom pour Radix (capture du pointeur, défilement).
 
 ## Mode maquette
 
@@ -70,19 +197,32 @@ Scénarios de connexion par paramètre d'adresse (mémorisé pour l'onglet) : `?
 (simple membre), `?mock=aucun` (connecté sans accès), `?mock=anon` (pas connecté). Les exports CSV sont des liens
 directs vers le bot : sans effet en maquette.
 
-## Structure
+## État : qui garde quoi
 
-```
-src/
-  api/          types.ts (contrat), client.ts (fetch + erreurs + 401), queries.ts (options TanStack Query
-                et mutations, seul point d'accès à l'API), hey-api.ts (configuration du client généré),
-                contract-check.ts (spécification ↔ types)
-  routes/       une route par fichier (TanStack Router), redirections des anciennes adresses comprises
-  components/   ui/ (shadcn), charts/ (Recharts), mise en page, formulaires, dialogues
-  lib/          format (Intl, « 12 500 $ »), thème, droits par page, paramètres d'adresse
-  mocks/        maquette de l'API (exclue du build)
-public/         theme-init.js (thème avant le premier rendu), favicon
-```
+| Nature de l'état               | Outil                                                     | Exemples                                                                                                                                             |
+| ------------------------------ | --------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Données du serveur             | TanStack Query (`src/api/queries.ts`)                     | compte, statistiques, listes, mutations                                                                                                              |
+| État partageable par l'adresse | TanStack Router (paramètres validés par `validateSearch`) | filtres, page, période, objet choisi, vue du log (« Échanges seulement », « Détails techniques »)                                                    |
+| État d'interface du navigateur | Jotai (`src/state/`)                                      | thème (clé `theme`, valeur brute lue aussi par `public/theme-init.js`), tiroir du serveur sur mobile, dernier serveur ouvert (clé `dernier-serveur`) |
+| État local d'un composant      | `useState`                                                | champs d'un formulaire, dialogue ouvert, ligne dépliée                                                                                               |
+
+Jotai utilise le store par défaut (pas de `<Provider>`). Les atomes mémorisés passent par `src/state/storage.ts` :
+texte brut, lectures et écritures dans un `try`/`catch` (navigation privée, stockage bloqué), valeurs relues
+validées, synchronisation entre onglets. Ne jamais copier une réponse de l'API dans un atome, ni un paramètre
+d'adresse. Le scénario de la maquette (`?mock=…`) reste dans `src/mocks/` (sessionStorage) : il est lu par le faux
+serveur hors de React et n'existe pas en production.
+
+## Graphiques
+
+Un organisme par graphique (`AttendanceChart`, `MonthlyTransactionsChart`, `WeeklyCotisationsChart`,
+`CoffreSeriesChart`), réglages communs dans `src/lib/charts.ts`, légende, infobulle et tableau des valeurs en
+molécules. Seules les pages qui en affichent les importent : TanStack Charts reste hors du point d'entrée, dans un
+morceau chargé à la demande. Définitions `defineChart` (mémoïsées par le React Compiler), échelles compactes de
+`@tanstack/charts` (point, bande, linéaire), couleurs en références aux jetons (`var(--series-1)`…, `var(--line)`) :
+le changement de thème ne reconstruit rien. Infobulle de la bibliothèque (souris et clavier) avec un contenu React en
+français (`renderTooltipBody`), enveloppe stylée par `.chart` dans `src/styles.css`, légende HTML dès deux séries et
+tableau des valeurs (« Afficher les données »). La courbe du stock en escalier utilise une courbe maison
+(`ChartCurve`) plutôt que `d3-shape` ; la courbe de présence est tracée en segments droits.
 
 Les pages n'appellent jamais `fetch` : elles importent les options de `src/api/queries.ts`. Passer aux types et
 au client générés par Hey API ne touche que `src/api/`.

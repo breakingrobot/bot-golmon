@@ -1,13 +1,12 @@
 /target
-web/node_modules/
 .env
 config.ini
 # Données locales
-data/
-prisma/
-db/
-logs/
-attachments/
+/data/
+/prisma/
+/db/
+/logs/
+/attachments/
 *.db
 *.db-journal
 *.db-wal

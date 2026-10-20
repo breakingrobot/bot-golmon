@@ -64,6 +64,14 @@ fn owner(options: &Options) -> Option<(String, bool)> {
     }
 }
 
+/// Un véhicule au nom d'un membre : seulement s'il fait partie du groupe (un rôle reste accepté).
+async fn owner_is_member(ix: &Ix, options: &Options, owner_id: &str, owner_is_role: bool) -> Result<bool> {
+    match owner_id.parse().ok().and_then(twilight_model::id::Id::new_checked).filter(|_| !owner_is_role) {
+        Some(user) => permissions::require_member(ix, user, &options.user_name(user)).await,
+        None => Ok(true),
+    }
+}
+
 pub async fn autocomplete(ix: &Ix, options: &Options) -> Result<()> {
     let Some(guild_id) = ix.guild_id() else {
         return ix.autocomplete(Vec::new()).await;
@@ -113,6 +121,9 @@ async fn add(ix: &Ix, options: &Options, guild: &str) -> Result<()> {
     let Some((owner_id, owner_is_role)) = owner(options) else {
         return ix.reply(Reply::ephemeral("Propriétaire invalide.")).await;
     };
+    if !owner_is_member(ix, options, &owner_id, owner_is_role).await? {
+        return Ok(());
+    }
     if service::get_by_plate(&ix.ctx.db, guild, &plate).await?.is_some() {
         return ix.reply(Reply::ephemeral(already_registered(&plate))).await;
     }
@@ -155,6 +166,9 @@ async fn change_owner(ix: &Ix, options: &Options, guild: &str) -> Result<()> {
     let Some((owner_id, owner_is_role)) = owner(options) else {
         return ix.reply(Reply::ephemeral("Propriétaire invalide.")).await;
     };
+    if !owner_is_member(ix, options, &owner_id, owner_is_role).await? {
+        return Ok(());
+    }
     if service::get_by_plate(&ix.ctx.db, guild, &plate).await?.is_none() {
         return ix.reply(Reply::ephemeral(format!("Aucun véhicule enregistré avec la plaque `{plate}`."))).await;
     }

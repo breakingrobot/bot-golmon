@@ -1136,7 +1136,6 @@
       "Level": {
         "description": "Niveau de permission, du plus ouvert au plus restreint.",
         "enum": [
-          "tous",
           "membre",
           "grade",
           "lead",

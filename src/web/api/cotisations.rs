@@ -332,6 +332,7 @@ pub async fn create(
     if !session.can(guild_id, perm) {
         return Err(session.denied(guild_id, perm));
     }
+    super::require_member(&ctx, guild_id, target).await?;
     let checked = validate(&input, DbTime::now()).map_err(ApiError::invalid)?;
     let gid = guild_id.to_string();
     let row = service::add(
