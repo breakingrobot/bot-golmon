@@ -46,6 +46,8 @@ impl TestApp {
             modmail: None,
             message_content: false,
             shard_senders: std::sync::OnceLock::new(),
+            events: crate::events::EventBus::default(),
+            health: crate::health::Health::default(),
         });
         Self { ctx, dir }
     }
@@ -325,6 +327,30 @@ async fn contact_creation_is_validated_and_journaled() {
 }
 
 #[tokio::test]
+async fn overview_live_and_health_need_the_guild() {
+    let app = TestApp::new(true).await;
+    for uri in ["/api/guilds/123/overview", "/api/guilds/123/events", "/api/guilds/123/health"] {
+        let (status, _, body) = app.send(get(uri)).await;
+        assert_eq!(status, StatusCode::UNAUTHORIZED, "{uri}");
+        assert!(body["error"].is_string(), "{uri}");
+        let request = axum::http::Request::get(uri).header(header::COOKIE, app.cookie()).body(Body::empty()).unwrap();
+        let (status, _, _) = app.send(request).await;
+        assert_eq!(status, StatusCode::FORBIDDEN, "{uri}");
+    }
+}
+
+#[tokio::test]
+async fn journal_entries_are_announced_live() {
+    let app = TestApp::new(false).await;
+    let mut receiver = app.ctx.events.subscribe();
+    let entry = audit::Entry::new(audit::Action::Config, None, "**coffre** — alertes");
+    audit::record_web(&app.ctx, Id::new(10), Id::new(42), "Elodie", entry).await;
+    let topics = [receiver.recv().await.unwrap(), receiver.recv().await.unwrap()];
+    assert!(topics.iter().all(|e| e.is_for("10")));
+    assert_eq!(topics.map(|e| e.topic.as_str()), ["journal", "config"]);
+}
+
+#[tokio::test]
 async fn serves_the_react_interface() {
     let app = TestApp::new(true).await;
     let send_raw = |uri: &str| {
@@ -349,6 +375,8 @@ async fn serves_the_react_interface() {
     std::fs::write(ui.join("index.html"), "<!doctype html><div id=app></div>").unwrap();
     std::fs::write(ui.join("assets/index-abc123.js"), "console.log(1)").unwrap();
     std::fs::write(ui.join("theme-init.js"), "0").unwrap();
+    std::fs::write(ui.join("sw.js"), "0").unwrap();
+    std::fs::write(ui.join("manifest.webmanifest"), "{}").unwrap();
 
     // Routes de l'application (et anciennes adresses) : index.html, revalidé.
     for uri in ["/", "/serveurs/1/coffres", "/stats/1/transactions?du=2026-10-01", "/membres/5?serveur=1"] {
@@ -365,6 +393,13 @@ async fn serves_the_react_interface() {
     assert!(headers[header::CACHE_CONTROL].to_str().unwrap().contains("immutable"));
     let (_, headers, _) = send_raw("/theme-init.js").await;
     assert_eq!(headers[header::CACHE_CONTROL], "no-cache");
+    // Application installable : service worker et manifeste jamais figés par le cache.
+    let (_, headers, _) = send_raw("/sw.js").await;
+    assert_eq!(headers[header::CACHE_CONTROL], "no-cache");
+    assert!(headers[header::CONTENT_SECURITY_POLICY].to_str().unwrap().contains("worker-src 'self'"));
+    let (_, headers, _) = send_raw("/manifest.webmanifest").await;
+    assert_eq!(headers[header::CACHE_CONTROL], "no-cache");
+    assert_eq!(headers[header::CONTENT_TYPE], "application/manifest+json");
     // Fichier d'assets absent : vrai 404 (pas la page à la place d'un script).
     assert_eq!(send_raw("/assets/disparu.js").await.0, StatusCode::NOT_FOUND);
     // Sortie du dossier refusée : la page de l'application, jamais le fichier.

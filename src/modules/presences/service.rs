@@ -511,6 +511,7 @@ pub async fn sync_message(ctx: &Ctx, presence_id: &str) -> Result<()> {
     let Some(presence) = get_presence(&ctx.db, presence_id).await? else {
         return Ok(());
     };
+    ctx.events.publish(&presence.guild_id, crate::events::Topic::Presences);
     let (Some(guild_id), Some(channel_id)) = (parse_id(&presence.guild_id), parse_id(&presence.channel_id)) else {
         return Ok(());
     };

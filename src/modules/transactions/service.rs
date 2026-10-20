@@ -239,6 +239,7 @@ pub async fn sync_message(ctx: &Ctx, guild_id: &str, transaction_id: &str) -> Re
 /// récentes, sans quoi le tableau de bord grossirait jusqu'à dépasser les
 /// limites d'un message.
 pub async fn sync_dashboard(ctx: &Ctx, guild_id: &str) -> Result<()> {
+    ctx.events.publish(guild_id, crate::events::Topic::Transactions);
     let Some(config) = get_config(&ctx.db, guild_id).await? else {
         return Ok(());
     };

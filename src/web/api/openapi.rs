@@ -4,7 +4,8 @@
 //! (`UPDATE_OPENAPI=1 cargo test openapi_spec_is_up_to_date` pour le régénérer).
 
 use super::{
-    MemberRef, RoleRef, coffres, contacts, cotisations, journal, me, members, permissions, stats, tickets, transactions,
+    MemberRef, RoleRef, coffres, contacts, cotisations, journal, live, me, members, overview, permissions, sante,
+    stats, tickets, transactions,
 };
 use crate::modules::permissions::{Level, Perm};
 use axum::response::{IntoResponse, Response};
@@ -90,6 +91,7 @@ string_enum!(TicketStatus, "Statut d'un ticket.", ["OPEN", "CLOSED", "SUSPENDED"
 string_enum!(LogKind, "Type d'un message de log.", ["user", "staff", "internal", "command", "system", "danger"]);
 string_enum!(ObjectiveCounts, "Ce qui compte pour l'objectif.", ["total", "propre", "sale"]);
 string_enum!(ModuleStatus, "État d'un module.", ["ok", "incomplete", "off"]);
+string_enum!(HealthLevel, "Gravité d'un événement du journal.", ["WARN", "ERROR"]);
 
 /// Schéma d'une page (`Page<T>` du contrat) : un type nommé par liste, pour que
 /// les éléments restent des références (`Transaction`…) dans le client généré.
@@ -241,6 +243,10 @@ pub struct ConfigStatus {
         tickets::list,
         tickets::staff,
         tickets::log,
+        // Accueil, mise à jour en direct et santé.
+        overview::overview,
+        live::events,
+        sante::health,
     ),
     components(schemas(PermKey, LevelKey, RoleRef, Objective, ObjectiveProgress, CoffreAlerts, ConfigStatus)),
     tags(

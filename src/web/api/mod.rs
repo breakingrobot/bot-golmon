@@ -12,11 +12,14 @@ mod coffres;
 mod contacts;
 mod cotisations;
 mod journal;
+mod live;
 mod me;
 mod members;
 pub mod openapi;
+mod overview;
 mod permissions;
 mod reglages;
+mod sante;
 mod series;
 mod stats;
 pub(crate) mod tickets;
@@ -77,6 +80,10 @@ pub fn router() -> Router<Context> {
         .route("/guilds/{guild}/journal", get(journal::journal))
         .route("/guilds/{guild}/permissions", get(permissions::show).put(permissions::update))
         .route("/guilds/{guild}/config", get(reglages::config_get))
+        // Accueil, mise à jour en direct et santé.
+        .route("/guilds/{guild}/overview", get(overview::overview))
+        .route("/guilds/{guild}/events", get(live::events))
+        .route("/guilds/{guild}/health", get(sante::health))
         .route("/tickets", get(tickets::list))
         .route("/tickets/staff", get(tickets::staff))
         .route("/logs/{thread}", get(tickets::log))

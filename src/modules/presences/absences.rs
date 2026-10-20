@@ -130,6 +130,7 @@ pub struct Declared {
 /// Enregistre une absence, attribue le rôle si elle a déjà commencé et marque
 /// le membre absent sur les présences ouvertes tombant dans la période.
 pub async fn declare(ctx: &Ctx, guild_id: Id<GuildMarker>, absence: NewAbsence) -> Result<Declared> {
+    ctx.events.publish(guild_id, crate::events::Topic::Absences);
     let id = new_id();
     sqlx::query(
         r#"INSERT INTO "Absence" ("id", "guildId", "userId", "motif", "startsAt", "endsAt", "createdById", "createdAt") VALUES (?, ?, ?, ?, ?, ?, ?, ?)"#,
@@ -177,6 +178,7 @@ pub async fn declare(ctx: &Ctx, guild_id: Id<GuildMarker>, absence: NewAbsence) 
 /// annonce. Le rôle n'est retiré que si le membre n'a aucune autre absence
 /// encore active (périodes qui se chevauchent).
 pub async fn end(ctx: &Ctx, guild_id: Id<GuildMarker>, absence_id: &str, user_id: &str) -> Result<RoleUpdate> {
+    ctx.events.publish(guild_id, crate::events::Topic::Absences);
     let now = DbTime::now();
     let (still_absent,): (bool,) = sqlx::query_as(
         r#"SELECT EXISTS (SELECT 1 FROM "Absence" WHERE "guildId" = ? AND "userId" = ? AND "endedAt" IS NULL AND "id" != ? AND "startsAt" <= ? AND "endsAt" > ?)"#,

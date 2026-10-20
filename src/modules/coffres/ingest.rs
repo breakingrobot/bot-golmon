@@ -183,6 +183,7 @@ pub async fn catch_up(ctx: &Context, channel: &mut service::Channel) -> Result<u
         anyhow::Ok(())
     }
     .await;
+    ctx.health.record_catch_up(&channel.channel_id, result.is_ok());
     // Ce qui a été enregistré avant une erreur est tout de même signalé.
     after_new(ctx, &channel.guild_id.clone(), &added, alert).await;
     result.map(|()| added.len())

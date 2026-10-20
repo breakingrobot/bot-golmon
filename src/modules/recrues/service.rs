@@ -383,6 +383,7 @@ pub async fn claim_reminder(db: &SqlitePool, session_id: &str) -> Result<bool> {
 /// porté par la session : chaque semaine a son propre message, et ceux des
 /// semaines écoulées restent visibles dans le salon comme archive.
 pub async fn sync_dashboard(ctx: &Ctx, guild_id: Id<GuildMarker>) -> Result<()> {
+    ctx.events.publish(guild_id, crate::events::Topic::Recrues);
     let guild = guild_id.to_string();
     let Some(channel_id) =
         get_config(&ctx.db, &guild).await?.and_then(|c| c.dashboard_channel_id).as_deref().and_then(parse_id)

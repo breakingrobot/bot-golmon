@@ -5,6 +5,8 @@ mod config;
 mod context;
 mod db;
 mod discord;
+mod events;
+mod health;
 mod modmail;
 mod modules;
 mod util;
@@ -14,6 +16,7 @@ use anyhow::{Context as _, Result};
 use context::Ctx;
 use std::sync::{Arc, OnceLock};
 use tokio::sync::watch;
+use tracing_subscriber::{layer::SubscriberExt as _, util::SubscriberInitExt as _};
 use twilight_cache_inmemory::{DefaultInMemoryCache, ResourceType};
 use twilight_gateway::Config as GatewayConfig;
 use twilight_http::Client as HttpClient;
@@ -24,11 +27,15 @@ use twilight_model::oauth::ApplicationFlags;
 /// pile et, avec la glibc, une arène mémoire). `TOKIO_WORKER_THREADS` ajuste.
 fn main() -> Result<()> {
     let _ = dotenvy::dotenv();
-    tracing_subscriber::fmt()
-        .with_env_filter(
+    // Journal sur la sortie standard, et copie des avertissements et erreurs pour la page « Santé ».
+    let errors = Arc::new(health::ErrorLog::default());
+    tracing_subscriber::registry()
+        .with(
             tracing_subscriber::EnvFilter::try_from_default_env()
                 .unwrap_or_else(|_| "info,twilight_gateway=warn,twilight_http_ratelimiting=warn,sqlx=warn".into()),
         )
+        .with(tracing_subscriber::fmt::layer())
+        .with(health::ErrorLayer::new(Arc::clone(&errors)))
         .init();
     let workers = std::env::var("TOKIO_WORKER_THREADS").ok().and_then(|v| v.parse().ok()).unwrap_or(2);
     let result = tokio::runtime::Builder::new_multi_thread()
@@ -36,7 +43,7 @@ fn main() -> Result<()> {
         .max_blocking_threads(8)
         .enable_all()
         .build()?
-        .block_on(run());
+        .block_on(run(errors));
     // Une erreur fatale part aussi dans le journal (sortie standard) : certaines
     // plateformes n'affichent pas la sortie d'erreur à côté des journaux.
     if let Err(error) = &result {
@@ -45,7 +52,7 @@ fn main() -> Result<()> {
     result
 }
 
-async fn run() -> Result<()> {
+async fn run(errors: Arc<health::ErrorLog>) -> Result<()> {
     rustls::crypto::ring::default_provider().install_default().ok();
 
     let deploy_only = std::env::args().nth(1).as_deref() == Some("deploy-commands");
@@ -97,6 +104,8 @@ async fn run() -> Result<()> {
         }),
         modmail,
         shard_senders: OnceLock::new(),
+        events: events::EventBus::default(),
+        health: health::Health::new(errors),
     });
 
     if deploy_only {
