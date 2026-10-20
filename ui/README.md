@@ -1,7 +1,8 @@
 # Interface web (React)
 
-Application monopage du site du bot : statistiques des serveurs, transactions, cotisations, coffres, contacts,
-journal du staff, fiches des membres, permissions, configuration, tickets et logs. Le bot (axum) sert les
+Application monopage du site du bot : accueil et statistiques des serveurs, transactions, cotisations, coffres, contacts,
+journal du staff, fiches des membres, permissions, configuration, santé, tickets et logs. Palette de commandes,
+mise à jour en direct (SSE), navigation mobile et application installable (PWA). Le bot (axum) sert les
 fichiers construits de `ui/dist` et l'API JSON sous `/api`, sur la même origine.
 
 Le contrat de l'API est `src/api/types.ts` ; la spécification OpenAPI du bot (`ui/openapi.json`, aussi servie sur
@@ -94,13 +95,17 @@ src/
   routes/       déclarations de routes seulement (TanStack Router, routes par fichiers)
   state/        atomes Jotai, un fichier par sujet
   api/          types.ts (contrat), client.ts (fetch, erreurs, 401), queries.ts (options TanStack Query et
-                mutations, seul point d'accès à l'API), hey-api.ts, contract-check.ts (spécification ↔ types)
+                mutations, seul point d'accès à l'API), hey-api.ts, contract-check.ts (spécification ↔ types) ;
+                types-site.ts et queries-site.ts : leur suite pour l'accueil, la santé, les suppressions
+                annulables et les exports CSV côté client (fichiers limités à 300 lignes)
   lib/          fonctions sans React : format (Intl, « 12 500 $ »), droits par page, paramètres d'adresse,
                 constantes partagées (graphiques, contacts, niveaux de permission, tons)
-  hooks/        hooks réutilisables (use-debounced)
+  hooks/        hooks réutilisables : use-debounced, use-live-updates (flux SSE), use-undoable-action
+                (« Annuler »)
   mocks/        maquette de l'API (exclue du build)
   test/         préparation des tests (setup.ts, render.tsx)
-public/         theme-init.js (thème avant le premier rendu), favicon
+public/         theme-init.js (thème avant le premier rendu), favicon, manifest.webmanifest, icônes PNG
+                (192, 512, maskable, apple-touch-icon), sw.js (service worker), offline.html
 ```
 
 Une couche n'importe que des couches inférieures : atomes ← molécules ← organismes ← modèles ← pages ← routes.
@@ -115,6 +120,48 @@ automatique du routeur (`autoCodeSplitting`) place chaque page dans son propre m
 **Alias.** `@/atoms`, `@/molecules`, `@/organisms`, `@/templates`, `@/pages` (déclarés dans `tsconfig.json` et
 `vite.config.ts`), puis `@/` pour le reste de `src/`. Pas de fichier « barrel » (`index.ts`) : chaque import vise le
 fichier du composant, ce qui garde le découpage par page exact.
+
+## Outils transverses
+
+**Palette de commandes** (`organisms/CommandPalette.tsx`, montée dans `RootLayout`) : Ctrl+K / ⌘K ou
+`paletteOpenAtom` (`state/palette.ts`). Dialogue Radix, champ `role="combobox"` avec `aria-activedescendant`,
+liste `role="listbox"` en groupes. Les entrées sont calculées par `lib/palette.ts` (fonctions pures, testées) selon les
+droits du serveur courant (`useParams({ strict: false })`), filtrées sans accents par `lib/text.ts`. Une nouvelle page
+apparaît d'elle-même si elle est dans `GUILD_PAGES` ; une nouvelle source se branche dans `allCommands`.
+
+**Mise à jour en direct** : `useLiveUpdates` (monté dans `GuildShell`) ouvre `EventSource` sur
+`/api/guilds/:id/events`, reconnecte avec une attente croissante et invalide, pour chaque sujet reçu, les domaines
+de `TOPIC_DOMAINS` (`lib/live.ts`). Les clés de requête d'un serveur commencent toutes par
+`['guild', guildId, <domaine>, …]` : une nouvelle page range ses requêtes sous son domaine (`presences`,
+`absences`, `recrues`, `annuaire`…) et l'ajoute au sujet concerné dans `TOPIC_DOMAINS`. Rien en maquette.
+
+**« Annuler »** : `useUndoableAction` (`hooks/use-undoable-action.ts`) prend `hide` (retire l'élément du cache
+TanStack Query, renvoie la remise en état), `commit` (requête réelle, `keepalive` si l'onglet se ferme), `message`
+et `onCommitted`. Exemples : `useUndoableDeleteCotisation`, `useUndoableUnlinkPlayer` (`api/queries-site.ts`).
+
+**Exports CSV côté client** : molécule `CsvExportButton` (`filename`, `columns`, `rows`) et util pur `toCsv`
+(`lib/csv.ts`) au format des exports du bot : BOM UTF-8, séparateur `;`, CRLF, guillemets RFC 4180, formules
+neutralisées (`'=`…), nombres à virgule, dates `csvDateTime` (`JJ/MM/AAAA HH:MM`, heure de Paris) et `csvDay`.
+`rows` est soit la liste affichée, soit une fonction asynchrone qui charge toutes les pages (voir
+`fetchJournalForExport`). Une liste déjà exportée par le bot garde `CsvButton` (lien `…/export.csv`).
+
+```tsx
+const COLUMNS: CsvColumn<Contact>[] = [
+  { header: 'Nom', value: (contact) => contact.name },
+  { header: 'Ajouté le', value: (contact) => csvDateTime(contact.createdAt) },
+]
+<CsvExportButton filename="contacts" columns={COLUMNS} rows={query.data?.items ?? []} />
+```
+
+**Mobile** : sous `lg`, `GuildTabBar` (quatre raccourcis + « Plus » qui ouvre le tiroir) ; la page garde une marge
+basse (`pb-24`). Sous `sm`, un tableau large s'affiche en cartes : `MobileCards` / `MobileCard` (molécule,
+`flush` dans une carte existante) à côté du tableau enveloppé dans `hidden sm:block`. Au doigt
+(`pointer: coarse`), boutons, listes déroulantes et onglets font au moins 44 px (`styles.css`) ; le corps de page ne
+défile jamais horizontalement.
+
+**Application installable** : `manifest.webmanifest` (« Bot du groupe »), `theme-color`, icônes, et `sw.js`
+enregistré en production seulement (`main.tsx`) : cache des `/assets/` (immuables), page `offline.html` hors ligne,
+jamais `/api/`. Changer la constante `VERSION` de `sw.js` vide les anciens caches.
 
 ## Conventions
 
@@ -183,7 +230,11 @@ alias) : on teste le code tel qu'il est livré. Fichiers `*.test.ts(x)` à côt�
   les lignes modifiées partent, retour au défaut = `null`), inventaire des coffres (seules les lignes qui changent
   partent, liste collée, erreur 422 affichée dans le dialogue) ;
 - une page complète (`JournalPage.test.tsx`) : routeur en mémoire, maquette de l'API (`vi.stubEnv('VITE_MOCK',
-'1')`), filtre écrit dans l'adresse.
+'1')`), filtre écrit dans l'adresse ;
+- `lib/text.ts`, `lib/csv.ts`, `lib/live.ts`, `lib/palette.ts` : recherche sans accents, échappement CSV, sujet du
+  direct → clés à recharger, entrées de la palette selon les droits ;
+- `hooks/use-undoable-action.ts` (minuteurs simulés : expiration, « Annuler », `pagehide`, refus du serveur),
+  `CsvExportButton`, et l'accueil avec la palette (`CommandPalette.test.tsx` : Ctrl+K, flèches, Entrée, Échap).
 
 `src/test/render.tsx` fournit un client TanStack Query neuf et le contexte d'un serveur ; `src/test/setup.ts` complète
 happy-dom pour Radix (capture du pointeur, défilement).
@@ -235,7 +286,8 @@ au client générés par Hey API ne touche que `src/api/`.
 | Adresse                                                        | Page                                                                                        |
 | -------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
 | `/`                                                            | Connexion, ou tuiles des serveurs et des tickets                                            |
-| `/serveurs/:id`                                                | Statistiques (`site.stats`)                                                                 |
+| `/serveurs/:id`                                                | Accueil : tuiles selon les droits                                                           |
+| `/serveurs/:id/stats`                                          | Statistiques (`site.stats`)                                                                 |
 | `/serveurs/:id/transactions`                                   | Transactions, filtres dans l'adresse, export CSV (`transaction.historique`)                 |
 | `/serveurs/:id/cotisations`                                    | Cotisations, objectif, ajout (`cotisation.stats`, `cotisation.ajouter`, `cotisation.gerer`) |
 | `/serveurs/:id/coffres`                                        | Stock, évolution d'un objet, joueurs, mouvements (`coffre.voir`, `coffre.gerer`)            |
@@ -243,6 +295,8 @@ au client générés par Hey API ne touche que `src/api/`.
 | `/serveurs/:id/journal`                                        | Journal du staff (`site.journal`)                                                           |
 | `/serveurs/:id/membres`, `/serveurs/:id/membres/:user`         | Recherche et fiche d'un membre (`membre.fiche` ; sa propre fiche pour tous)                 |
 | `/serveurs/:id/permissions`, `/serveurs/:id/configuration`     | Réglages (« Gérer le serveur »)                                                             |
+| `/serveurs/:id/sante`                                          | Santé du bot, webhooks des coffres, dernières erreurs (« Gérer le serveur »)                |
+| `/serveurs/:id/presences`, `…/absences`, `…/recrues`           | Pages provisoires « bientôt » (`pages/soon/`), remplacées par les vraies pages              |
 | `/tickets`, `/tickets/staff`, `/logs/:thread`                  | Tickets, statistiques du staff, log d'un ticket                                             |
 | `/membres/:user?serveur=:id`                                   | Redirection vers la fiche (liens envoyés par le bot)                                        |
 | `/stats…`, `/cotisations`, `/contacts`, `/logs`, `/logs/staff` | Redirections des anciennes adresses                                                         |
@@ -250,11 +304,11 @@ au client générés par Hey API ne touche que `src/api/`.
 ## Service par le bot
 
 - Fichiers de `dist/` servis tels quels (`/assets/*` avec un cache long : noms avec empreinte ; `index.html`,
-  `theme-init.js`, `favicon.svg` sans cache long).
+  `theme-init.js`, `favicon.svg`, `sw.js`, `manifest.webmanifest` sans cache long).
 - Toute adresse inconnue hors `/api`, `/login`, `/logout`, `/auth/*`, `/healthz` et `/logs/:id?raw=1` renvoie
   `index.html` (routage côté client).
 - CSP du bot (`src/web/mod.rs`) : `script-src 'self'` (aucun script en ligne dans `index.html`),
-  `style-src 'self' 'unsafe-inline'` (Radix et sonner injectent des `<style>`, par exemple le blocage du défilement
+  `manifest-src 'self'`, `worker-src 'self'` (application installable), `style-src 'self' 'unsafe-inline'` (Radix et sonner injectent des `<style>`, par exemple le blocage du défilement
   des dialogues), `connect-src 'self'` pour l'API, `font-src 'self'` pour Inter auto-hébergée, `img-src` limité au
   site et aux CDN de Discord (avatars, pièces jointes).
 - Écritures : en-têtes `Content-Type: application/json` et `X-Requested-With: fetch`. Sur 401, l'interface suit
