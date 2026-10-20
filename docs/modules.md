@@ -47,6 +47,8 @@ serveur » ni « Gérer les messages » n'y donnent accès.
 
 L'action se choisit dans la liste proposée par Discord. Changer un niveau demande « Gérer le serveur ».
 Les pages du site suivent les mêmes réglages (`site.stats`, `cotisation.stats`, `coffre.voir`…).
+Présences, absences, recrues, véhicules et numéros se gèrent aussi depuis le site, avec les mêmes actions et les
+mêmes effets que les commandes ([pages du site](site-web.md#présences)).
 
 | Action | Module | Ce qu'elle permet | Par défaut |
 |---|---|---|---|
@@ -178,6 +180,8 @@ période passent en **Absent**. Déclarer ou clore l'absence d'un autre membre :
   Une transaction **clôturée** n'est plus modifiable.
 - **Historique** sur le site web (`/stats/<serveur>/transactions`) : filtres, totaux par mois, export
   CSV ([détails](site-web.md#transactions)).
+  Création, statut, objets et annulation aussi depuis le site (`transaction.utiliser`), fiche publiée dans le salon
+  du tableau de bord.
 
 ## Véhicules
 
@@ -411,7 +415,8 @@ Les actions sensibles sont enregistrées : configuration modifiée (`/config`), 
 annulées ou planifiées, statistiques réinitialisées, blocklist, absences déclarées ou clôturées **pour un
 autre membre**, transactions supprimées, recrues ajoutées ou retirées, vétos, numéros modifiés pour un
 autre membre, cotisations déclarées pour un autre membre ou supprimées, contacts ajoutés, modifiés ou
-supprimés et notes du staff sur les contacts.
+supprimés et notes du staff sur les contacts, et, depuis le site, transactions créées, statut changé, objet ajouté
+ou transaction annulée.
 
 - Sur le site : `/stats/<serveur>/journal`, filtrable par action (`site.journal`, « Gérer le serveur » par défaut).
 - Sur Discord, en option : `/config journal salon:#journal-staff` publie chaque action dans ce salon

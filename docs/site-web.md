@@ -12,6 +12,10 @@ pour `/healthz`. Thème clair ou sombre (selon le système ou au choix), adapté
 | `/serveurs/<serveur>/cotisations` | [Cotisations](#cotisations) : totaux, graphique, objectif, saisie, export CSV | `cotisation.stats` (gradés par défaut) |
 | `/serveurs/<serveur>/coffres` | [Coffres](#coffres) : stock, évolution d'un objet, mouvements, export CSV | `coffre.voir` (gradés par défaut) |
 | `/serveurs/<serveur>/contacts` | [Contacts](#contacts) : répertoire, notes du staff, saisie | `contact.voir` (notes : `contact.notes`) |
+| `/serveurs/<serveur>/presences` | [Présences](#présences) : liste, détail, assiduité, plannings, création | `presence.stats` (créer : `presence.creer`, plannings : `presence.gerer`) |
+| `/serveurs/<serveur>/absences` | [Absences](#absences) : frise, liste, déclaration | Membres du groupe (pour un autre : `absence.autrui`) |
+| `/serveurs/<serveur>/recrues` | [Recrues](#recrues) : avis de la semaine, vétos, historique | `recrue.suivi`, `recrue.avis` ou `recrue.veto` (strictes) |
+| `/serveurs/<serveur>/annuaire` | [Annuaire](#annuaire) : véhicules et numéros | `vehicule.utiliser` (véhicules), membres du groupe (numéros) |
 | `/serveurs/<serveur>/membres/<id>` | [Fiche d'un membre](#fiche-dun-membre) | `membre.fiche` (gradés par défaut), ou soi-même |
 | `/serveurs/<serveur>/journal` | [Journal du staff](modules.md#journal-du-staff) | `site.journal` (« Gérer le serveur » par défaut) |
 | `/serveurs/<serveur>/permissions` | [Permissions](#permissions) de chaque action | « Gérer le serveur » |
@@ -93,6 +97,11 @@ s'affiche sur le serveur principal du module ticket.
 - **Totaux** : nombre, achats, ventes, solde, en cours. Les transactions **annulées** comptent dans le nombre, pas
   dans les montants.
 - **Graphique par mois** (achats et ventes), détail paginé avec les objets de chaque transaction.
+- **Écriture** (`transaction.utiliser`) : **Nouvelle transaction** (groupe, achat ou vente, prix, objets) ; sous les
+  objets d'une transaction dépliée, changer le statut, ajouter un objet, annuler. Comme `/transaction`, la fiche Discord
+  et le tableau de bord sont mis à jour ; depuis le site, la fiche d'une nouvelle transaction est publiée dans le **salon
+  du tableau de bord** (`/config transaction dashboard_channel`), sans lequel la création est refusée. Chaque écriture
+  va au journal du staff ; une transaction clôturée n'est plus modifiable.
 - **Export CSV** (10 000 lignes au plus) : séparateur `;`, UTF-8 reconnu par Excel, dates `JJ/MM/AAAA HH:MM`. Une
   cellule qui commence par `=`, `+`, `-` ou `@` est préfixée d'une apostrophe (pas de formule exécutée).
 
@@ -133,6 +142,56 @@ pas dans l'activité des joueurs.
 Nombre d'alliés, de neutres et d'hostiles, filtres par relation et par type, recherche. La fiche d'un contact
 montre sa description et les **notes du staff** (`contact.notes`). Ajout, modification, suppression et notes depuis
 le site, avec les mêmes effets que les commandes : répertoire publié sur Discord mis à jour, journal du staff.
+
+### Présences
+
+Trois vues : **Présences** (filtres état — à venir, ouvertes, closes — et période du / au, décompte ✅ ❌ ⏳ ❔ de
+chacune), **Assiduité** et **Plannings** (avec `presence.gerer`). Un clic ouvre le détail : présents, retards (en
+minutes), absents, sans réponse (membres actuels du rôle, comme le message Discord), changements d'avis.
+
+- **Nouvelle présence** (`presence.creer`) : jour (aujourd'hui par défaut, ou demain si l'heure est passée), heure de
+  Paris, titre, description. Elle est publiée dans le salon des présences de `/config presence` (obligatoire depuis le
+  site) avec le ping habituel, comme `/presence create`. **Clôturer** (`presence.creer`) désactive les boutons du message.
+- **Assiduité** : périodes 7, 30, 90 jours, 1 an ou tout ; taux de présence (présents ÷ attendus, la règle du
+  [rapport hebdomadaire](modules.md#rapport-hebdomadaire)), courbe par semaine, classement des membres (présent, retard,
+  absent, sans réponse, attendu ; les membres sous le seuil d'alerte sont signalés), export CSV.
+- **Plannings** : liste, ajout et suppression des présences récurrentes, comme `/gestion presence planifier` (journal du
+  staff).
+
+### Absences
+
+Absences en cours, à venir et terminées depuis 30 jours. Vue **Frise** : une ligne par membre sur cinq semaines
+(semaine précédente, en cours, trois suivantes), aujourd'hui marqué, barres en cours / à venir / terminées ; au clavier,
+Tab atteint la frise et les flèches passent d'une absence à l'autre, Entrée affiche le détail. Sur un petit écran, la
+frise laisse place à la liste. Vue **Liste** : en cours, à venir, récentes.
+
+**Déclarer une absence** (membres du groupe ; pour un autre membre : `absence.autrui`) : motif, premier et dernier jour,
+mêmes règles et mêmes effets que `/absence declare` (annonce dans le salon des absences, rôle d'absence, présences
+ouvertes passées en absent). **Terminer** une absence en cours ou **annuler** une absence à venir : la sienne, ou celle
+d'un autre avec `absence.autrui`. Les actions pour un autre membre vont au journal du staff.
+
+### Recrues
+
+Une carte par recrue de la semaine : ancienneté d'essai, décompte ✅ / ❌ / ⬜, véto, son propre avis. Actions
+**strictes** (seuls les rôles comptent, « Gérer le serveur » n'y donne pas accès) :
+
+- `recrue.avis` : **donner ou modifier son avis** (vote et motif obligatoire), comme le menu du message hebdomadaire ;
+- `recrue.veto` : **poser** (motif obligatoire) ou **lever un véto** (journal du staff) ;
+- `recrue.suivi` : avis détaillés (qui a voté quoi, avec le motif) et **historique** des semaines d'une recrue.
+
+Chaque action met à jour le message d'avis de la semaine sur Discord. Une semaine clôturée n'accepte plus d'avis.
+
+### Annuaire
+
+Deux onglets, avec recherche (insensible aux tirets et aux espaces) :
+
+- **Véhicules** (`vehicule.utiliser`) : plaque, modèle, propriétaire (membre ou rôle), plaque à copier. **Enregistrer**
+  (le propriétaire membre doit être du groupe ; sans modèle, l'API GLife est consultée une fois, sans bloquer l'ajout) et
+  **retirer** un véhicule, comme `/vehicle add` et `remove` ; le tableau de bord Discord est mis à jour. Le transfert de
+  propriétaire reste sur Discord (`/vehicle owner`).
+- **Numéros** (membres du groupe) : numéro de chaque membre, à copier. Ajouter ou modifier **son** numéro, supprimer le
+  sien ; pour un autre membre : `numero.ajouter_autrui` / `numero.supprimer_autrui` (journal du staff). L'annuaire publié
+  sur Discord est mis à jour.
 
 ### Fiche d'un membre
 
