@@ -5,6 +5,7 @@ use super::{
 };
 use crate::modules::{
     audit::{self, Action, Entry},
+    contacts,
     permissions::{self, Perm},
 };
 use crate::{
@@ -13,6 +14,7 @@ use crate::{
         interaction::{GUILD_ONLY, Ix, MANAGE_GUILD_ONLY, Reply, choice},
         messages::{self, parse_id},
         options::Options,
+        suggest,
     },
     util::format::{field, format_price},
 };
@@ -37,14 +39,14 @@ pub fn definition() -> Command {
     CommandBuilder::new("transaction", "Gestion des transactions du groupe", CommandType::ChatInput)
         .option(
             SubCommandBuilder::new("create", "Crée une transaction")
-                .option(StringBuilder::new("groupe", "Groupe concerné").required(true))
+                .option(StringBuilder::new("groupe", "Groupe concerné").required(true).autocomplete(true))
                 .option(StringBuilder::new("type", "Achat ou vente").required(true).choices(TYPE_CHOICES))
                 .option(NumberBuilder::new("prix", "Prix total").required(true)),
         )
         .option(
             SubCommandBuilder::new("add-item", "Ajoute un objet à une transaction")
                 .option(transaction_option())
-                .option(StringBuilder::new("nom", "Nom de l'objet").required(true))
+                .option(StringBuilder::new("nom", "Nom de l'objet").required(true).autocomplete(true))
                 .option(IntegerBuilder::new("quantite", "Quantité (défaut: 1)").min_value(1))
                 .option(NumberBuilder::new("prix_unitaire", "Prix unitaire")),
         )
@@ -83,15 +85,47 @@ pub async fn autocomplete(ix: &Ix, options: &Options) -> Result<()> {
     let Some(guild_id) = ix.guild_id() else {
         return ix.autocomplete(Vec::new()).await;
     };
+    let guild = guild_id.to_string();
+    let (name, query) = options.focused.clone().unwrap_or_default();
+    match name.as_str() {
+        "groupe" => return group_autocomplete(ix, &guild, &query).await,
+        "nom" => {
+            let items = service::known_items(&ix.ctx.db, &guild).await?;
+            let choices = suggest::filter(items.into_iter().map(|i| (i.clone(), i)), &query);
+            return ix.autocomplete(choices.into_iter().map(|(l, v)| choice(&l, v)).collect()).await;
+        }
+        _ => {}
+    }
     // `view` doit pouvoir retrouver aussi les transactions terminées.
     let open_only = options.sub() != "view";
-    let query = options.focused.as_ref().map(|(_, v)| v.as_str()).unwrap_or_default();
-    let transactions = service::search(&ix.ctx.db, &guild_id.to_string(), query, open_only).await?;
+    let transactions = service::search(&ix.ctx.db, &guild, &query, open_only).await?;
     let choices = transactions
         .iter()
         .map(|t| choice(&format!("{} · {} · {}", t.groupe, format_price(t.prix), t.status().label()), t.id.clone()))
         .collect();
     ix.autocomplete(choices).await
+}
+
+/// Groupe : contacts du répertoire (si la personne peut le consulter) et groupes déjà utilisés.
+async fn group_autocomplete(ix: &Ix, guild: &str, typed: &str) -> Result<()> {
+    if !permissions::can(ix, Perm::TransactionUtiliser).await? {
+        return ix.autocomplete(Vec::new()).await;
+    }
+    let contacts = if permissions::can(ix, Perm::ContactVoir).await? {
+        contacts::service::list(&ix.ctx.db, guild, &contacts::service::Filter::default())
+            .await?
+            .into_iter()
+            .map(|c| {
+                let emoji = c.relation().emoji();
+                (c.name, emoji)
+            })
+            .collect()
+    } else {
+        Vec::new()
+    };
+    let used = service::known_groups(&ix.ctx.db, guild).await?;
+    let choices = service::group_choices(contacts, used, typed);
+    ix.autocomplete(choices.into_iter().map(|(l, v)| choice(&l, v)).collect()).await
 }
 
 pub async fn handle(ix: &Ix, options: &Options) -> Result<()> {

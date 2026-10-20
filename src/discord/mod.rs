@@ -9,3 +9,4 @@ pub mod members;
 pub mod messages;
 pub mod options;
 pub mod site;
+pub mod suggest;

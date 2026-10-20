@@ -107,7 +107,7 @@ async fn route(ix: &Ix) -> Result<()> {
         (InteractionType::ApplicationCommandAutocomplete, InteractionData::ApplicationCommand(command)) => {
             let options = Options::parse(command);
             match command.name.as_str() {
-                "presence" => presences::commands::autocomplete(ix, &options).await,
+                "presence" | "absence" => presences::commands::autocomplete(ix, &options).await,
                 "transaction" => transactions::commands::autocomplete(ix, &options).await,
                 // `/gestion` reprend les options « presence » et « transaction » des modules.
                 "gestion" => match options.group() {
@@ -122,6 +122,9 @@ async fn route(ix: &Ix) -> Result<()> {
                 "contact" => crate::modules::contacts::commands::autocomplete(ix, &options).await,
                 "config" if options.sub() == "permission" => {
                     crate::modules::permissions::commands::autocomplete(ix, &options).await
+                }
+                "config" if options.sub() == "coffre" => {
+                    crate::modules::coffres::commands::config_autocomplete(ix, &options).await
                 }
                 _ => ix.autocomplete(Vec::new()).await,
             }

@@ -27,11 +27,20 @@ pub const LABEL: &str = "Ouvrir sur le site";
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Page<'a> {
     Accueil,
-    Transactions { groupe: Option<&'a str> },
-    Cotisations { membre: Option<Id<UserMarker>> },
-    Coffres { propriete: Option<&'a str>, objet: Option<&'a str> },
+    Transactions {
+        groupe: Option<&'a str>,
+    },
+    Cotisations {
+        membre: Option<Id<UserMarker>>,
+    },
+    Coffres {
+        propriete: Option<&'a str>,
+        objet: Option<&'a str>,
+    },
     /// `contact` : identifiant d'un contact, ouvre sa fiche.
-    Contacts { contact: Option<&'a str> },
+    Contacts {
+        contact: Option<&'a str>,
+    },
     Membres,
     Membre(Id<UserMarker>),
     Journal,
@@ -188,10 +197,9 @@ mod tests {
         let Component::Button(button) = link_button("https://bot.example/x".into(), LABEL) else {
             panic!("bouton attendu");
         };
-        assert_eq!((button.style, button.custom_id, button.url.as_deref()), (
-            ButtonStyle::Link,
-            None,
-            Some("https://bot.example/x")
-        ));
+        assert_eq!(
+            (button.style, button.custom_id, button.url.as_deref()),
+            (ButtonStyle::Link, None, Some("https://bot.example/x"))
+        );
     }
 }

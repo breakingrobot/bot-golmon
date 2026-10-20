@@ -14,12 +14,13 @@ use crate::{
         interaction::{GUILD_ONLY, Ix, MANAGE_GUILD_ONLY, Reply, choice},
         members::avatar_url,
         messages::{self, Mentions, Outgoing, parse_id},
-        site::{self, Page},
         options::Options,
+        site::{self, Page},
+        suggest::{self, Dates},
     },
     util::{
         format::{DESCRIPTION_LIMIT, chunk_mentions, field, truncate, truncate_field},
-        time::{self, DbTime, format_date_label, parse_event_date, today_label},
+        time::{self, DbTime, TIMEZONE, format_date_label, parse_event_date, today_label},
     },
 };
 use anyhow::Result;
@@ -43,8 +44,8 @@ pub fn presence_definition() -> Command {
         .option(
             SubCommandBuilder::new("create", "Crée une présence (rôles et salon viennent de la config)")
                 .option(StringBuilder::new("heure", "Heure, ex: 21:00").required(true))
-                .option(StringBuilder::new("titre", "Titre (défaut: Présence)"))
-                .option(StringBuilder::new("date", "Date JJ/MM/AAAA (défaut: aujourd'hui)"))
+                .option(StringBuilder::new("titre", "Titre (défaut: Présence)").autocomplete(true))
+                .option(StringBuilder::new("date", "Date JJ/MM/AAAA (défaut: aujourd'hui)").autocomplete(true))
                 .option(StringBuilder::new("description", "Description")),
         )
         .option(
@@ -151,8 +152,12 @@ pub fn absence_definition() -> Command {
         .option(
             SubCommandBuilder::new("declare", "Signale ton absence (le rôle d'absence est appliqué automatiquement)")
                 .option(StringBuilder::new("motif", "Motif de l'absence").required(true))
-                .option(StringBuilder::new("fin", "Dernier jour d'absence, JJ/MM/AAAA").required(true))
-                .option(StringBuilder::new("debut", "Premier jour, JJ/MM/AAAA (défaut: aujourd'hui)"))
+                .option(
+                    StringBuilder::new("fin", "Dernier jour d'absence, JJ/MM/AAAA").required(true).autocomplete(true),
+                )
+                .option(
+                    StringBuilder::new("debut", "Premier jour, JJ/MM/AAAA (défaut: aujourd'hui)").autocomplete(true),
+                )
                 .option(UserBuilder::new("membre", "Déclarer pour un autre membre (staff)")),
         )
         .option(
@@ -187,11 +192,28 @@ pub async fn handle_absence(ix: &Ix, options: &Options) -> Result<()> {
     }
 }
 
+/// Dates JJ/MM/AAAA autour d'aujourd'hui (heure de Paris).
+pub async fn date_autocomplete(ix: &Ix, typed: &str, direction: Dates) -> Result<()> {
+    let today = chrono::Utc::now().with_timezone(&TIMEZONE).date_naive();
+    let choices = suggest::dates(today, typed, direction).into_iter().map(|(l, v)| choice(&l, v)).collect();
+    ix.autocomplete(choices).await
+}
+
 pub async fn autocomplete(ix: &Ix, options: &Options) -> Result<()> {
     let Some(guild_id) = ix.guild_id() else {
         return ix.autocomplete(Vec::new()).await;
     };
-    let query = options.focused.as_ref().map(|(_, value)| value.as_str()).unwrap_or_default();
+    let (name, query) = options.focused.clone().unwrap_or_default();
+    match name.as_str() {
+        "date" | "fin" | "debut" => return date_autocomplete(ix, &query, Dates::Upcoming).await,
+        "titre" => {
+            let titles = service::recent_titles(&ix.ctx.db, &guild_id.to_string()).await?;
+            let choices = suggest::filter(titles.into_iter().map(|t| (t.clone(), t)), &query);
+            return ix.autocomplete(choices.into_iter().map(|(l, v)| choice(&l, v)).collect()).await;
+        }
+        _ => {}
+    }
+    let query = query.as_str();
     // forcevote sert aussi à corriger après coup : il doit voir les clôturées.
     let include_closed = options.sub() == "forcevote";
     let presences = service::find_presences(&ix.ctx.db, &guild_id.to_string(), query, include_closed).await?;

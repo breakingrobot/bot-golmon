@@ -439,6 +439,50 @@ pub async fn player_links(db: &SqlitePool, guild_id: &str) -> Result<std::collec
     Ok(rows.into_iter().collect())
 }
 
+/// Personnage vu dans les mouvements, pour l'autocomplétion de `/coffre lier`.
+#[derive(Clone, Debug, PartialEq, Eq, FromRow)]
+#[sqlx(rename_all = "camelCase")]
+pub struct PlayerSeen {
+    pub game_id: String,
+    pub name: String,
+    /// Membre relié, le cas échéant.
+    pub user_id: Option<String>,
+    pub last_seen: DbTime,
+}
+
+/// Personnages vus dans les mouvements (avec un identifiant de jeu).
+pub async fn players_seen(db: &SqlitePool, guild_id: &str) -> Result<Vec<PlayerSeen>> {
+    Ok(sqlx::query_as(
+        r#"SELECT m."playerGameId" AS "gameId", MAX(m."playerName") AS "name", p."userId", MAX(m."at") AS "lastSeen"
+           FROM "CoffreMovement" m
+           LEFT JOIN "CoffrePlayer" p ON p."guildId" = m."guildId" AND p."gameId" = m."playerGameId"
+           WHERE m."guildId" = ? AND m."playerGameId" IS NOT NULL
+           GROUP BY m."playerGameId""#,
+    )
+    .bind(guild_id)
+    .fetch_all(db)
+    .await?)
+}
+
+/// Choix de `/coffre lier id_jeu` : « Nom (id) », les personnages encore
+/// reliés à personne d'abord, puis les plus récemment vus.
+pub fn player_choices(mut players: Vec<PlayerSeen>, typed: &str) -> Vec<(String, String)> {
+    players.sort_by(|a, b| {
+        a.user_id
+            .is_some()
+            .cmp(&b.user_id.is_some())
+            .then(b.last_seen.cmp(&a.last_seen))
+            .then(a.game_id.cmp(&b.game_id))
+    });
+    crate::discord::suggest::filter(
+        players.into_iter().map(|p| {
+            let linked = if p.user_id.is_some() { " · déjà relié" } else { "" };
+            (format!("{} ({}){linked}", p.name, p.game_id), p.game_id)
+        }),
+        typed,
+    )
+}
+
 /// Objets connus, pour l'autocomplétion.
 pub async fn items(db: &SqlitePool, guild_id: &str) -> Result<Vec<String>> {
     let rows: Vec<(String,)> =
@@ -696,6 +740,51 @@ mod tests {
         assert!(parse_inventory("repair_kit:-1").is_err());
         assert!(parse_inventory("drop table:1").is_ok(), "espaces → _");
         assert!(parse_inventory("kit;--:1").is_err());
+    }
+
+    #[test]
+    fn suggests_unlinked_players_first() {
+        let seen = |id: &str, name: &str, user: Option<&str>, hours: i64| PlayerSeen {
+            game_id: id.into(),
+            name: name.into(),
+            user_id: user.map(Into::into),
+            last_seen: DbTime(DbTime::now().0 - chrono::Duration::hours(hours)),
+        };
+        let players = vec![
+            seen("1", "Jean Dupont", Some("u1"), 0),
+            seen("2", "Marie Curie", None, 5),
+            seen("3", "Paul Martin", None, 1),
+        ];
+        let values: Vec<String> = player_choices(players.clone(), "").into_iter().map(|(_, v)| v).collect();
+        assert_eq!(values, ["3", "2", "1"]);
+        assert_eq!(
+            player_choices(players.clone(), "dupont"),
+            [("Jean Dupont (1) · déjà relié".to_owned(), "1".to_owned())]
+        );
+        assert_eq!(player_choices(players, "2").len(), 1, "par identifiant");
+    }
+
+    #[tokio::test]
+    async fn lists_players_seen() {
+        let dir = std::env::temp_dir().join(format!("coffre-players-{}", uuid::Uuid::new_v4()));
+        let db = crate::db::open_main(&dir.join("bot.db")).await.unwrap();
+        add_channel(&db, "g", "c").await.unwrap();
+        let batch: Vec<NewMovement> = [("m1:0", "1"), ("m2:0", "2"), ("m3:0", "1")]
+            .iter()
+            .map(|(id, player)| NewMovement {
+                id: (*id).to_owned(),
+                movement: movement("kit", 1, Kind::Deposit, player),
+                at: DbTime::now(),
+            })
+            .collect();
+        insert_all(&db, "g", "c", &batch, None).await.unwrap();
+        link_player(&db, "g", "2", "u2").await.unwrap();
+        let mut players = players_seen(&db, "g").await.unwrap();
+        players.sort_by(|a, b| a.game_id.cmp(&b.game_id));
+        let summary: Vec<_> = players.iter().map(|p| (p.game_id.as_str(), p.user_id.as_deref())).collect();
+        assert_eq!(summary, [("1", None), ("2", Some("u2"))]);
+        db.close().await;
+        let _ = std::fs::remove_dir_all(dir);
     }
 
     #[tokio::test]

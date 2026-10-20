@@ -266,8 +266,9 @@ impl Refusal {
                  `/config permission role_membre:@…`."
                     .to_owned(),
             ),
-            None if self.perm.strict() && self.manage_guild => lines
-                .push("Action stricte : seuls les rôles comptent, « Gérer le serveur » n'y donne pas accès.".to_owned()),
+            None if self.perm.strict() && self.manage_guild => lines.push(
+                "Action stricte : seuls les rôles comptent, « Gérer le serveur » n'y donne pas accès.".to_owned(),
+            ),
             None => lines.push("Tu n'as pas le rôle membre du groupe.".to_owned()),
             Some(held) => lines.push(format!("Ton niveau : {}.", held.singular())),
         }

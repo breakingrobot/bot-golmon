@@ -8,6 +8,7 @@ use crate::{
     discord::{
         messages::{self, Mentions, Outgoing, parse_id},
         site::{self, Page},
+        suggest,
     },
     modules::like_contains,
     util::{ids::new_id, time::DbTime},
@@ -198,6 +199,36 @@ pub async fn search(db: &SqlitePool, guild_id: &str, query: &str, open_only: boo
     .await?)
 }
 
+/// Groupes déjà utilisés, du plus récent au plus ancien.
+pub async fn known_groups(db: &SqlitePool, guild_id: &str) -> Result<Vec<String>> {
+    let rows: Vec<(String,)> = sqlx::query_as(
+        r#"SELECT "groupe" FROM "Transaction" WHERE "guildId" = ? GROUP BY "groupe" ORDER BY MAX("createdAt") DESC LIMIT 200"#,
+    )
+    .bind(guild_id)
+    .fetch_all(db)
+    .await?;
+    Ok(rows.into_iter().map(|(groupe,)| groupe).collect())
+}
+
+/// Objets déjà saisis dans les transactions, les plus fréquents d'abord.
+pub async fn known_items(db: &SqlitePool, guild_id: &str) -> Result<Vec<String>> {
+    let rows: Vec<(String,)> = sqlx::query_as(
+        r#"SELECT i."nom" FROM "TransactionItem" i JOIN "Transaction" t ON t."id" = i."transactionId"
+           WHERE t."guildId" = ? GROUP BY i."nom" ORDER BY COUNT(*) DESC, MAX(i."createdAt") DESC LIMIT 200"#,
+    )
+    .bind(guild_id)
+    .fetch_all(db)
+    .await?;
+    Ok(rows.into_iter().map(|(nom,)| nom).collect())
+}
+
+/// Choix du groupe : contacts du répertoire (avec leur relation) puis groupes
+/// déjà utilisés, sans doublon.
+pub fn group_choices(contacts: Vec<(String, &'static str)>, used: Vec<String>, typed: &str) -> Vec<(String, String)> {
+    let contacts = contacts.into_iter().map(|(name, emoji)| (format!("{emoji} {name}"), name));
+    suggest::filter(contacts.chain(used.into_iter().map(|g| (g.clone(), g))), typed)
+}
+
 pub async fn sync_message(ctx: &Ctx, guild_id: &str, transaction_id: &str) -> Result<()> {
     let Some(transaction) = get(&ctx.db, guild_id, transaction_id).await? else {
         return Ok(());
@@ -290,4 +321,44 @@ pub async fn sync_dashboard(ctx: &Ctx, guild_id: &str) -> Result<()> {
 pub async fn refresh(ctx: &Ctx, guild_id: &str, transaction_id: &str) -> Result<()> {
     sync_message(ctx, guild_id, transaction_id).await?;
     sync_dashboard(ctx, guild_id).await
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn groups_from_directory_then_history() {
+        let contacts = vec![("Ballas".to_owned(), "🔴"), ("Garage Benny's".to_owned(), "🟢")];
+        let used = vec!["ballas".to_owned(), "Vagos".to_owned()];
+        let choices = group_choices(contacts.clone(), used.clone(), "");
+        let labels: Vec<&str> = choices.iter().map(|(l, _)| l.as_str()).collect();
+        assert_eq!(labels, ["🔴 Ballas", "🟢 Garage Benny's", "Vagos"], "« ballas » déjà proposé par le répertoire");
+        assert_eq!(group_choices(contacts, used, "vag"), [("Vagos".to_owned(), "Vagos".to_owned())]);
+    }
+
+    #[tokio::test]
+    async fn remembers_groups_and_items() {
+        let dir = std::env::temp_dir().join(format!("transaction-test-{}", uuid::Uuid::new_v4()));
+        let db = crate::db::open_main(&dir.join("bot.db")).await.unwrap();
+        for groupe in ["Ballas", "Vagos", "Ballas"] {
+            let new = NewTransaction {
+                guild_id: "g".into(),
+                channel_id: "c".into(),
+                groupe: groupe.into(),
+                kind: "VENTE".into(),
+                prix: 10.0,
+                created_by_id: "u".into(),
+            };
+            let id = create(&db, new).await.unwrap();
+            add_item(&db, &id, "Pistolet", 1, None).await.unwrap();
+        }
+        let mut groups = known_groups(&db, "g").await.unwrap();
+        groups.sort();
+        assert_eq!(groups, ["Ballas", "Vagos"]);
+        assert_eq!(known_items(&db, "g").await.unwrap(), ["Pistolet"]);
+        assert!(known_groups(&db, "autre").await.unwrap().is_empty());
+        db.close().await;
+        let _ = std::fs::remove_dir_all(dir);
+    }
 }

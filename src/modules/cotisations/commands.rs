@@ -11,6 +11,7 @@ use crate::{
         messages::{self, Outgoing, parse_id},
         options::Options,
         site::{self, Page},
+        suggest::Dates,
     },
     modules::{
         audit::{self, Action, Entry},
@@ -45,7 +46,7 @@ pub fn definition() -> Command {
                 .option(StringBuilder::new("description", "D'où vient l'argent").required(true).max_length(300))
                 .option(IntegerBuilder::new("propre", "Montant en argent propre").min_value(0).max_value(MAX_AMOUNT))
                 .option(IntegerBuilder::new("sale", "Montant en argent sale").min_value(0).max_value(MAX_AMOUNT))
-                .option(StringBuilder::new("date", "Date JJ/MM/AAAA (défaut : aujourd'hui)"))
+                .option(StringBuilder::new("date", "Date JJ/MM/AAAA (défaut : aujourd'hui)").autocomplete(true))
                 .option(UserBuilder::new("membre", "Déclarer pour un autre membre (gradés et leads)")),
         )
         .option(
@@ -208,7 +209,11 @@ pub async fn handle(ix: &Ix, options: &Options) -> Result<()> {
 async fn objective_view(ix: &Ix, guild_id: Id<GuildMarker>) -> Result<()> {
     let guild = guild_id.to_string();
     let Some(objective) = objective::get_objective(&ix.ctx.db, &guild).await? else {
-        return ix.reply(Reply::ephemeral("Aucun objectif hebdomadaire n'est fixé (`/config cotisation objectif:…`, « Gérer le serveur »).")).await;
+        return ix
+            .reply(Reply::ephemeral(
+                "Aucun objectif hebdomadaire n'est fixé (`/config cotisation objectif:…`, « Gérer le serveur »).",
+            ))
+            .await;
     };
     let week = week_start(Utc::now());
     let me = objective::member_progress(&ix.ctx.db, &guild, &ix.user_id().to_string(), week, &objective).await?;
@@ -507,6 +512,10 @@ pub async fn autocomplete(ix: &Ix, options: &Options) -> Result<()> {
     let Some(guild_id) = ix.guild_id() else {
         return ix.autocomplete(Vec::new()).await;
     };
+    if options.focused.as_ref().is_some_and(|(name, _)| name == "date") {
+        let typed = options.focused.as_ref().map(|(_, v)| v.as_str()).unwrap_or_default();
+        return crate::modules::presences::commands::date_autocomplete(ix, typed, Dates::Past).await;
+    }
     // Les gradés voient toutes les cotisations récentes, les membres les leurs.
     let user_id =
         if permissions::can(ix, Perm::CotisationGerer).await? { None } else { Some(ix.user_id().to_string()) };

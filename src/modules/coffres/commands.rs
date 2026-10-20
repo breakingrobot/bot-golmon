@@ -11,6 +11,7 @@ use crate::{
         messages::{self, parse_id},
         options::Options,
         site::{self, Page},
+        suggest,
     },
     modules::{
         audit::{self, Action, Entry},
@@ -56,7 +57,11 @@ pub fn definition() -> Command {
         )
         .option(
             SubCommandBuilder::new("lier", "Relie un personnage du jeu à un membre")
-                .option(StringBuilder::new("id_jeu", "Identifiant du personnage, ex : 340772").required(true))
+                .option(
+                    StringBuilder::new("id_jeu", "Identifiant du personnage, ex : 340772")
+                        .required(true)
+                        .autocomplete(true),
+                )
                 .option(UserBuilder::new("membre", "Membre Discord").required(true)),
         )
         .option(
@@ -105,10 +110,10 @@ pub fn config_subcommand() -> SubCommandBuilder {
             "relire",
             "Relit l'historique du salon (5 000 messages) : ajoute seulement ce qui manque, ne retire rien",
         ))
-        .option(StringBuilder::new(
-            "oublier_webhook",
-            "Identifiant d'un webhook à ne plus lire (voir `/config coffre`)",
-        ))
+        .option(
+            StringBuilder::new("oublier_webhook", "Identifiant d'un webhook à ne plus lire (voir `/config coffre`)")
+                .autocomplete(true),
+        )
         .option(
             ChannelBuilder::new("alertes_salon", "Salon des alertes (stock bas, gros retraits…)")
                 .channel_types([ChannelType::GuildText]),
@@ -368,6 +373,28 @@ async fn inventory(ix: &Ix, options: &Options, guild_id: Id<GuildMarker>) -> Res
     .await
 }
 
+/// `/config coffre oublier_webhook` : webhooks reconnus (« Gérer le serveur »).
+pub async fn config_autocomplete(ix: &Ix, options: &Options) -> Result<()> {
+    let Some(guild_id) = ix.guild_id() else {
+        return ix.autocomplete(Vec::new()).await;
+    };
+    if !ix.has_permission(Permissions::MANAGE_GUILD) {
+        return ix.autocomplete(Vec::new()).await;
+    }
+    let typed = options.focused.as_ref().map(|(_, v)| v.clone()).unwrap_or_default();
+    let webhooks = service::webhooks(&ix.ctx.db, &guild_id.to_string(), None).await?;
+    let candidates = webhooks.into_iter().map(|w| {
+        let channel = parse_id::<ChannelMarker>(&w.channel_id)
+            .and_then(|id| ix.ctx.cache.channel(id))
+            .and_then(|c| c.name.clone())
+            .map(|name| format!(" · #{name}"))
+            .unwrap_or_default();
+        (format!("« {} » ({}){channel}", w.name.as_deref().unwrap_or("webhook"), w.webhook_id), w.webhook_id)
+    });
+    let choices = suggest::filter(candidates, &typed).into_iter().map(|(l, v)| choice(&l, v)).collect();
+    ix.autocomplete(choices).await
+}
+
 /// Nom affiché d'une propriété : nom donné, sinon « Propriété 8740 ».
 pub fn property_label(names: &HashMap<String, String>, id: &str) -> String {
     names.get(id).cloned().unwrap_or_else(|| format!("Propriété {id}"))
@@ -600,6 +627,15 @@ pub async fn autocomplete(ix: &Ix, options: &Options) -> Result<()> {
     let Some((name, typed)) = options.focused.clone() else {
         return ix.autocomplete(Vec::new()).await;
     };
+    if name == "id_jeu" {
+        // Relier un personnage demande `coffre.gerer`.
+        if !permissions::can(ix, Perm::CoffreGerer).await? {
+            return ix.autocomplete(Vec::new()).await;
+        }
+        let players = service::players_seen(&ix.ctx.db, &guild).await?;
+        let choices = service::player_choices(players, &typed).into_iter().map(|(l, v)| choice(&l, v)).collect();
+        return ix.autocomplete(choices).await;
+    }
     let typed = typed.to_lowercase();
     let choices = if name == "objet" {
         service::items(&ix.ctx.db, &guild)
