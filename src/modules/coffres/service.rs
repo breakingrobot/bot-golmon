@@ -480,6 +480,76 @@ pub async fn set_webhook(db: &SqlitePool, channel_id: &str, webhook_id: &str) ->
     Ok(())
 }
 
+/// Webhook du jeu reconnu dans un salon.
+#[derive(Clone, Debug, PartialEq, Eq, FromRow)]
+#[sqlx(rename_all = "camelCase")]
+pub struct Webhook {
+    pub channel_id: String,
+    pub webhook_id: String,
+    pub name: Option<String>,
+}
+
+/// Webhooks reconnus d'un serveur (tous salons), ou d'un seul salon.
+pub async fn webhooks(db: &SqlitePool, guild_id: &str, channel_id: Option<&str>) -> Result<Vec<Webhook>> {
+    Ok(sqlx::query_as(
+        r#"SELECT "channelId", "webhookId", "name" FROM "CoffreWebhook"
+           WHERE "guildId" = ?1 AND (?2 IS NULL OR "channelId" = ?2) ORDER BY "addedAt", "webhookId""#,
+    )
+    .bind(guild_id)
+    .bind(channel_id)
+    .fetch_all(db)
+    .await?)
+}
+
+/// Reconnaît un webhook dans un salon ; `true` s'il était inconnu.
+pub async fn add_webhook(
+    db: &SqlitePool,
+    guild_id: &str,
+    channel_id: &str,
+    webhook_id: &str,
+    name: Option<&str>,
+) -> Result<bool> {
+    let added = sqlx::query(
+        r#"INSERT OR IGNORE INTO "CoffreWebhook" ("channelId", "webhookId", "guildId", "name", "addedAt") VALUES (?, ?, ?, ?, ?)"#,
+    )
+    .bind(channel_id)
+    .bind(webhook_id)
+    .bind(guild_id)
+    .bind(name)
+    .bind(DbTime::now())
+    .execute(db)
+    .await?
+    .rows_affected()
+        > 0;
+    // Compatibilité : « au moins un webhook reconnu » pour l'état et le site.
+    set_webhook(db, channel_id, webhook_id).await?;
+    Ok(added)
+}
+
+/// Oublie un webhook : ses prochains messages seront ignorés (les mouvements
+/// déjà lus restent). Renvoie `false` s'il était inconnu sur ce serveur.
+pub async fn remove_webhook(db: &SqlitePool, guild_id: &str, webhook_id: &str) -> Result<bool> {
+    let mut tx = db.begin().await?;
+    let removed = sqlx::query(r#"DELETE FROM "CoffreWebhook" WHERE "guildId" = ? AND "webhookId" = ?"#)
+        .bind(guild_id)
+        .bind(webhook_id)
+        .execute(&mut *tx)
+        .await?
+        .rows_affected()
+        > 0;
+    // L'ancienne colonne suit : premier webhook restant du salon, sinon aucun.
+    sqlx::query(
+        r#"UPDATE "CoffreChannel" SET "webhookId" = (
+             SELECT w."webhookId" FROM "CoffreWebhook" w WHERE w."channelId" = "CoffreChannel"."channelId" ORDER BY w."addedAt" LIMIT 1)
+           WHERE "guildId" = ?"#,
+    )
+    .bind(guild_id)
+    .execute(&mut *tx)
+    .await?;
+    tx.commit().await?;
+    Ok(removed)
+}
+
 pub async fn add_channel(db: &SqlitePool, guild_id: &str, channel_id: &str) -> Result<()> {
     sqlx::query(r#"INSERT OR IGNORE INTO "CoffreChannel" ("channelId", "guildId") VALUES (?, ?)"#)
         .bind(channel_id)
@@ -490,6 +560,11 @@ pub async fn add_channel(db: &SqlitePool, guild_id: &str, channel_id: &str) -> R
 }
 
 pub async fn remove_channel(db: &SqlitePool, guild_id: &str, channel_id: &str) -> Result<bool> {
+    sqlx::query(r#"DELETE FROM "CoffreWebhook" WHERE "guildId" = ? AND "channelId" = ?"#)
+        .bind(guild_id)
+        .bind(channel_id)
+        .execute(db)
+        .await?;
     let result = sqlx::query(r#"DELETE FROM "CoffreChannel" WHERE "guildId" = ? AND "channelId" = ?"#)
         .bind(guild_id)
         .bind(channel_id)
@@ -621,5 +696,34 @@ mod tests {
         assert!(parse_inventory("repair_kit:-1").is_err());
         assert!(parse_inventory("drop table:1").is_ok(), "espaces → _");
         assert!(parse_inventory("kit;--:1").is_err());
+    }
+
+    #[tokio::test]
+    async fn several_webhooks_per_channel() {
+        let dir = std::env::temp_dir().join(format!("coffre-wh-{}", uuid::Uuid::new_v4()));
+        let db = crate::db::open_main(&dir.join("bot.db")).await.unwrap();
+        add_channel(&db, "g", "c").await.unwrap();
+        // Deux propriétés, deux webhooks dans le même salon : les deux comptent.
+        assert!(add_webhook(&db, "g", "c", "w1", Some("Stock gradé")).await.unwrap());
+        assert!(add_webhook(&db, "g", "c", "w2", Some("Stock vide poche")).await.unwrap());
+        assert!(!add_webhook(&db, "g", "c", "w2", Some("Stock vide poche")).await.unwrap(), "déjà connu");
+        let known: Vec<String> =
+            webhooks(&db, "g", Some("c")).await.unwrap().into_iter().map(|w| w.webhook_id).collect();
+        assert_eq!(known, ["w1", "w2"]);
+        assert_eq!(channel(&db, "c").await.unwrap().unwrap().webhook_id.as_deref(), Some("w1"));
+
+        // Oublier le premier : le second reste, l'ancienne colonne suit.
+        assert!(remove_webhook(&db, "g", "w1").await.unwrap());
+        assert!(!remove_webhook(&db, "autre", "w2").await.unwrap(), "seulement sur son serveur");
+        assert_eq!(channel(&db, "c").await.unwrap().unwrap().webhook_id.as_deref(), Some("w2"));
+        assert!(remove_webhook(&db, "g", "w2").await.unwrap());
+        assert_eq!(channel(&db, "c").await.unwrap().unwrap().webhook_id, None);
+
+        // Retirer le salon oublie ses webhooks.
+        add_webhook(&db, "g", "c", "w3", None).await.unwrap();
+        remove_channel(&db, "g", "c").await.unwrap();
+        assert!(webhooks(&db, "g", None).await.unwrap().is_empty());
+        db.close().await;
+        let _ = std::fs::remove_dir_all(dir);
     }
 }
