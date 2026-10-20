@@ -39,6 +39,8 @@ pub struct GuildAccess {
     #[schema(required = true)]
     pub icon_url: Option<String>,
     pub is_admin: bool,
+    /// Membre du groupe (rôle membre, gradé ou lead) : absences, annuaire, saisies à son nom.
+    pub in_group: bool,
     #[schema(value_type = Vec<super::openapi::PermKey>)]
     pub perms: Vec<&'static str>,
 }
@@ -57,6 +59,7 @@ pub fn build(ctx: &Ctx, user: Option<User>, access: &Access) -> Me {
                 name: g.name.clone(),
                 icon_url: members::guild_icon_url(ctx, g.id),
                 is_admin: g.is_admin(),
+                in_group: g.in_group(),
                 perms: g.perms().into_iter().map(|p| p.key()).collect(),
             })
             .collect(),

@@ -213,6 +213,11 @@ impl Grants {
     pub fn can(&self, perm: Perm) -> bool {
         self.roles.allows(&self.holder, self.level(perm), perm.strict())
     }
+
+    /// Fait partie du groupe (rôle membre, gradé ou lead), sans compter « Gérer le serveur ».
+    pub fn in_group(&self) -> bool {
+        self.roles.in_group(&self.holder.roles)
+    }
 }
 
 /// Permissions du serveur, pas celles du salon de la commande : « Gérer les

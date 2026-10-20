@@ -67,6 +67,11 @@ impl GuildAccess {
         self.grants.can(perm)
     }
 
+    /// Membre du groupe (rôle membre, gradé ou lead) : ce qu'il peut enregistrer à son nom.
+    pub fn in_group(&self) -> bool {
+        self.grants.in_group()
+    }
+
     pub fn level(&self, perm: Perm) -> crate::modules::permissions::Level {
         self.grants.level(perm)
     }

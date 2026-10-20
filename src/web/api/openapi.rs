@@ -4,7 +4,8 @@
 //! (`UPDATE_OPENAPI=1 cargo test openapi_spec_is_up_to_date` pour le régénérer).
 
 use super::{
-    MemberRef, RoleRef, coffres, contacts, cotisations, journal, me, members, permissions, stats, tickets, transactions,
+    MemberRef, RoleRef, absences, annuaire, coffres, contacts, cotisations, journal, me, members, permissions,
+    presences, recrues, stats, tickets, transaction_edits, transactions,
 };
 use crate::modules::permissions::{Level, Perm};
 use axum::response::{IntoResponse, Response};
@@ -90,6 +91,7 @@ string_enum!(TicketStatus, "Statut d'un ticket.", ["OPEN", "CLOSED", "SUSPENDED"
 string_enum!(LogKind, "Type d'un message de log.", ["user", "staff", "internal", "command", "system", "danger"]);
 string_enum!(ObjectiveCounts, "Ce qui compte pour l'objectif.", ["total", "propre", "sale"]);
 string_enum!(ModuleStatus, "État d'un module.", ["ok", "incomplete", "off"]);
+string_enum!(RecrueChoice, "Avis sur une recrue.", ["POUR", "CONTRE", "BLANC"]);
 
 /// Schéma d'une page (`Page<T>` du contrat) : un type nommé par liste, pour que
 /// les éléments restent des références (`Transaction`…) dans le client généré.
@@ -113,6 +115,7 @@ page_schema!(CotisationEntryPage, cotisations::CotisationEntry);
 page_schema!(CoffreMovementPage, coffres::CoffreMovement);
 page_schema!(JournalEntryPage, journal::JournalEntry);
 page_schema!(TicketPage, tickets::TicketRow);
+page_schema!(PresenceSummaryPage, presences::Summary);
 
 // ---------------------------------------------------------------------------
 // Schémas des routes encore en attente (501), à brancher par l'intégration.
@@ -238,6 +241,33 @@ pub struct ConfigStatus {
         permissions::show,
         permissions::update,
         super::reglages::config_get,
+        presences::list,
+        presences::detail,
+        presences::stats,
+        presences::export,
+        presences::create,
+        presences::close,
+        presences::schedules,
+        presences::create_schedule,
+        presences::delete_schedule,
+        absences::list,
+        absences::create,
+        absences::end,
+        recrues::list,
+        recrues::history,
+        recrues::vote,
+        recrues::set_veto,
+        recrues::clear_veto,
+        annuaire::vehicles,
+        annuaire::create_vehicle,
+        annuaire::delete_vehicle,
+        annuaire::phones,
+        annuaire::set_phone,
+        annuaire::delete_phone,
+        transaction_edits::create,
+        transaction_edits::set_status,
+        transaction_edits::add_item,
+        transaction_edits::cancel,
         tickets::list,
         tickets::staff,
         tickets::log,
@@ -254,6 +284,10 @@ pub struct ConfigStatus {
         (name = "journal", description = "Journal du staff"),
         (name = "reglages", description = "Permissions et état de la configuration"),
         (name = "tickets", description = "Tickets (module ticket)"),
+        (name = "presences", description = "Présences, assiduité et plannings"),
+        (name = "absences", description = "Absences déclarées"),
+        (name = "recrues", description = "Avis et vétos sur les recrues"),
+        (name = "annuaire", description = "Véhicules et numéros"),
     )
 )]
 pub struct ApiDoc;

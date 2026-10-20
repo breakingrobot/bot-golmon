@@ -50,7 +50,7 @@ pub struct PermissionsResponse {
 }
 
 /// Rôles du serveur, le plus haut d'abord (sans @everyone).
-fn guild_roles(ctx: &Ctx, guild_id: Id<GuildMarker>) -> Vec<RoleRef> {
+pub(super) fn guild_roles(ctx: &Ctx, guild_id: Id<GuildMarker>) -> Vec<RoleRef> {
     let Some(ids) = ctx.cache.guild_roles(guild_id) else {
         return Vec::new();
     };

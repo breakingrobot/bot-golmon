@@ -208,10 +208,12 @@ fn me_shape_matches_the_contract() {
         name: guild.name.clone(),
         icon_url: None,
         is_admin: guild.is_admin(),
+        in_group: guild.in_group(),
         perms: guild.perms().into_iter().map(|p| p.key()).collect(),
     })
     .unwrap();
-    assert_eq!(keys(&value), ["iconUrl", "id", "isAdmin", "name", "perms"]);
+    assert_eq!(keys(&value), ["iconUrl", "id", "inGroup", "isAdmin", "name", "perms"]);
+    assert_eq!(value["inGroup"], true, "rôle gradé");
     assert!(value["perms"].as_array().unwrap().contains(&serde_json::json!("coffre.voir")));
 
     let page = serde_json::to_value(Page { items: vec![1], total: 1, page: 1, page_size: 50 }).unwrap();
@@ -390,4 +392,127 @@ async fn serve_for_browser() {
     let listener = tokio::net::TcpListener::bind(format!("127.0.0.1:{port}")).await.unwrap();
     let server = axum::serve(listener, crate::web::app(app.ctx.clone()));
     let _ = tokio::time::timeout(std::time::Duration::from_secs(120), server).await;
+}
+
+#[tokio::test]
+async fn new_pages_refuse_without_access() {
+    let app = TestApp::new(true).await;
+    let gets = [
+        "/api/guilds/123/presences",
+        "/api/guilds/123/presences/stats?jours=90",
+        "/api/guilds/123/presences/export.csv",
+        "/api/guilds/123/presences/plannings",
+        "/api/guilds/123/presences/abc",
+        "/api/guilds/123/absences",
+        "/api/guilds/123/recrues",
+        "/api/guilds/123/recrues/42/history",
+        "/api/guilds/123/vehicules?q=ab",
+        "/api/guilds/123/numeros",
+    ];
+    for uri in gets {
+        // Pas connecté : 401 avec le lien de connexion.
+        let (status, _, body) = app.send(get(uri)).await;
+        assert_eq!(status, StatusCode::UNAUTHORIZED, "{uri}");
+        assert_eq!(body["loginUrl"], "/login?next=/", "{uri}");
+        // Connecté, pas membre du serveur : 403 en JSON.
+        let request = axum::http::Request::get(uri).header(header::COOKIE, app.cookie()).body(Body::empty()).unwrap();
+        let (status, _, body) = app.send(request).await;
+        assert_eq!(status, StatusCode::FORBIDDEN, "{uri}");
+        assert!(body["error"].as_str().unwrap().contains("serveur"), "{uri}");
+    }
+    let writes = [
+        (Method::POST, "/api/guilds/123/presences", r#"{"time":"21:00"}"#),
+        (Method::POST, "/api/guilds/123/presences/abc/close", "{}"),
+        (Method::POST, "/api/guilds/123/presences/plannings", r#"{"weekday":3,"time":"21:00"}"#),
+        (Method::DELETE, "/api/guilds/123/presences/plannings/abc", "{}"),
+        (Method::POST, "/api/guilds/123/absences", r#"{"motif":"x","to":"2099-01-01"}"#),
+        (Method::POST, "/api/guilds/123/absences/abc/end", "{}"),
+        (Method::PUT, "/api/guilds/123/recrues/abc/vote", r#"{"choice":"POUR","motif":"x"}"#),
+        (Method::PUT, "/api/guilds/123/recrues/abc/veto", r#"{"motif":"x"}"#),
+        (Method::DELETE, "/api/guilds/123/recrues/abc/veto", "{}"),
+        (Method::POST, "/api/guilds/123/vehicules", r#"{"plate":"AB12","ownerId":"42"}"#),
+        (Method::DELETE, "/api/guilds/123/vehicules/AB12", "{}"),
+        (Method::PUT, "/api/guilds/123/numeros/42", r#"{"number":"5551234"}"#),
+        (Method::DELETE, "/api/guilds/123/numeros/42", "{}"),
+        (Method::POST, "/api/guilds/123/transactions", r#"{"groupe":"x","type":"ACHAT","prix":1}"#),
+        (Method::PUT, "/api/guilds/123/transactions/abc/status", r#"{"status":"LIVRE_PAYE"}"#),
+        (Method::POST, "/api/guilds/123/transactions/abc/items", r#"{"nom":"x"}"#),
+        (Method::POST, "/api/guilds/123/transactions/abc/cancel", "{}"),
+    ];
+    for (method, uri, body) in writes {
+        let request = |csrf: bool| {
+            let mut request =
+                axum::http::Request::builder().method(method.clone()).uri(uri).header(header::COOKIE, app.cookie());
+            if csrf {
+                request = request.header(header::CONTENT_TYPE, "application/json").header("x-requested-with", "fetch");
+            }
+            request.body(Body::from(body)).unwrap()
+        };
+        let (status, _, refused) = app.send(request(false)).await;
+        assert_eq!(status, StatusCode::FORBIDDEN, "{method} {uri}");
+        assert!(refused["error"].as_str().unwrap().contains("X-Requested-With"), "{method} {uri}");
+        let (status, _, refused) = app.send(request(true)).await;
+        assert_eq!(status, StatusCode::FORBIDDEN, "{method} {uri}");
+        assert!(refused["error"].as_str().unwrap().contains("serveur"), "{method} {uri}");
+    }
+}
+
+#[test]
+fn new_pages_follow_permission_levels() {
+    let guild = Id::new(10);
+    let member = access(&[], &["1"], false);
+    let grade = access(&[], &["1", "2"], false);
+    let lead = access(&[], &["1", "3"], false);
+    let admin = access(&[], &[], true);
+    let outsider = access(&[], &["9"], false);
+
+    // Présences : lecture et création ouvertes au groupe, plannings aux gradés.
+    assert!(check_guild(&member, guild, Some(Perm::PresenceStats)).is_ok());
+    assert!(check_guild(&member, guild, Some(Perm::PresenceCreer)).is_ok());
+    assert!(check_guild(&member, guild, Some(Perm::PresenceGerer)).is_err());
+    assert!(check_guild(&grade, guild, Some(Perm::PresenceGerer)).is_ok());
+    assert!(check_guild(&outsider, guild, Some(Perm::PresenceStats)).is_err());
+
+    // Absences et numéros : membres du groupe (« Gérer le serveur » pour administrer).
+    assert!(absences::check_group(&member, guild).is_ok());
+    assert!(absences::check_group(&admin, guild).is_ok());
+    let refused = absences::check_group(&outsider, guild).unwrap_err();
+    assert_eq!(refused.status(), StatusCode::FORBIDDEN);
+    assert!(refused.message().contains("membres du groupe"));
+    assert!(absences::check_group(&member, Id::new(11)).is_err());
+    assert!(check_guild(&member, guild, Some(Perm::AbsenceAutrui)).is_err());
+    assert!(check_guild(&grade, guild, Some(Perm::AbsenceAutrui)).is_ok());
+
+    // Recrues : actions strictes, « Gérer le serveur » n'y donne pas accès.
+    assert!(check_guild(&admin, guild, Some(Perm::RecrueAvis)).is_err());
+    assert!(check_guild(&admin, guild, Some(Perm::RecrueVeto)).is_err());
+    assert!(check_guild(&grade, guild, Some(Perm::RecrueAvis)).is_ok());
+    assert!(check_guild(&grade, guild, Some(Perm::RecrueVeto)).is_err());
+    assert!(check_guild(&lead, guild, Some(Perm::RecrueVeto)).is_ok());
+    assert!(check_guild(&member, guild, Some(Perm::RecrueSuivi)).is_err());
+
+    // Annuaire et transactions.
+    assert!(check_guild(&member, guild, Some(Perm::Vehicule)).is_ok());
+    assert!(check_guild(&member, guild, Some(Perm::TransactionUtiliser)).is_ok());
+    assert!(check_guild(&member, guild, Some(Perm::NumeroSupprimerAutrui)).is_err());
+    assert!(check_guild(&grade, guild, Some(Perm::NumeroAjouterAutrui)).is_err());
+    assert!(check_guild(&admin, guild, Some(Perm::NumeroAjouterAutrui)).is_ok());
+}
+
+#[tokio::test]
+async fn schedules_are_saved_and_removed_per_guild() {
+    use crate::modules::presences::planning;
+    let app = TestApp::new(false).await;
+    let db = &app.ctx.db;
+    let input: presences::NewScheduleInput =
+        serde_json::from_str(r#"{"weekday":3,"time":"21h00","title":"Braquage","leadHours":48}"#).unwrap();
+    let schedule = presences::check_schedule(input, "10", "42").unwrap();
+    planning::insert(db, &schedule).await.unwrap();
+    let list = planning::list(db, "10").await.unwrap();
+    assert_eq!(list.len(), 1);
+    assert_eq!((list[0].time.as_str(), list[0].lead_hours, list[0].weekday_label()), ("21:00", 48, "mercredi"));
+    // Un autre serveur ne peut pas le supprimer.
+    assert!(!planning::delete(db, "11", &schedule.id).await.unwrap());
+    assert!(planning::delete(db, "10", &schedule.id).await.unwrap());
+    assert!(planning::list(db, "10").await.unwrap().is_empty());
 }
