@@ -4,16 +4,22 @@ import { BarChart3, Inbox, Search } from 'lucide-react'
 import { useState } from 'react'
 
 import { ticketsQuery } from '@/api/queries'
+import { fetchTicketsForExport } from '@/api/queries-site'
+import type { TicketRow } from '@/api/types'
 import { Button } from '@/atoms/Button'
 import { Card } from '@/atoms/Card'
 import { Input } from '@/atoms/Input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/atoms/Select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/atoms/Table'
+import { csvDateTime } from '@/lib/csv'
+import type { CsvColumn } from '@/lib/csv'
 import { formatDateTime, formatNumber, plural } from '@/lib/format'
 import { ALL, compact, fromSelect, searchOneOf } from '@/lib/search'
 import { cn } from '@/lib/utils'
+import { CsvExportButton } from '@/molecules/CsvExportButton'
 import { EmptyState } from '@/molecules/EmptyState'
 import { Field } from '@/molecules/Field'
+import { MobileCard, MobileCards } from '@/molecules/MobileCards'
 import { PageHeader } from '@/molecules/PageHeader'
 import { Pagination } from '@/molecules/Pagination'
 import { QueryError } from '@/molecules/QueryError'
@@ -22,6 +28,22 @@ import { TicketStatusBadge } from '@/molecules/TicketStatusBadge'
 import { STATUSES } from '@/pages/tickets/tickets-search'
 
 const route = getRouteApi('/tickets/')
+
+const STATUS_LABELS: Record<TicketRow['status'], string> = {
+  OPEN: 'Ouvert',
+  SUSPENDED: 'Suspendu',
+  CLOSED: 'Fermé',
+}
+
+const TICKETS_CSV: CsvColumn<TicketRow>[] = [
+  { header: 'N°', value: (ticket) => ticket.number },
+  { header: 'Utilisateur', value: (ticket) => ticket.user.name },
+  { header: 'Identifiant Discord', value: (ticket) => ticket.user.id },
+  { header: 'Pris en charge par', value: (ticket) => ticket.claimedBy },
+  { header: 'Messages', value: (ticket) => ticket.exchanges },
+  { header: 'Ouvert le', value: (ticket) => csvDateTime(ticket.openedAt) },
+  { header: 'Statut', value: (ticket) => STATUS_LABELS[ticket.status] },
+]
 
 export const TicketsView = () => {
   const search = route.useSearch()
@@ -36,11 +58,19 @@ export const TicketsView = () => {
         title="Tickets"
         description={query.data ? plural(query.data.total, 'ticket') : undefined}
         actions={
-          <Button asChild variant="outline" size="sm">
-            <Link to="/tickets/staff">
-              <BarChart3 aria-hidden /> Statistiques du staff
-            </Link>
-          </Button>
+          <>
+            <CsvExportButton
+              filename="tickets"
+              columns={TICKETS_CSV}
+              rows={() => fetchTicketsForExport(compact({ q: search.q, status: search.status }))}
+              disabled={!query.data?.total}
+            />
+            <Button asChild variant="outline" size="sm">
+              <Link to="/tickets/staff">
+                <BarChart3 aria-hidden /> Statistiques du staff
+              </Link>
+            </Button>
+          </>
         }
       />
       <form
@@ -48,7 +78,12 @@ export const TicketsView = () => {
         onSubmit={(event) => {
           event.preventDefault()
           const selected = fromSelect(status)
-          void navigate({ search: compact({ q: text.trim() || undefined, status: searchOneOf(selected, STATUSES) }) })
+          void navigate({
+            search: compact({
+              q: text.trim() || undefined,
+              status: searchOneOf(selected, STATUSES),
+            }),
+          })
         }}
       >
         <Field label="Rechercher">
@@ -93,7 +128,29 @@ export const TicketsView = () => {
           <EmptyState title="Aucun ticket trouvé" icon={<Inbox />} />
         ) : (
           <>
-            <Card className={cn('py-0', query.isPlaceholderData && 'opacity-60')}>
+            <MobileCards label="Tickets" className={cn(query.isPlaceholderData && 'opacity-60')}>
+              {query.data.items.map((ticket) => (
+                <MobileCard
+                  key={ticket.id}
+                  title={
+                    <Link
+                      to="/logs/$threadId"
+                      params={{ threadId: ticket.id }}
+                      className="after:absolute after:inset-0 after:rounded-xl focus-visible:outline-none focus-visible:after:ring-[3px] focus-visible:after:ring-ring/50"
+                    >
+                      <span className="font-mono text-ink-subtle">#{ticket.number}</span> {ticket.user.name}
+                    </Link>
+                  }
+                  aside={<TicketStatusBadge status={ticket.status} />}
+                  fields={[
+                    { label: 'Pris en charge', value: ticket.claimedBy ?? '—' },
+                    { label: 'Messages', value: formatNumber(ticket.exchanges) },
+                    { label: 'Ouvert le', value: formatDateTime(ticket.openedAt) },
+                  ]}
+                />
+              ))}
+            </MobileCards>
+            <Card className={cn('hidden py-0 sm:flex', query.isPlaceholderData && 'opacity-60')}>
               <Table>
                 <TableHeader>
                   <TableRow className="hover:bg-transparent">
@@ -144,7 +201,9 @@ export const TicketsView = () => {
               pageSize={query.data.pageSize}
               total={query.data.total}
               onPage={(page) =>
-                void navigate({ search: (prev) => compact({ ...prev, page: page > 1 ? page : undefined }) })
+                void navigate({
+                  search: (prev) => compact({ ...prev, page: page > 1 ? page : undefined }),
+                })
               }
             />
           </>

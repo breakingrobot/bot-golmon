@@ -10,13 +10,14 @@ import { Card } from '@/atoms/Card'
 import { Input } from '@/atoms/Input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/atoms/Select'
 import { useDebounced } from '@/hooks/use-debounced'
-import { KIND_LABELS, RELATION_LABELS, RELATION_PLURALS, RELATION_VARIANT } from '@/lib/contact'
+import { CONTACT_CSV, KIND_LABELS, RELATION_LABELS, RELATION_PLURALS, RELATION_VARIANT } from '@/lib/contact'
 import { formatNumber } from '@/lib/format'
 import { hasPerm } from '@/lib/guild'
 import { useGuild } from '@/lib/guild-context'
 import { ALL, compact, fromSelect, searchOneOf } from '@/lib/search'
 import type { SearchPatch } from '@/lib/search'
 import { cn } from '@/lib/utils'
+import { CsvExportButton } from '@/molecules/CsvExportButton'
 import { EmptyState } from '@/molecules/EmptyState'
 import { Field } from '@/molecules/Field'
 import { PageHeader } from '@/molecules/PageHeader'
@@ -56,17 +57,25 @@ export const ContactsView = () => {
         title="Contacts"
         description={`${guild.name} · groupes, entreprises et personnes`}
         actions={
-          canAdd && (
-            <ContactFormDialog
-              guildId={guild.id}
-              onSaved={(contact) => setSearch({ contact: contact.id })}
-              trigger={
-                <Button size="sm">
-                  <Plus aria-hidden /> Nouveau contact
-                </Button>
-              }
+          <>
+            <CsvExportButton
+              filename="contacts"
+              columns={CONTACT_CSV}
+              rows={query.data?.items ?? []}
+              disabled={!query.data?.items.length}
             />
-          )
+            {canAdd && (
+              <ContactFormDialog
+                guildId={guild.id}
+                onSaved={(contact) => setSearch({ contact: contact.id })}
+                trigger={
+                  <Button size="sm">
+                    <Plus aria-hidden /> Nouveau contact
+                  </Button>
+                }
+              />
+            )}
+          </>
         }
       />
 

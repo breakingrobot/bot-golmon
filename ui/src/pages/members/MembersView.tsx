@@ -10,6 +10,7 @@ import { useDebounced } from '@/hooks/use-debounced'
 import { useGuild } from '@/lib/guild-context'
 import { compact } from '@/lib/search'
 import { cn } from '@/lib/utils'
+import { CsvExportButton } from '@/molecules/CsvExportButton'
 import { EmptyState } from '@/molecules/EmptyState'
 import { MemberAvatar } from '@/molecules/MemberAvatar'
 import { PageHeader } from '@/molecules/PageHeader'
@@ -35,6 +36,17 @@ export const MembersView = () => {
       <PageHeader
         title="Membres"
         description={`${guild.name} · présences, cotisations, coffres et recrutement de chacun`}
+        actions={
+          <CsvExportButton
+            filename="membres"
+            columns={[
+              { header: 'Membre', value: (member) => member.name },
+              { header: 'Identifiant Discord', value: (member) => member.id },
+            ]}
+            rows={query.data ?? []}
+            disabled={!query.data?.length}
+          />
+        }
       />
       <div className="relative max-w-md">
         <Search className="pointer-events-none absolute top-2.5 left-3 size-4 text-ink-subtle" aria-hidden />

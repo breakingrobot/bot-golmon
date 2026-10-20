@@ -54,6 +54,10 @@ export const csvDay = (day: string): string => {
   return groups ? `${groups['date']}/${groups['month']}/${groups['year']}` : day
 }
 
+/** Texte d'un HTML rendu par le serveur (détails du journal), pour une cellule. */
+export const htmlToText = (html: string): string =>
+  (new DOMParser().parseFromString(html, 'text/html').body.textContent ?? '').replaceAll(/\s+/gu, ' ').trim()
+
 /** Téléchargement d'un texte CSV (lien temporaire, rien ne part sur le réseau). */
 export const downloadCsv = (filename: string, text: string): void => {
   const url = URL.createObjectURL(new Blob([text], { type: 'text/csv;charset=utf-8' }))

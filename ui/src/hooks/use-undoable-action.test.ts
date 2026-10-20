@@ -9,16 +9,25 @@ const toasts = vi.hoisted(() => ({
   dismiss: vi.fn<(id: string) => void>(),
 }))
 
-vi.mock(import('sonner'), () => ({
-  toast: Object.assign(toasts.show, { error: toasts.error, dismiss: toasts.dismiss }),
-}))
+vi.mock(import('sonner'), async (importOriginal) => {
+  const actual = await importOriginal()
+  // Seules les fonctions appelées par le hook sont simulées.
+  const toast = Object.assign(toasts.show, { error: toasts.error, dismiss: toasts.dismiss })
+  return { ...actual, toast: toast as unknown as typeof actual.toast }
+})
 
 const action = (key: string, commit: UndoableAction['commit'] = () => Promise.resolve()) => {
   const restore = vi.fn<() => void>()
   const hide = vi.fn<() => () => void>(() => restore)
   const committed = vi.fn<() => void>()
   const send = vi.fn<UndoableAction['commit']>(commit)
-  scheduleUndoable({ key, message: 'Cotisation supprimée', hide, commit: send, onCommitted: committed })
+  scheduleUndoable({
+    key,
+    message: 'Cotisation supprimée',
+    hide,
+    commit: send,
+    onCommitted: committed,
+  })
   return { hide, restore, send, committed }
 }
 

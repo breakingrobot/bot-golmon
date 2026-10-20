@@ -29,6 +29,17 @@ const router = createAppRouter(queryClient)
 const container = document.querySelector('#app')
 if (!container) throw new Error('Élément #app absent de index.html')
 
+// Application installable : service worker (public/sw.js) en production seulement, jamais en maquette.
+if (import.meta.env.PROD && import.meta.env.VITE_MOCK !== '1' && 'serviceWorker' in navigator) {
+  globalThis.addEventListener('load', async () => {
+    try {
+      await navigator.serviceWorker.register('/sw.js')
+    } catch {
+      // Sans service worker, le site fonctionne normalement (pas d'installation ni de page hors ligne).
+    }
+  })
+}
+
 createRoot(container).render(
   <StrictMode>
     {/* État d'interface : atomes Jotai dans le store par défaut, sans <Provider>. */}
