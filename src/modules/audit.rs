@@ -41,6 +41,7 @@ pub enum Action {
     AbsenceDeclaredFor,
     AbsenceEndedFor,
     TransactionDelete,
+    TransactionTemplate,
     RecrueAdd,
     RecrueRemove,
     RecrueReset,
@@ -61,7 +62,7 @@ pub enum Action {
 }
 
 impl Action {
-    pub const ALL: [Self; 28] = [
+    pub const ALL: [Self; 29] = [
         Self::Config,
         Self::PresenceForceVote,
         Self::PresenceCancel,
@@ -73,6 +74,7 @@ impl Action {
         Self::AbsenceDeclaredFor,
         Self::AbsenceEndedFor,
         Self::TransactionDelete,
+        Self::TransactionTemplate,
         Self::RecrueAdd,
         Self::RecrueRemove,
         Self::RecrueReset,
@@ -105,6 +107,7 @@ impl Action {
             Self::AbsenceDeclaredFor => "absence.declare",
             Self::AbsenceEndedFor => "absence.end",
             Self::TransactionDelete => "transaction.delete",
+            Self::TransactionTemplate => "transaction.modele",
             Self::RecrueAdd => "recrue.add",
             Self::RecrueRemove => "recrue.remove",
             Self::RecrueReset => "recrue.reset",
@@ -142,6 +145,7 @@ impl Action {
             Self::AbsenceDeclaredFor => "🌙 Absence déclarée pour un membre",
             Self::AbsenceEndedFor => "🌙 Absence clôturée pour un membre",
             Self::TransactionDelete => "🗑️ Transaction supprimée",
+            Self::TransactionTemplate => "🧩 Modèle de transaction créé ou supprimé",
             Self::RecrueAdd => "🧑‍🎓 Recrue ajoutée",
             Self::RecrueRemove => "🧑‍🎓 Recrue retirée",
             Self::RecrueReset => "♻️ Nouvelle semaine de recrues forcée",

@@ -10,6 +10,7 @@ use crate::{
         site::{self, Page},
         suggest,
     },
+    modules::contacts::{self, Relation},
     modules::like_contains,
     util::{ids::new_id, time::DbTime},
 };
@@ -20,7 +21,7 @@ use sqlx::SqlitePool;
 const TERMINAL_DASHBOARD_LIMIT: i64 = 10;
 
 const COLUMNS: &str =
-    r#""id", "channelId", "messageId", "groupe", "type", "prix", "statut", "createdById", "updatedAt""#;
+    r#""id", "channelId", "messageId", "groupe", "type", "prix", "statut", "createdById", "updatedAt", "note""#;
 
 pub async fn get_config(db: &SqlitePool, guild_id: &str) -> Result<Option<TransactionConfig>> {
     Ok(sqlx::query_as(r#"SELECT * FROM "TransactionConfig" WHERE "guildId" = ?"#)
@@ -73,14 +74,15 @@ pub struct NewTransaction {
     pub kind: String,
     pub prix: f64,
     pub created_by_id: String,
+    pub note: Option<String>,
 }
 
 pub async fn create(db: &SqlitePool, params: NewTransaction) -> Result<String> {
     let id = new_id();
     let now = DbTime::now();
     sqlx::query(
-        r#"INSERT INTO "Transaction" ("id", "guildId", "channelId", "groupe", "type", "prix", "statut", "createdById", "createdAt", "updatedAt")
-           VALUES (?, ?, ?, ?, ?, ?, 'PREPARATION', ?, ?, ?)"#,
+        r#"INSERT INTO "Transaction" ("id", "guildId", "channelId", "groupe", "type", "prix", "statut", "createdById", "createdAt", "updatedAt", "note")
+           VALUES (?, ?, ?, ?, ?, ?, 'PREPARATION', ?, ?, ?, ?)"#,
     )
     .bind(&id)
     .bind(&params.guild_id)
@@ -91,9 +93,42 @@ pub async fn create(db: &SqlitePool, params: NewTransaction) -> Result<String> {
     .bind(&params.created_by_id)
     .bind(now)
     .bind(now)
+    .bind(&params.note)
     .execute(db)
     .await?;
     Ok(id)
+}
+
+/// Retire un objet ; `Ok(None)` s'il n'existe plus. Renvoie son nom.
+pub async fn remove_item(
+    db: &SqlitePool,
+    guild_id: &str,
+    transaction_id: &str,
+    item_id: &str,
+) -> Result<Option<String>> {
+    let removed: Option<(String,)> = sqlx::query_as(
+        r#"DELETE FROM "TransactionItem" WHERE "id" = ? AND "transactionId" = ?
+             AND "transactionId" IN (SELECT "id" FROM "Transaction" WHERE "guildId" = ?)
+           RETURNING "nom""#,
+    )
+    .bind(item_id)
+    .bind(transaction_id)
+    .bind(guild_id)
+    .fetch_optional(db)
+    .await?;
+    if removed.is_some() {
+        sqlx::query(r#"UPDATE "Transaction" SET "updatedAt" = ? WHERE "id" = ?"#)
+            .bind(DbTime::now())
+            .bind(transaction_id)
+            .execute(db)
+            .await?;
+    }
+    Ok(removed.map(|(nom,)| nom))
+}
+
+/// Relation du groupe dans le répertoire des contacts, s'il y figure.
+pub async fn group_relation(db: &SqlitePool, guild_id: &str, groupe: &str) -> Result<Option<Relation>> {
+    Ok(contacts::service::resolve(db, guild_id, groupe).await?.map(|contact| contact.relation()))
 }
 
 /// Ajoute un objet. `Ok(false)` si la transaction a disparu entre-temps (supprimée
@@ -157,7 +192,7 @@ async fn attach_items(db: &SqlitePool, transactions: &mut [Transaction]) -> Resu
     }
     let placeholders = vec!["?"; transactions.len()].join(", ");
     let sql = format!(
-        r#"SELECT "transactionId", "nom", "quantite", "prixUnitaire" FROM "TransactionItem" WHERE "transactionId" IN ({placeholders}) ORDER BY "createdAt" ASC"#
+        r#"SELECT "id", "transactionId", "nom", "quantite", "prixUnitaire" FROM "TransactionItem" WHERE "transactionId" IN ({placeholders}) ORDER BY "createdAt" ASC, "id" ASC"#
     );
     let mut query = sqlx::query_as::<_, TransactionItem>(&sql);
     for transaction in transactions.iter() {
@@ -237,8 +272,11 @@ pub async fn sync_message(ctx: &Ctx, guild_id: &str, transaction_id: &str) -> Re
         return Ok(());
     };
 
-    let mut message = Outgoing::embeds(vec![build_embed(&transaction)])
-        .with_components(build_buttons(&transaction.id, transaction.status()));
+    let relation = group_relation(&ctx.db, guild_id, &transaction.groupe).await?;
+    let link = parse_id(guild_id)
+        .and_then(|guild| site::url(ctx, guild, Page::Transactions { groupe: Some(&transaction.groupe) }));
+    let mut message =
+        Outgoing::embeds(vec![build_embed(&transaction, relation)]).with_components(build_buttons(&transaction, link));
 
     if let Some(message_id) = transaction.message_id.as_deref().and_then(parse_id)
         && messages::fetch(ctx, channel_id, message_id).await?.is_some()
@@ -349,6 +387,7 @@ mod tests {
                 kind: "VENTE".into(),
                 prix: 10.0,
                 created_by_id: "u".into(),
+                note: None,
             };
             let id = create(&db, new).await.unwrap();
             add_item(&db, &id, "Pistolet", 1, None).await.unwrap();

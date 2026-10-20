@@ -122,6 +122,7 @@ pub(crate) struct HistoryRow {
     pub(crate) statut: String,
     pub(crate) created_by_id: String,
     pub(crate) created_at: DbTime,
+    pub(crate) note: Option<String>,
     #[sqlx(skip)]
     pub(crate) items: Vec<TransactionItem>,
 }
@@ -146,7 +147,7 @@ pub(crate) async fn rows(
 ) -> Result<Vec<HistoryRow>> {
     let (clause, binds) = filters.where_clause(guild_id);
     let selection = format!(
-        r#"SELECT "id", "groupe", "type", "prix", "statut", "createdById", "createdAt" FROM "Transaction"
+        r#"SELECT "id", "groupe", "type", "prix", "statut", "createdById", "createdAt", "note" FROM "Transaction"
            WHERE {clause} ORDER BY "createdAt" DESC, "id" DESC LIMIT ? OFFSET ?"#
     );
     let mut query = sqlx::query_as::<_, HistoryRow>(&selection);
@@ -160,7 +161,7 @@ pub(crate) async fn rows(
 
     // Même sélection en sous-requête : pas de liste de milliers d'identifiants à lier.
     let items_sql = format!(
-        r#"SELECT "transactionId", "nom", "quantite", "prixUnitaire" FROM "TransactionItem"
+        r#"SELECT "id", "transactionId", "nom", "quantite", "prixUnitaire" FROM "TransactionItem"
            WHERE "transactionId" IN (SELECT "id" FROM "Transaction" WHERE {clause} ORDER BY "createdAt" DESC, "id" DESC LIMIT ? OFFSET ?)
            ORDER BY "createdAt" ASC, "id" ASC"#
     );
@@ -458,14 +459,22 @@ mod tests {
             statut: "LIVRE_PAYE".into(),
             created_by_id: "42".into(),
             created_at: at(2026, 10, 16, 19, 40),
+            note: None,
             items: vec![
                 TransactionItem {
+                    id: "i1".into(),
                     transaction_id: "t1".into(),
                     nom: "Pistolet".into(),
                     quantite: 2,
                     prix_unitaire: None,
                 },
-                TransactionItem { transaction_id: "t1".into(), nom: "Gilet".into(), quantite: 1, prix_unitaire: None },
+                TransactionItem {
+                    id: "i2".into(),
+                    transaction_id: "t1".into(),
+                    nom: "Gilet".into(),
+                    quantite: 1,
+                    prix_unitaire: None,
+                },
             ],
         };
         let csv = build_csv(&[row], |_| "Élodie".into());

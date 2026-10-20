@@ -150,6 +150,7 @@ export const ALL_PERMS: Perm[] = [
   'transaction.utiliser',
   'transaction.supprimer',
   'transaction.historique',
+  'transaction.modeles',
   'vehicule.utiliser',
   'numero.ajouter_autrui',
   'numero.supprimer_autrui',

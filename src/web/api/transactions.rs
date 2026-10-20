@@ -26,6 +26,9 @@ pub struct Transaction {
     pub prix: f64,
     pub creator: MemberRef,
     pub items: Vec<Item>,
+    /// Note libre saisie à la création (Discord).
+    #[schema(required = true)]
+    pub note: Option<String>,
 }
 
 #[derive(Debug, Serialize, ToSchema)]
@@ -94,6 +97,7 @@ fn transaction(members: &Members, row: HistoryRow) -> Transaction {
             .into_iter()
             .map(|item| Item { nom: item.nom, quantite: item.quantite, prix_unitaire: item.prix_unitaire })
             .collect(),
+        note: row.note,
     }
 }
 

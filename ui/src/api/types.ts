@@ -40,7 +40,7 @@ export type Level = 'membre' | 'grade' | 'lead' | 'admin'
 export type Perm =
   | 'presence.creer' | 'presence.stats' | 'presence.gerer' | 'presence.reset' | 'presence.blocklist'
   | 'absence.autrui'
-  | 'transaction.utiliser' | 'transaction.supprimer' | 'transaction.historique'
+  | 'transaction.utiliser' | 'transaction.supprimer' | 'transaction.historique' | 'transaction.modeles'
   | 'vehicule.utiliser'
   | 'numero.ajouter_autrui' | 'numero.supprimer_autrui'
   | 'recrue.suivi' | 'recrue.avis' | 'recrue.veto' | 'recrue.reset'
@@ -154,6 +154,8 @@ export type Transaction = {
   prix: number
   creator: MemberRef
   items: { nom: string; quantite: number; prixUnitaire: number | null }[]
+  /** Note libre saisie sur Discord. */
+  note?: string | null
 }
 
 export type TransactionsResponse = {

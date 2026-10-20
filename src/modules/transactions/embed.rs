@@ -3,7 +3,9 @@ use crate::{
     discord::{
         components::{ButtonExt as _, button, container, row, separator, text_display, text_displays},
         embed::{EmbedBuilder, footer, timestamp},
+        site::{LABEL, link_button},
     },
+    modules::contacts::Relation,
     util::{
         format::{ListBlock, V2_TEXT_LIMIT, field, format_price, pack_blocks, plural, truncate_field},
         ids::encode_custom_id,
@@ -12,7 +14,8 @@ use crate::{
 };
 use twilight_model::channel::message::{Component, Embed, component::ButtonStyle};
 
-pub fn build_embed(transaction: &Transaction) -> Embed {
+/// Fiche d'une transaction. `relation` : celle du groupe dans le répertoire des contacts.
+pub fn build_embed(transaction: &Transaction, relation: Option<Relation>) -> Embed {
     let status = transaction.status();
     let items = if transaction.items.is_empty() {
         "Aucun objet".to_owned()
@@ -32,22 +35,30 @@ pub fn build_embed(transaction: &Transaction) -> Embed {
             .join("\n")
     };
 
-    EmbedBuilder::new()
+    let mut embed = EmbedBuilder::new()
         .title(crate::util::format::truncate(&format!("Transaction — {}", transaction.groupe), 256))
         .color(status.color())
         .field(field("Type", type_label(&transaction.kind), true))
         .field(field("Prix", format_price(transaction.prix), true))
         .field(field("Statut", format!("{} {}", status.emoji(), status.label()), true))
-        .field(field(format!("Objets ({})", transaction.items.len()), truncate_field(&items), false))
-        .field(field("Créée par", format!("<@{}>", transaction.created_by_id), true))
-        .footer(footer(&transaction.id))
-        .timestamp(timestamp(transaction.updated_at))
-        .build()
+        .field(field(format!("Objets ({})", transaction.items.len()), truncate_field(&items), false));
+    if let Some(note) = transaction.note.as_deref().filter(|n| !n.trim().is_empty()) {
+        embed = embed.field(field("📝 Note", truncate_field(note), false));
+    }
+    embed = embed.field(field("Créée par", format!("<@{}>", transaction.created_by_id), true));
+    if let Some(relation) = relation {
+        embed = embed.field(field("Répertoire", relation.display(), true));
+    }
+    embed.footer(footer(&transaction.id)).timestamp(timestamp(transaction.updated_at)).build()
 }
 
-pub fn build_buttons(transaction_id: &str, current: Status) -> Vec<Component> {
+/// Boutons de la fiche : statuts, puis objets, suppression et lien vers le site
+/// (`link`). Aucun bouton une fois clôturée, sauf le lien.
+pub fn build_buttons(transaction: &Transaction, link: Option<String>) -> Vec<Component> {
+    let current = transaction.status();
+    let transaction_id = transaction.id.as_str();
     if current == Status::Cloturee {
-        return Vec::new();
+        return link.map(|url| row(vec![link_button(url, LABEL)])).into_iter().collect();
     }
     let status_button = |status: Status, label: &str, style: ButtonStyle| {
         // Le statut courant est désactivé : le clic serait sans effet.
@@ -74,7 +85,7 @@ pub fn build_buttons(transaction_id: &str, current: Status) -> Vec<Component> {
         ));
     }
 
-    let actions = vec![
+    let mut actions = vec![
         Component::Button(
             button(
                 encode_custom_id("transaction", "additem", transaction_id, None),
@@ -84,10 +95,22 @@ pub fn build_buttons(transaction_id: &str, current: Status) -> Vec<Component> {
             .with_emoji("➕"),
         ),
         Component::Button(
+            button(
+                encode_custom_id("transaction", "removeitem", transaction_id, None),
+                "Retirer un objet",
+                ButtonStyle::Secondary,
+            )
+            .with_emoji("➖")
+            .disabled(transaction.items.is_empty()),
+        ),
+        Component::Button(
             button(encode_custom_id("transaction", "delete", transaction_id, None), "Supprimer", ButtonStyle::Danger)
                 .with_emoji("🗑️"),
         ),
     ];
+    if let Some(url) = link {
+        actions.push(link_button(url, LABEL));
+    }
 
     vec![row(status_row), row(actions)]
 }
@@ -162,8 +185,10 @@ mod tests {
             statut: status.as_str().to_owned(),
             created_by_id: "42".to_owned(),
             updated_at: DbTime::now(),
+            note: None,
             items: (0..items)
                 .map(|i| TransactionItem {
+                    id: format!("it{i}"),
                     transaction_id: format!("tx{index}"),
                     nom: format!("objet {i}"),
                     quantite: 1,
@@ -191,12 +216,41 @@ mod tests {
     }
 
     #[test]
+    fn embed_shows_note_and_relation() {
+        let mut transaction = sample(1, Status::Preparation, 1);
+        transaction.note = Some("Livraison au port".into());
+        let embed = build_embed(&transaction, Some(Relation::Hostile));
+        let field = |name: &str| embed.fields.iter().find(|f| f.name == name).map(|f| f.value.clone());
+        assert_eq!(field("📝 Note").as_deref(), Some("Livraison au port"));
+        assert_eq!(field("Répertoire").as_deref(), Some("🔴 Hostile"));
+        assert!(build_embed(&sample(2, Status::Preparation, 0), None).fields.iter().all(|f| f.name != "Répertoire"));
+    }
+
+    #[test]
+    fn buttons_respect_discord_limits() {
+        let link = Some("https://bot.example/serveurs/1/transactions".to_owned());
+        for status in Status::ALL {
+            let rows = build_buttons(&sample(1, status, 2), link.clone());
+            assert!(rows.len() <= 5);
+            for row in &rows {
+                let Component::ActionRow(row) = row else { panic!("ligne attendue") };
+                assert!(row.components.len() <= 5, "{status:?}");
+            }
+        }
+        // Clôturée : seul le lien reste.
+        assert_eq!(build_buttons(&sample(1, Status::Cloturee, 0), link).len(), 1);
+        assert!(build_buttons(&sample(1, Status::Cloturee, 0), None).is_empty());
+    }
+
+    #[test]
     fn dashboard_stays_within_v2_limits() {
         let transactions: Vec<Transaction> = (0..400)
             .map(|i| sample(i, Status::ACTIVE[i % 3], i % 4))
             .chain((0..30).map(|i| sample(1000 + i, Status::TERMINAL[i % 3], 1)))
             .collect();
-        let components = build_dashboard(&transactions, 430);
+        let mut components = build_dashboard(&transactions, 430);
+        // Avec le bouton « Ouvrir sur le site ».
+        crate::discord::site::attach(&mut components, Some(link_button("https://bot.example".into(), LABEL)));
         let (text_len, count) = v2_usage(&components);
         assert!(text_len <= V2_TEXT_LIMIT, "{text_len} octets");
         assert!(count <= V2_COMPONENT_LIMIT, "{count} composants");

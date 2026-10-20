@@ -139,7 +139,7 @@ async fn route(ix: &Ix) -> Result<()> {
             };
             match custom_id.namespace {
                 "presence" => presences::interactions::button(ix, &custom_id).await,
-                "transaction" => transactions::interactions::button(ix, &custom_id).await,
+                "transaction" => transactions::interactions::button(ix, &custom_id, &component.values).await,
                 "numero" => phones::interactions::button(ix, &custom_id).await,
                 crate::modules::coffres::commands::NAMESPACE => {
                     crate::modules::coffres::commands::button_pressed(ix, &custom_id).await
@@ -160,6 +160,7 @@ async fn route(ix: &Ix) -> Result<()> {
                 ("transaction", "additem-modal") => {
                     transactions::interactions::add_item_modal(ix, custom_id.id, modal).await
                 }
+                ("transaction", "nouvelle-modal") => transactions::commands::new_modal(ix, modal).await,
                 ("recrue" | "prospect", "vote-modal" | "veto-modal") => {
                     recrues::interactions::modal(ix, custom_id.action, custom_id.id, modal).await
                 }

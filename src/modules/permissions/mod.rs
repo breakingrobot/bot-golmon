@@ -125,6 +125,7 @@ perms! {
     TransactionUtiliser => "transaction.utiliser", "Transactions", "Créer, compléter, changer le statut, annuler", Membre, false;
     TransactionSupprimer => "transaction.supprimer", "Transactions", "Supprimer définitivement une transaction", Grade, false;
     TransactionHistorique => "transaction.historique", "Transactions", "Historique et export sur le site", Admin, false;
+    TransactionModeles => "transaction.modeles", "Transactions", "Créer, lister et supprimer les modèles de transaction", Grade, false;
     Vehicule => "vehicule.utiliser", "Véhicules", "Enregistrer, consulter, modifier, retirer un véhicule", Membre, false;
     NumeroAjouterAutrui => "numero.ajouter_autrui", "Numéros", "Enregistrer le numéro d'un autre membre", Admin, false;
     NumeroSupprimerAutrui => "numero.supprimer_autrui", "Numéros", "Supprimer le numéro d'un autre membre", Grade, false;

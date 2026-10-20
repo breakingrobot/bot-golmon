@@ -206,9 +206,11 @@ mod tests {
         let event = DbTime(utc(20, 19, 0));
         let text = presence_text(Some("Le Cartel"), "Réunion", event, Some("https://discord.com/channels/1/2/3"));
         assert!(text.starts_with("⏰ Présence **Réunion** à 21:00 (<t:"), "{text}");
-        assert!(text.contains(
-            " sur **Le Cartel** : tu n'as pas répondu.\nRéponds ici : https://discord.com/channels/1/2/3"
-        ));
+        assert!(
+            text.contains(
+                " sur **Le Cartel** : tu n'as pas répondu.\nRéponds ici : https://discord.com/channels/1/2/3"
+            )
+        );
         assert!(text.ends_with(UNSUBSCRIBE));
         let objective = Objective { amount: 50_000, counts: Counts::Total, reminder: true };
         let row = ProgressRow { user_id: "1".into(), amount: 20_000, target: 50_000, reached: false, exempt: false };

@@ -2,12 +2,18 @@ use super::{commands::CLOSED, model::Status, service};
 use crate::{
     discord::{
         commands::modal_text,
-        components::{label, text_input},
+        components::{label, row, select_option, string_select, text_input},
         interaction::{GUILD_ONLY, Ix, Reply},
         messages,
     },
-    modules::permissions::{self, Perm},
-    util::ids::{CustomId, encode_custom_id},
+    modules::{
+        audit::{self, Action, Entry},
+        permissions::{self, Perm},
+    },
+    util::{
+        format::truncate,
+        ids::{CustomId, encode_custom_id},
+    },
 };
 use anyhow::Result;
 use twilight_model::{
@@ -22,7 +28,7 @@ fn input(custom_id: &str, placeholder: &str, required: bool) -> Component {
     Component::TextInput(input)
 }
 
-pub async fn button(ix: &Ix, custom_id: &CustomId<'_>) -> Result<()> {
+pub async fn button(ix: &Ix, custom_id: &CustomId<'_>, values: &[String]) -> Result<()> {
     let Some(guild_id) = ix.guild_id() else {
         return ix.reply(Reply::ephemeral(GUILD_ONLY)).await;
     };
@@ -51,6 +57,42 @@ pub async fn button(ix: &Ix, custom_id: &CustomId<'_>) -> Result<()> {
             )
             .await
         }
+        "removeitem" => {
+            if transaction.items.is_empty() {
+                return ix.reply(Reply::ephemeral("Cette transaction n'a aucun objet.")).await;
+            }
+            let options = transaction
+                .items
+                .iter()
+                .take(25)
+                .map(|item| {
+                    let label = truncate(&format!("{} ×{}", item.nom, item.quantite), 100);
+                    select_option(label, item.id.clone())
+                })
+                .collect();
+            let select = string_select(
+                encode_custom_id("transaction", "removeitem-select", &transaction.id, None),
+                "Objet à retirer",
+                options,
+            );
+            ix.reply(
+                Reply::ephemeral("Quel objet retirer ?")
+                    .with_components(vec![row(vec![Component::SelectMenu(select)])]),
+            )
+            .await
+        }
+        "removeitem-select" => {
+            let Some(item_id) = values.first() else {
+                return ix.update(Reply::text("Aucun objet choisi.")).await;
+            };
+            match service::remove_item(&ix.ctx.db, &guild, &transaction.id, item_id).await? {
+                Some(nom) => {
+                    ix.update(Reply::text(format!("Objet « {nom} » retiré."))).await?;
+                    service::refresh(&ix.ctx, &guild, &transaction.id).await
+                }
+                None => ix.update(Reply::text("Cet objet a déjà été retiré.")).await,
+            }
+        }
         "delete" => {
             ix.defer_update().await?;
             if let (Some(channel_id), Some(message)) = (ix.channel_id(), ix.interaction.message.as_ref()) {
@@ -58,6 +100,12 @@ pub async fn button(ix: &Ix, custom_id: &CustomId<'_>) -> Result<()> {
             }
             service::delete(&ix.ctx.db, &guild, &transaction.id).await?;
             service::sync_dashboard(&ix.ctx, &guild).await?;
+            // Même trace que `/gestion transaction supprimer`.
+            audit::record(
+                ix,
+                Entry::new(Action::TransactionDelete, None, super::commands::deleted_details(&transaction)),
+            )
+            .await;
             ix.followup(Reply::ephemeral("Transaction supprimée.")).await
         }
         "status" => {

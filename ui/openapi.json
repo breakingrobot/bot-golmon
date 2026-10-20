@@ -1934,6 +1934,7 @@
           "transaction.utiliser",
           "transaction.supprimer",
           "transaction.historique",
+          "transaction.modeles",
           "vehicule.utiliser",
           "numero.ajouter_autrui",
           "numero.supprimer_autrui",
@@ -2499,6 +2500,13 @@
             },
             "type": "array"
           },
+          "note": {
+            "description": "Note libre saisie à la création (Discord).",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "prix": {
             "format": "double",
             "type": "number"
@@ -2522,7 +2530,8 @@
           "statusLabel",
           "prix",
           "creator",
-          "items"
+          "items",
+          "note"
         ],
         "type": "object"
       },
