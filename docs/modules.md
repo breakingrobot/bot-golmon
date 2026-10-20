@@ -305,9 +305,28 @@ jamais compté deux fois.
 | `/coffre nommer propriete nom` | Nom lisible d'une propriété. |
 | `/coffre seuil objet min [propriete]` | Seuil de stock bas d'un objet, dans une propriété ou dans toutes ; `min:0` retire le seuil (journalisé). |
 | `/coffre seuils` | Seuils réglés, et les propriétés où l'objet est actuellement en dessous. |
+| `/coffre inventaire propriete [objet quantite] [liste]` | Saisit la quantité **réellement présente** en jeu ; l'écart devient une correction (voir ci-dessous). |
 
 Réservé aux gradés par défaut (`coffre.voir`, `coffre.gerer`). Le stock est calculé à partir des mouvements lus depuis
-le début du suivi : un objet déjà présent avant peut apparaître en négatif après un retrait.
+le début du suivi : un objet déjà présent avant peut apparaître en négatif après un retrait, jusqu'au premier inventaire.
+
+**Inventaire** (`coffre.gerer`) : le stock d'avant le suivi, ou des objets entrés sans message du jeu, se
+rattrapent en comptant ce qu'il y a vraiment dans le coffre :
+
+```
+/coffre inventaire propriete:8740 objet:repair_kit quantite:42
+/coffre inventaire propriete:8740 liste:repair_kit:42, acetone:2790, red_powder:650
+```
+
+Le bot n'écrase rien : il enregistre l'**écart** comme une correction signée (« 🧮 +34 (correction) »), avec son
+auteur, inscrite au journal du staff. Le stock vaut ensuite dépôts − retraits + corrections, et les mouvements du
+jeu s'ajoutent normalement par-dessus. Un objet déjà juste ne produit rien ; recompter plus tard corrige seulement la
+nouvelle différence. L'identifiant d'un objet est celui du jeu (`repair_kit`), proposé par l'autocomplétion pour
+les objets déjà vus. Sur le site, le bouton **Inventaire** d'une propriété permet de tout saisir d'un coup.
+
+Pourquoi pas une relecture du salon pour « resynchroniser » ? Elle ne retrouverait que les messages encore présents :
+un message supprimé avant d'être lu, ou un stock d'avant le webhook, resteraient invisibles. Les mouvements déjà lus
+restent en base même si leur message est supprimé ensuite.
 
 **Alertes**
 

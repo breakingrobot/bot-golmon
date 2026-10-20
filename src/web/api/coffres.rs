@@ -86,6 +86,9 @@ pub struct StockItem {
     pub label: String,
     pub deposited: i64,
     pub withdrawn: i64,
+    /// Somme des corrections d'inventaire (signée).
+    pub adjusted: i64,
+    /// Dépôts − retraits + corrections.
     pub quantity: i64,
     pub low: bool,
 }
@@ -129,7 +132,9 @@ pub struct CoffreMovement {
     pub property_name: Option<String>,
     pub item: String,
     pub item_label: String,
+    /// Quantité ; signée pour une correction (`ADJUST`).
     pub amount: i64,
+    /// Joueur du jeu ; pour une correction, le membre qui a saisi l'inventaire.
     pub player: Player,
 }
 
@@ -153,6 +158,8 @@ pub struct SeriesPoint {
     pub day: String,
     pub deposited: i64,
     pub withdrawn: i64,
+    /// Corrections d'inventaire du jour (signées).
+    pub adjusted: i64,
     pub stock: i64,
 }
 
@@ -167,6 +174,8 @@ pub struct Row {
     pub player_name: String,
     pub player_game_id: Option<String>,
     pub at: DbTime,
+    /// Auteur d'une correction d'inventaire.
+    pub author_id: Option<String>,
 }
 
 /// Clause `WHERE` du filtre (mêmes règles que le module).
@@ -210,7 +219,7 @@ pub async fn movement_rows(
 ) -> Result<Vec<Row>> {
     let (clause, binds) = filter_sql(filter);
     let sql = format!(
-        r#"SELECT "id", "propertyId", "item", "amount", "kind", "playerName", "playerGameId", "at"
+        r#"SELECT "id", "propertyId", "item", "amount", "kind", "playerName", "playerGameId", "at", "authorId"
            FROM "CoffreMovement" WHERE {clause} ORDER BY "at" DESC, "id" DESC LIMIT ? OFFSET ?"#
     );
     let mut query = sqlx::query_as::<_, Row>(&sql).bind(guild_id);
@@ -231,7 +240,11 @@ pub fn movement(
     links: &HashMap<String, String>,
     row: Row,
 ) -> CoffreMovement {
-    let kind = if row.kind == Kind::Withdraw.as_str() { Kind::Withdraw } else { Kind::Deposit };
+    let kind = Kind::parse(&row.kind).unwrap_or(Kind::Deposit);
+    let member = match &row.author_id {
+        Some(author) => Some(members.get_or(author, Some(&row.player_name))),
+        None => row.player_game_id.as_ref().and_then(|id| links.get(id)).map(|user| members.get(user)),
+    };
     CoffreMovement {
         id: row.id,
         at: iso_db(row.at),
@@ -241,11 +254,7 @@ pub fn movement(
         item_label: item_label(&row.item),
         item: row.item,
         amount: row.amount,
-        player: Player {
-            member: row.player_game_id.as_ref().and_then(|id| links.get(id)).map(|user| members.get(user)),
-            game_id: row.player_game_id,
-            name: row.player_name,
-        },
+        player: Player { member, game_id: row.player_game_id, name: row.player_name },
     }
 }
 
@@ -346,6 +355,7 @@ pub async fn stock(
                     item: line.item,
                     deposited: line.deposited,
                     withdrawn: line.withdrawn,
+                    adjusted: line.adjusted,
                 })
                 .collect(),
             id,
@@ -412,7 +422,7 @@ pub async fn players(
                   COALESCE(SUM(CASE WHEN "kind" = 'DEPOSIT' THEN "amount" END), 0),
                   COALESCE(SUM(CASE WHEN "kind" = 'WITHDRAW' THEN "amount" END), 0),
                   COUNT(*)
-           FROM "CoffreMovement" WHERE {clause}
+           FROM "CoffreMovement" WHERE {clause} AND "kind" IN ('DEPOSIT', 'WITHDRAW')
            GROUP BY COALESCE("playerGameId", "playerName") ORDER BY COUNT(*) DESC"#
     );
     let mut sql_query = sqlx::query_as::<_, (Option<String>, String, i64, i64, i64)>(&sql).bind(&gid);
@@ -460,7 +470,7 @@ pub async fn item_series(
         return Ok(Vec::new());
     };
     let (before,): (i64,) = sqlx::query_as(
-        r#"SELECT COALESCE(SUM(CASE WHEN "kind" = 'DEPOSIT' THEN "amount" ELSE -"amount" END), 0)
+        r#"SELECT COALESCE(SUM(CASE "kind" WHEN 'WITHDRAW' THEN -"amount" ELSE "amount" END), 0)
            FROM "CoffreMovement" WHERE "guildId" = ? AND "item" = ? AND (? IS NULL OR "propertyId" = ?) AND "at" < ?"#,
     )
     .bind(guild_id)
@@ -474,12 +484,13 @@ pub async fn item_series(
     let sql = format!(
         r#"{cte} SELECT b."k",
                   COALESCE(SUM(CASE WHEN m."kind" = 'DEPOSIT' THEN m."amount" END), 0),
-                  COALESCE(SUM(CASE WHEN m."kind" = 'WITHDRAW' THEN m."amount" END), 0)
+                  COALESCE(SUM(CASE WHEN m."kind" = 'WITHDRAW' THEN m."amount" END), 0),
+                  COALESCE(SUM(CASE WHEN m."kind" = 'ADJUST' THEN m."amount" END), 0)
            FROM b LEFT JOIN "CoffreMovement" m ON m."guildId" = ? AND m."item" = ?
              AND (? IS NULL OR m."propertyId" = ?) AND m."at" >= b."s" AND m."at" < b."e"
            GROUP BY b."k" ORDER BY b."k""#
     );
-    let mut query = sqlx::query_as::<_, (String, i64, i64)>(&sql);
+    let mut query = sqlx::query_as::<_, (String, i64, i64, i64)>(&sql);
     for bind in binds {
         query = query.bind(bind);
     }
@@ -487,9 +498,9 @@ pub async fn item_series(
     let mut stock = before;
     Ok(rows
         .into_iter()
-        .map(|(day, deposited, withdrawn)| {
-            stock += deposited - withdrawn;
-            SeriesPoint { day, deposited, withdrawn, stock }
+        .map(|(day, deposited, withdrawn, adjusted)| {
+            stock += deposited - withdrawn + adjusted;
+            SeriesPoint { day, deposited, withdrawn, adjusted, stock }
         })
         .collect())
 }
@@ -618,6 +629,111 @@ pub async fn name_property(
 
 #[derive(Debug, Deserialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
+#[schema(as = CoffreInventoryLine)]
+pub struct InventoryLine {
+    /// Identifiant de l'objet dans le jeu, ex : `repair_kit`.
+    item: String,
+    /// Quantité réellement présente dans le coffre.
+    quantity: i64,
+}
+
+#[derive(Debug, Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+#[schema(as = CoffreInventory)]
+pub struct Inventory {
+    property_id: String,
+    items: Vec<InventoryLine>,
+}
+
+#[derive(Debug, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+#[schema(as = CoffreCorrection)]
+pub struct CorrectionView {
+    pub item: String,
+    pub label: String,
+    pub before: i64,
+    pub after: i64,
+}
+
+#[derive(Debug, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+#[schema(as = CoffreInventoryResult)]
+pub struct InventoryResult {
+    /// Seuls les objets dont la quantité a changé.
+    pub corrections: Vec<CorrectionView>,
+}
+
+/// Valide un inventaire : propriété en chiffres, au moins un objet, 300 au plus,
+/// identifiants d'objets du jeu, quantités entre 0 et le maximum.
+fn check_inventory(input: Inventory) -> Result<(String, Vec<(String, i64)>), String> {
+    let property = input.property_id.trim().to_owned();
+    if property.is_empty() || property.len() > 30 || !property.bytes().all(|b| b.is_ascii_digit()) {
+        return Err("Propriété invalide : son numéro, ex : 8740.".to_owned());
+    }
+    if input.items.is_empty() || input.items.len() > 300 {
+        return Err("Entre 1 et 300 objets par inventaire.".to_owned());
+    }
+    let mut counted: Vec<(String, i64)> = Vec::new();
+    for line in input.items {
+        let item = service::normalize_item(&line.item).ok_or_else(|| format!("Objet invalide : « {} ».", line.item))?;
+        if !(0..=service::MAX_INVENTORY).contains(&line.quantity) {
+            return Err(format!("{} : quantité entre 0 et {}.", item_label(&item), service::MAX_INVENTORY));
+        }
+        match counted.iter_mut().find(|(known, _)| *known == item) {
+            Some(entry) => entry.1 = line.quantity,
+            None => counted.push((item, line.quantity)),
+        }
+    }
+    Ok((property, counted))
+}
+
+/// Inventaire d'une propriété, comme `/coffre inventaire` (`coffre.gerer`) : les
+/// écarts avec le stock connu deviennent des corrections signées, journalisées.
+#[utoipa::path(
+    put, path = "/api/guilds/{guild}/coffres/inventory", tag = "coffres", operation_id = "setCoffreInventory",
+    params(("guild" = String, Path, description = "Identifiant du serveur")),
+    request_body = Inventory,
+    responses(
+        (status = 200, description = "Corrections enregistrées", body = InventoryResult),
+        (status = 400, description = "Requête invalide", body = super::ErrorBody),
+        (status = 401, description = "Pas connecté", body = super::ErrorBody),
+        (status = 403, description = "Droit insuffisant", body = super::ErrorBody),
+        (status = 422, description = "Saisie refusée", body = super::ErrorBody),
+    )
+)]
+pub async fn inventory(
+    State(ctx): State<Context>,
+    session: Session,
+    Path(guild): Path<String>,
+    JsonBody(input): JsonBody<Inventory>,
+) -> ApiResult {
+    let guild_id = session.require(&guild, Perm::CoffreGerer)?;
+    let gid = guild_id.to_string();
+    let (property, counted) = check_inventory(input).map_err(ApiError::invalid)?;
+    let actor = session.actor_name(&ctx, guild_id);
+    let corrections =
+        service::set_inventory(&ctx.db, &gid, &property, &counted, &session.viewer.id.to_string(), &actor).await?;
+    if !corrections.is_empty() {
+        let names = property_names(&ctx.db, &gid).await?;
+        let label = names.get(&property).cloned().unwrap_or_else(|| format!("Propriété {property}"));
+        let lines: Vec<String> = corrections
+            .iter()
+            .map(|c| format!("**{}** : {} → {} ({:+})", item_label(&c.item), c.before, c.after, c.delta()))
+            .collect();
+        let entry = Entry::new(Action::CoffreInventory, None, format!("**{label}** — {}", lines.join(", ")));
+        audit::record_web(&ctx, guild_id, session.viewer.id, &actor, entry).await;
+        crate::modules::coffres::dashboard::request_refresh(&ctx, &gid);
+    }
+    Ok(json(&InventoryResult {
+        corrections: corrections
+            .into_iter()
+            .map(|c| CorrectionView { label: item_label(&c.item), item: c.item, before: c.before, after: c.after })
+            .collect(),
+    }))
+}
+
+#[derive(Debug, Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct PlayerLink {
     member_id: String,
 }
@@ -711,6 +827,23 @@ mod tests {
     use super::*;
     use crate::modules::coffres::{parser::Movement, service::NewMovement};
     use chrono::{NaiveDate, TimeZone};
+
+    #[test]
+    fn validates_inventories() {
+        let input = |property: &str, items: serde_json::Value| -> Inventory {
+            serde_json::from_value(serde_json::json!({ "propertyId": property, "items": items })).unwrap()
+        };
+        let (property, counted) = check_inventory(input(
+            " 8740 ",
+            serde_json::json!([{ "item": "Repair Kit", "quantity": 4 }, { "item": "repair_kit", "quantity": 5 }]),
+        ))
+        .unwrap();
+        assert_eq!((property.as_str(), counted), ("8740", vec![("repair_kit".to_owned(), 5)]));
+        assert!(check_inventory(input("abc", serde_json::json!([{ "item": "kit", "quantity": 1 }]))).is_err());
+        assert!(check_inventory(input("1", serde_json::json!([]))).is_err());
+        assert!(check_inventory(input("1", serde_json::json!([{ "item": "kit", "quantity": -1 }]))).is_err());
+        assert!(check_inventory(input("1", serde_json::json!([{ "item": "<script>", "quantity": 1 }]))).is_err());
+    }
 
     #[tokio::test]
     async fn series_fill_gaps_and_carry_stock() {

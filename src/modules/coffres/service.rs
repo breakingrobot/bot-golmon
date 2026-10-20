@@ -60,7 +60,7 @@ pub async fn insert_all(
             continue;
         }
         let before: Option<(i64,)> = sqlx::query_as(
-            r#"SELECT "deposited" - "withdrawn" FROM "CoffreStock" WHERE "guildId" = ? AND "propertyId" = ? AND "item" = ?"#,
+            r#"SELECT "deposited" - "withdrawn" + "adjusted" FROM "CoffreStock" WHERE "guildId" = ? AND "propertyId" = ? AND "item" = ?"#,
         )
         .bind(guild_id)
         .bind(&movement.property_id)
@@ -69,13 +69,15 @@ pub async fn insert_all(
         .await?;
         let stock_before = before.map_or(0, |(quantity,)| quantity);
         let stock_after = match movement.kind {
-            Kind::Deposit => stock_before + movement.amount,
+            Kind::Deposit | Kind::Adjust => stock_before + movement.amount,
             Kind::Withdraw => stock_before - movement.amount,
         };
         added.push(Recorded { movement: movement.clone(), at: new.at, stock_before, stock_after });
         let (deposited, withdrawn) = match movement.kind {
             Kind::Deposit => (movement.amount, 0),
             Kind::Withdraw => (0, movement.amount),
+            // Le webhook ne produit jamais de correction (voir `parser::parse`).
+            Kind::Adjust => (0, 0),
         };
         sqlx::query(
             r#"INSERT INTO "CoffreStock" ("guildId", "propertyId", "item", "deposited", "withdrawn") VALUES (?, ?, ?, ?, ?)
@@ -120,7 +122,7 @@ pub struct MovementRow {
 
 impl MovementRow {
     pub fn kind(&self) -> Kind {
-        if self.kind == Kind::Withdraw.as_str() { Kind::Withdraw } else { Kind::Deposit }
+        Kind::parse(&self.kind).unwrap_or(Kind::Deposit)
     }
 }
 
@@ -201,23 +203,25 @@ pub struct StockLine {
     pub item: String,
     pub deposited: i64,
     pub withdrawn: i64,
+    /// Somme des corrections d'inventaire (signée).
+    pub adjusted: i64,
 }
 
 impl StockLine {
-    /// Solde des mouvements connus (dépôts − retraits).
+    /// Solde connu : dépôts − retraits + corrections d'inventaire.
     pub fn quantity(&self) -> i64 {
-        self.deposited - self.withdrawn
+        self.deposited - self.withdrawn + self.adjusted
     }
 }
 
 /// Stock par propriété et par objet, d'après les mouvements enregistrés.
 pub async fn stock(db: &SqlitePool, guild_id: &str, property_id: Option<&str>) -> Result<Vec<StockLine>> {
     let sql = format!(
-        r#"SELECT "propertyId", "item", "deposited", "withdrawn" FROM "CoffreStock" WHERE "guildId" = ?{}
+        r#"SELECT "propertyId", "item", "deposited", "withdrawn", "adjusted" FROM "CoffreStock" WHERE "guildId" = ?{}
            ORDER BY "propertyId", "item""#,
         if property_id.is_some() { r#" AND "propertyId" = ?"# } else { "" }
     );
-    let mut query = sqlx::query_as::<_, (String, String, i64, i64)>(&sql).bind(guild_id);
+    let mut query = sqlx::query_as::<_, (String, String, i64, i64, i64)>(&sql).bind(guild_id);
     if let Some(property_id) = property_id {
         query = query.bind(property_id);
     }
@@ -225,7 +229,13 @@ pub async fn stock(db: &SqlitePool, guild_id: &str, property_id: Option<&str>) -
         .fetch_all(db)
         .await?
         .into_iter()
-        .map(|(property_id, item, deposited, withdrawn)| StockLine { property_id, item, deposited, withdrawn })
+        .map(|(property_id, item, deposited, withdrawn, adjusted)| StockLine {
+            property_id,
+            item,
+            deposited,
+            withdrawn,
+            adjusted,
+        })
         .collect())
 }
 
@@ -241,7 +251,7 @@ pub async fn by_player(
                   COALESCE(SUM(CASE WHEN "kind" = 'DEPOSIT' THEN "amount" END), 0),
                   COALESCE(SUM(CASE WHEN "kind" = 'WITHDRAW' THEN "amount" END), 0),
                   COUNT(*)
-           FROM "CoffreMovement" WHERE {clause}
+           FROM "CoffreMovement" WHERE {clause} AND "kind" IN ('DEPOSIT', 'WITHDRAW')
            GROUP BY COALESCE("playerGameId", "playerName") ORDER BY COUNT(*) DESC"#
     );
     let mut query = sqlx::query_as::<_, (String, String, i64, i64, i64)>(&sql).bind(guild_id);
@@ -249,6 +259,123 @@ pub async fn by_player(
         query = query.bind(bind);
     }
     Ok(query.fetch_all(db).await?)
+}
+
+/// Quantité maximale saisie lors d'un inventaire (comme pour un mouvement du jeu).
+pub const MAX_INVENTORY: i64 = super::parser::MAX_AMOUNT;
+
+/// Écart enregistré par un inventaire.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Correction {
+    pub item: String,
+    pub before: i64,
+    pub after: i64,
+}
+
+impl Correction {
+    pub fn delta(&self) -> i64 {
+        self.after - self.before
+    }
+}
+
+/// Inventaire d'une propriété : pour chaque objet, la quantité réellement
+/// présente en jeu. L'écart avec le stock connu devient un mouvement de
+/// correction (`ADJUST`, quantité signée, auteur) ; un objet déjà juste ne
+/// produit rien. Une seule transaction : tout ou rien. Renvoie les écarts.
+pub async fn set_inventory(
+    db: &SqlitePool,
+    guild_id: &str,
+    property_id: &str,
+    counted: &[(String, i64)],
+    author_id: &str,
+    author_name: &str,
+) -> Result<Vec<Correction>> {
+    let now = DbTime::now();
+    let mut tx = db.begin().await?;
+    let mut corrections = Vec::new();
+    for (item, quantity) in counted {
+        let before: Option<(i64,)> = sqlx::query_as(
+            r#"SELECT "deposited" - "withdrawn" + "adjusted" FROM "CoffreStock"
+               WHERE "guildId" = ? AND "propertyId" = ? AND "item" = ?"#,
+        )
+        .bind(guild_id)
+        .bind(property_id)
+        .bind(item)
+        .fetch_optional(&mut *tx)
+        .await?;
+        let correction = Correction { item: item.clone(), before: before.map_or(0, |(q,)| q), after: *quantity };
+        let delta = correction.delta();
+        if delta == 0 {
+            continue;
+        }
+        sqlx::query(
+            r#"INSERT INTO "CoffreMovement"
+               ("id", "guildId", "source", "propertyId", "chest", "item", "amount", "kind", "playerName", "playerGameId", "at", "channelId", "authorId")
+               VALUES (?, ?, 'Inventaire', ?, NULL, ?, ?, 'ADJUST', ?, NULL, ?, '', ?)"#,
+        )
+        .bind(format!("inv:{}", uuid::Uuid::new_v4()))
+        .bind(guild_id)
+        .bind(property_id)
+        .bind(item)
+        .bind(delta)
+        .bind(author_name)
+        .bind(now)
+        .bind(author_id)
+        .execute(&mut *tx)
+        .await?;
+        sqlx::query(
+            r#"INSERT INTO "CoffreStock" ("guildId", "propertyId", "item", "adjusted") VALUES (?, ?, ?, ?)
+               ON CONFLICT ("guildId", "propertyId", "item") DO UPDATE SET "adjusted" = "adjusted" + excluded."adjusted""#,
+        )
+        .bind(guild_id)
+        .bind(property_id)
+        .bind(item)
+        .bind(delta)
+        .execute(&mut *tx)
+        .await?;
+        corrections.push(correction);
+    }
+    tx.commit().await?;
+    Ok(corrections)
+}
+
+/// Lit une liste « objet:quantité » (`repair_kit:42, acetone 2790`) ; renvoie
+/// un message clair à la première entrée illisible.
+pub fn parse_inventory(raw: &str) -> Result<Vec<(String, i64)>, String> {
+    let mut entries: Vec<(String, i64)> = Vec::new();
+    for part in raw.split([',', ';', '\n']).map(str::trim).filter(|p| !p.is_empty()) {
+        // `objet:quantité` ou `objet=quantité` ; à défaut, le dernier espace sépare (`acetone 2790`).
+        let split = match part.find([':', '=']) {
+            Some(at) => Some((&part[..at], &part[at + 1..])),
+            None => part.rsplit_once(' '),
+        };
+        let (item, quantity) = split
+            .map(|(i, q)| (i.trim(), q.trim()))
+            .ok_or_else(|| format!("« {part} » : écris `objet:quantité`, par exemple `repair_kit:42`."))?;
+        let quantity: i64 = quantity
+            .replace([' ', '\u{202f}', '\u{a0}', '_'], "")
+            .parse()
+            .map_err(|_| format!("« {part} » : quantité illisible."))?;
+        let item = normalize_item(item).ok_or_else(|| format!("« {part} » : nom d'objet invalide."))?;
+        if !(0..=MAX_INVENTORY).contains(&quantity) {
+            return Err(format!("« {part} » : quantité entre 0 et {MAX_INVENTORY}."));
+        }
+        match entries.iter_mut().find(|(known, _)| *known == item) {
+            Some(entry) => entry.1 = quantity,
+            None => entries.push((item, quantity)),
+        }
+    }
+    if entries.is_empty() {
+        return Err("Indique au moins un objet, par exemple `repair_kit:42`.".to_owned());
+    }
+    Ok(entries)
+}
+
+/// Identifiant d'objet du jeu (`repair_kit`) : minuscules, chiffres, `_`, `-`, `.`.
+pub fn normalize_item(raw: &str) -> Option<String> {
+    let item = raw.trim().to_lowercase().replace(' ', "_");
+    (!item.is_empty() && item.len() <= 64 && item.bytes().all(|b| b.is_ascii_alphanumeric() || b"_-.".contains(&b)))
+        .then_some(item)
 }
 
 /// Propriétés connues (vues dans les mouvements ou nommées) avec leur nom.
@@ -433,5 +560,66 @@ mod tests {
 
         db.close().await;
         let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[tokio::test]
+    async fn inventory_records_only_the_differences() {
+        let dir = std::env::temp_dir().join(format!("coffre-inv-{}", uuid::Uuid::new_v4()));
+        let db = crate::db::open_main(&dir.join("bot.db")).await.unwrap();
+        add_channel(&db, "g", "c").await.unwrap();
+        let seen = [NewMovement {
+            id: "m1:0".into(),
+            movement: movement("repair_kit", 8, Kind::Deposit, "1"),
+            at: DbTime::now(),
+        }];
+        insert_all(&db, "g", "c", &seen, None).await.unwrap();
+
+        // Stock antérieur au suivi : 42 kits en réalité, et de l'acétone jamais vue.
+        let counted = parse_inventory("repair_kit:42, acetone 2790; lockpick=0").unwrap();
+        let corrections = set_inventory(&db, "g", "8740", &counted, "77", "Gradé").await.unwrap();
+        let summary: Vec<(&str, i64, i64)> = corrections.iter().map(|c| (c.item.as_str(), c.before, c.after)).collect();
+        assert_eq!(summary, [("repair_kit", 8, 42), ("acetone", 0, 2790)], "un objet déjà juste ne produit rien");
+
+        let lines = stock(&db, "g", Some("8740")).await.unwrap();
+        let kit = lines.iter().find(|l| l.item == "repair_kit").unwrap();
+        assert_eq!((kit.deposited, kit.withdrawn, kit.adjusted, kit.quantity()), (8, 0, 34, 42));
+
+        // Les mouvements suivants s'ajoutent à l'inventaire.
+        let later = [NewMovement {
+            id: "m2:0".into(),
+            movement: movement("repair_kit", 2, Kind::Withdraw, "1"),
+            at: DbTime::now(),
+        }];
+        let recorded = insert_all(&db, "g", "c", &later, None).await.unwrap();
+        assert_eq!((recorded[0].stock_before, recorded[0].stock_after), (42, 40));
+
+        // Correction visible dans l'historique, signée, avec son auteur ; hors activité des joueurs.
+        let adjust = Filter { kind: Some(Kind::Adjust), ..Default::default() };
+        let rows = movements(&db, "g", &adjust, 10, 0).await.unwrap();
+        assert!(
+            rows.iter().any(|r| r.item == "repair_kit"
+                && r.amount == 34
+                && r.kind() == Kind::Adjust
+                && r.player_name == "Gradé")
+        );
+        assert!(by_player(&db, "g", &Filter::default()).await.unwrap().iter().all(|(_, name, ..)| name != "Gradé"));
+
+        // Recompter la même chose ne crée rien.
+        assert!(set_inventory(&db, "g", "8740", &[("repair_kit".into(), 40)], "77", "Gradé").await.unwrap().is_empty());
+        db.close().await;
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn parses_inventory_lists() {
+        assert_eq!(
+            parse_inventory("Repair Kit:42\nacetone = 2 790, repair_kit:41").unwrap(),
+            [("repair_kit".to_owned(), 41), ("acetone".to_owned(), 2790)]
+        );
+        assert!(parse_inventory("").is_err());
+        assert!(parse_inventory("repair_kit").is_err());
+        assert!(parse_inventory("repair_kit:-1").is_err());
+        assert!(parse_inventory("drop table:1").is_ok(), "espaces → _");
+        assert!(parse_inventory("kit;--:1").is_err());
     }
 }

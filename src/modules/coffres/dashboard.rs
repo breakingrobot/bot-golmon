@@ -215,7 +215,7 @@ mod tests {
     };
 
     fn line(property: &str, item: &str, deposited: i64, withdrawn: i64) -> StockLine {
-        StockLine { property_id: property.into(), item: item.into(), deposited, withdrawn }
+        StockLine { property_id: property.into(), item: item.into(), deposited, withdrawn, adjusted: 0 }
     }
 
     #[test]

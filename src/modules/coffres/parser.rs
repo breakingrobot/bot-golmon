@@ -16,6 +16,8 @@ use twilight_model::channel::message::Embed;
 pub enum Kind {
     Deposit,
     Withdraw,
+    /// Correction d'inventaire saisie par un gradé (quantité signée), jamais lue dans le jeu.
+    Adjust,
 }
 
 impl Kind {
@@ -23,6 +25,7 @@ impl Kind {
         match self {
             Self::Deposit => "DEPOSIT",
             Self::Withdraw => "WITHDRAW",
+            Self::Adjust => "ADJUST",
         }
     }
 
@@ -30,6 +33,7 @@ impl Kind {
         match value.trim().to_lowercase().as_str() {
             "deposit" | "dépôt" | "depot" => Some(Self::Deposit),
             "withdraw" | "retrait" => Some(Self::Withdraw),
+            "adjust" | "correction" => Some(Self::Adjust),
             _ => None,
         }
     }
@@ -38,6 +42,7 @@ impl Kind {
         match self {
             Self::Deposit => "Dépôt",
             Self::Withdraw => "Retrait",
+            Self::Adjust => "Correction",
         }
     }
 }
@@ -107,7 +112,8 @@ pub fn parse(embed: &Embed) -> Option<Movement> {
         .replace([' ', '\u{202f}', '\u{a0}'], "")
         .parse::<i64>()
         .ok()?;
-    let kind = Kind::parse(field(embed, &["Type"])?)?;
+    // Le jeu ne publie que des dépôts et des retraits : une « correction » imitée est ignorée.
+    let kind = Kind::parse(field(embed, &["Type"])?).filter(|k| *k != Kind::Adjust)?;
     let initiator = field(embed, &["Initiator", "Joueur", "Player"]).unwrap_or_default();
     let (player_name, player_game_id) = match INITIATOR.captures(initiator) {
         Some(caps) => (caps[1].trim().to_owned(), Some(caps[2].to_owned())),
@@ -199,6 +205,8 @@ mod tests {
         assert!(parse(&embed("Deposit", "9223372036854775807", "")).is_none());
         assert!(parse(&embed("Deposit", &(MAX_AMOUNT + 1).to_string(), "")).is_none());
         assert!(parse(&embed("Deposit", "0", "")).is_none());
+        // Une « correction » ne vient jamais du jeu : un encadré qui en imite une est ignoré.
+        assert!(parse(&embed("Correction", "5", "")).is_none());
     }
 
     #[test]

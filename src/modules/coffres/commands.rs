@@ -75,6 +75,20 @@ pub fn definition() -> Command {
                 .option(StringBuilder::new("propriete", "Une seule propriété (défaut : toutes)").autocomplete(true)),
         )
         .option(SubCommandBuilder::new("seuils", "Seuils de stock bas et état actuel du stock"))
+        .option(
+            SubCommandBuilder::new(
+                "inventaire",
+                "Saisit la quantité réelle (comptée en jeu) : l'écart devient une correction",
+            )
+            .option(property_option(true))
+            .option(StringBuilder::new("objet", "Un objet, ex : repair_kit").autocomplete(true))
+            .option(
+                IntegerBuilder::new("quantite", "Quantité réellement présente dans le coffre")
+                    .min_value(0)
+                    .max_value(service::MAX_INVENTORY),
+            )
+            .option(StringBuilder::new("liste", "Plusieurs objets : repair_kit:42, acetone:2790, …").max_length(1800)),
+        )
         .build()
 }
 
@@ -255,7 +269,11 @@ pub async fn handle(ix: &Ix, options: &Options) -> Result<()> {
     let Some(guild_id) = ix.guild_id() else {
         return ix.reply(Reply::ephemeral(GUILD_ONLY)).await;
     };
-    let perm = if matches!(options.sub(), "lier" | "nommer" | "seuil") { Perm::CoffreGerer } else { Perm::CoffreVoir };
+    let perm = if matches!(options.sub(), "lier" | "nommer" | "seuil" | "inventaire") {
+        Perm::CoffreGerer
+    } else {
+        Perm::CoffreVoir
+    };
     if !permissions::require(ix, perm).await? {
         return Ok(());
     }
@@ -266,8 +284,57 @@ pub async fn handle(ix: &Ix, options: &Options) -> Result<()> {
         "nommer" => rename(ix, options, guild_id).await,
         "seuil" => set_threshold(ix, options, guild_id).await,
         "seuils" => list_thresholds(ix, guild_id).await,
+        "inventaire" => inventory(ix, options, guild_id).await,
         _ => Ok(()),
     }
+}
+
+/// Inventaire : quantités réellement comptées en jeu ; les écarts deviennent
+/// des corrections signées, journalisées.
+async fn inventory(ix: &Ix, options: &Options, guild_id: Id<GuildMarker>) -> Result<()> {
+    let guild = guild_id.to_string();
+    let property = options.string("propriete").unwrap_or_default().trim().to_owned();
+    if property.is_empty() || !property.bytes().all(|b| b.is_ascii_digit()) {
+        return ix.reply(Reply::ephemeral("Propriété invalide : son numéro, ex : `8740`.")).await;
+    }
+    let counted = match (options.string("objet"), options.integer("quantite"), options.string("liste")) {
+        (Some(item), Some(quantity), None) => match service::normalize_item(&item) {
+            Some(item) => vec![(item, quantity)],
+            None => return ix.reply(Reply::ephemeral("Nom d'objet invalide, ex : `repair_kit`.")).await,
+        },
+        (None, None, Some(list)) => match service::parse_inventory(&list) {
+            Ok(counted) => counted,
+            Err(message) => return ix.reply(Reply::ephemeral(message)).await,
+        },
+        _ => {
+            return ix
+                .reply(Reply::ephemeral(
+                    "Indique soit `objet` et `quantite`, soit `liste` (ex : `repair_kit:42, acetone:2790`).",
+                ))
+                .await;
+        }
+    };
+    ix.defer(true).await?;
+    let author = crate::discord::members::display_name(&ix.ctx, guild_id, ix.user_id())
+        .unwrap_or_else(|| ix.user_id().to_string());
+    let corrections =
+        service::set_inventory(&ix.ctx.db, &guild, &property, &counted, &ix.user_id().to_string(), &author).await?;
+    let names = property_names(ix, &guild).await?;
+    let label = property_label(&names, &property);
+    if corrections.is_empty() {
+        return ix.edit_text(format!("{label} : le stock connu correspondait déjà, rien à corriger.")).await;
+    }
+    let lines: Vec<String> = corrections
+        .iter()
+        .map(|c| format!("**{}** : {} → {} ({:+})", item_label(&c.item), c.before, c.after, c.delta()))
+        .collect();
+    audit::record(ix, Entry::new(Action::CoffreInventory, None, format!("**{label}** — {}", lines.join(", ")))).await;
+    super::dashboard::request_refresh(&ix.ctx, &guild);
+    ix.edit_text(truncate(
+        &format!("🧮 Inventaire de {label} : {} correction(s).\n{}", corrections.len(), lines.join("\n")),
+        2000,
+    ))
+    .await
 }
 
 /// Nom affiché d'une propriété : nom donné, sinon « Propriété 8740 ».
@@ -361,12 +428,15 @@ async fn history(ix: &Ix, options: &Options, guild_id: Id<GuildMarker>) -> Resul
             &rows
                 .iter()
                 .map(|r| {
-                    let sign = if r.kind() == Kind::Deposit { "📥" } else { "📤" };
+                    let (sign, amount) = match r.kind() {
+                        Kind::Deposit => ("📥", r.amount.to_string()),
+                        Kind::Withdraw => ("📤", r.amount.to_string()),
+                        Kind::Adjust => ("🧮", format!("{:+} (correction)", r.amount)),
+                    };
                     format!(
-                        "{sign} `{}` **{}** × {} — {} · {}",
+                        "{sign} `{}` **{}** × {amount} — {} · {}",
                         format_date_label(r.at),
                         item_label(&r.item),
-                        r.amount,
                         r.player_name,
                         property_label(&names, &r.property_id)
                     )
