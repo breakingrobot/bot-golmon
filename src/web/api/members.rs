@@ -59,8 +59,13 @@ pub async fn search(
     Ok(json(&search_members(&ctx, guild_id, query.q.as_deref().unwrap_or_default())))
 }
 
+/// Texte de comparaison : sans accents ni majuscules (« elodie » trouve « Élodie »).
+pub fn fold(text: &str) -> String {
+    deunicode::deunicode(text).to_lowercase()
+}
+
 pub fn search_members(ctx: &Ctx, guild_id: Id<GuildMarker>, query: &str) -> Vec<MemberRef> {
-    let query = query.trim().to_lowercase();
+    let query = fold(query.trim());
     let Some(ids) = ctx.cache.guild_members(guild_id) else {
         return Vec::new();
     };
@@ -74,11 +79,10 @@ pub fn search_members(ctx: &Ctx, guild_id: Id<GuildMarker>, query: &str) -> Vec<
             }
             let member = lookup.get(&user_id.to_string());
             let matches = query.is_empty()
-                || member.name.to_lowercase().contains(&query)
+                || fold(&member.name).contains(&query)
                 || member.id == query
                 || user.as_ref().is_some_and(|u| {
-                    u.name.to_lowercase().contains(&query)
-                        || u.global_name.as_ref().is_some_and(|g| g.to_lowercase().contains(&query))
+                    fold(&u.name).contains(&query) || u.global_name.as_ref().is_some_and(|g| fold(g).contains(&query))
                 });
             matches.then_some(member)
         })
@@ -453,4 +457,15 @@ async fn recrue(db: &SqlitePool, lookup: &Members<'_>, guild: &str, user: &str) 
             })
             .collect(),
     }))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn search_ignores_accents_and_case() {
+        assert_eq!(fold("Élodie Cœur"), "elodie coeur");
+        assert!(fold("Léo Marchetti").contains(&fold("leo")));
+    }
 }

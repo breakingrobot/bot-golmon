@@ -26,6 +26,8 @@ pub fn definitions(with_tickets: bool) -> Vec<Command> {
         crate::modules::cotisations::commands::definition(),
         crate::modules::coffres::commands::definition(),
         crate::modules::contacts::commands::definition(),
+        crate::modules::fiche::definition(),
+        crate::modules::rappels::commands::definition(),
         super::admin::config_definition(),
         super::admin::gestion_definition(),
     ];
@@ -54,12 +56,26 @@ pub async fn dispatch(ctx: Context, interaction: Interaction) {
     let is_autocomplete = interaction.kind == InteractionType::ApplicationCommandAutocomplete;
     let ix = Ix::new(ctx, interaction);
     if let Err(error) = route(&ix).await {
-        tracing::error!(error = ?error, "erreur lors du traitement d'une interaction");
+        let reference = error_reference();
+        tracing::error!(%reference, error = ?error, "erreur lors du traitement d'une interaction");
         if !is_autocomplete {
             // L'interaction a pu expirer ou déjà recevoir une réponse : rien à faire.
-            let _ = ix.notify("Une erreur est survenue.").await;
+            let _ = ix.notify(error_message(&reference)).await;
         }
     }
+}
+
+/// Courte référence d'erreur, écrite dans le journal du bot et montrée à la
+/// personne : un admin y retrouve l'erreur exacte. Sans 0/O ni 1/I.
+pub fn error_reference() -> String {
+    use rand::Rng as _;
+    const ALPHABET: &[u8] = b"ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+    let mut rng = rand::rng();
+    (0..6).map(|_| ALPHABET[rng.random_range(0..ALPHABET.len())] as char).collect()
+}
+
+pub fn error_message(reference: &str) -> String {
+    format!("Une erreur est survenue. Réessaie ; si ça continue, donne la référence `{reference}` à un admin.")
 }
 
 async fn route(ix: &Ix) -> Result<()> {
@@ -85,6 +101,8 @@ async fn route(ix: &Ix) -> Result<()> {
                 "cotisation" => crate::modules::cotisations::commands::handle(ix, &options).await,
                 "coffre" => crate::modules::coffres::commands::handle(ix, &options).await,
                 "contact" => crate::modules::contacts::commands::handle(ix, &options).await,
+                "fiche" => crate::modules::fiche::handle(ix, &options).await,
+                "rappels" => crate::modules::rappels::commands::handle(ix, &options).await,
                 "config" => super::admin::handle_config(ix, &options).await,
                 "gestion" => super::admin::handle_gestion(ix, &options).await,
                 _ => Ok(()),
@@ -93,7 +111,7 @@ async fn route(ix: &Ix) -> Result<()> {
         (InteractionType::ApplicationCommandAutocomplete, InteractionData::ApplicationCommand(command)) => {
             let options = Options::parse(command);
             match command.name.as_str() {
-                "presence" => presences::commands::autocomplete(ix, &options).await,
+                "presence" | "absence" => presences::commands::autocomplete(ix, &options).await,
                 "transaction" => transactions::commands::autocomplete(ix, &options).await,
                 // `/gestion` reprend les options « presence » et « transaction » des modules.
                 "gestion" => match options.group() {
@@ -109,6 +127,9 @@ async fn route(ix: &Ix) -> Result<()> {
                 "config" if options.sub() == "permission" => {
                     crate::modules::permissions::commands::autocomplete(ix, &options).await
                 }
+                "config" if options.sub() == "coffre" => {
+                    crate::modules::coffres::commands::config_autocomplete(ix, &options).await
+                }
                 _ => ix.autocomplete(Vec::new()).await,
             }
         }
@@ -118,8 +139,11 @@ async fn route(ix: &Ix) -> Result<()> {
             };
             match custom_id.namespace {
                 "presence" => presences::interactions::button(ix, &custom_id).await,
-                "transaction" => transactions::interactions::button(ix, &custom_id).await,
+                "transaction" => transactions::interactions::button(ix, &custom_id, &component.values).await,
                 "numero" => phones::interactions::button(ix, &custom_id).await,
+                crate::modules::coffres::commands::NAMESPACE => {
+                    crate::modules::coffres::commands::button_pressed(ix, &custom_id).await
+                }
                 presences::absence_panel::NAMESPACE => presences::absence_panel::button(ix, &custom_id).await,
                 // « prospect » : messages publiés avant le renommage du module.
                 "recrue" | "prospect" => recrues::interactions::select(ix, &custom_id, &component.values).await,
@@ -136,10 +160,14 @@ async fn route(ix: &Ix) -> Result<()> {
                 ("transaction", "additem-modal") => {
                     transactions::interactions::add_item_modal(ix, custom_id.id, modal).await
                 }
+                ("transaction", "nouvelle-modal") => transactions::commands::new_modal(ix, modal).await,
                 ("recrue" | "prospect", "vote-modal" | "veto-modal") => {
                     recrues::interactions::modal(ix, custom_id.action, custom_id.id, modal).await
                 }
                 ("numero", "add-modal") => phones::interactions::add_modal(ix, modal).await,
+                (crate::modules::coffres::commands::NAMESPACE, "inventaire-modal") => {
+                    crate::modules::coffres::commands::inventory_modal(ix, custom_id.id, modal).await
+                }
                 (presences::absence_panel::NAMESPACE, "declare-modal") => {
                     presences::absence_panel::modal(ix, modal).await
                 }
@@ -184,7 +212,16 @@ pub fn modal_select(modal: &ModalInteractionData, custom_id: &str) -> Vec<String
 
 #[cfg(test)]
 mod tests {
-    use super::definitions;
+    use super::{definitions, error_message, error_reference};
+
+    #[test]
+    fn error_references_are_short_and_readable() {
+        let reference = error_reference();
+        assert_eq!(reference.len(), 6);
+        assert!(reference.bytes().all(|b| b.is_ascii_uppercase() || b.is_ascii_digit()));
+        assert!(!reference.contains(['0', 'O', '1', 'I']));
+        assert!(error_message("AB23CD").contains("donne la référence `AB23CD` à un admin"));
+    }
     use twilight_validate::command::command;
 
     /// Discord refuse tout le lot si une seule commande dépasse ses limites.

@@ -89,6 +89,9 @@ pub fn type_label(kind: &str) -> &'static str {
 
 pub const TYPE_CHOICES: [(&str, &str); 2] = [("Achat", "ACHAT"), ("Vente", "VENTE")];
 
+/// Note d'une transaction : 500 caractères au plus.
+pub const NOTE_LIMIT: usize = 500;
+
 #[derive(Clone, Debug, FromRow)]
 #[sqlx(rename_all = "camelCase")]
 pub struct TransactionConfig {
@@ -110,6 +113,8 @@ pub struct Transaction {
     pub statut: String,
     pub created_by_id: String,
     pub updated_at: DbTime,
+    /// Note libre, affichée dans la fiche.
+    pub note: Option<String>,
     #[sqlx(skip)]
     pub items: Vec<TransactionItem>,
 }
@@ -123,6 +128,7 @@ impl Transaction {
 #[derive(Clone, Debug, FromRow)]
 #[sqlx(rename_all = "camelCase")]
 pub struct TransactionItem {
+    pub id: String,
     pub transaction_id: String,
     pub nom: String,
     pub quantite: i64,

@@ -356,6 +356,7 @@ pub async fn create(
         let entry = Entry::new(Action::CotisationAddFor, Some(target.to_string()), details);
         audit::record_web(&ctx, guild_id, session.viewer.id, &actor, entry).await;
     }
+    crate::modules::cotisations::dashboard::refresh(&ctx, guild_id).await;
     Ok(created(&entry(&Members::new(&ctx, guild_id), &row)))
 }
 
@@ -396,6 +397,7 @@ pub async fn remove(
         Entry::new(Action::CotisationDelete, Some(row.user_id.clone()), details),
     )
     .await;
+    crate::modules::cotisations::dashboard::refresh(&ctx, guild_id).await;
     Ok(no_content())
 }
 

@@ -37,26 +37,53 @@ export const fallbackItemLabel = (item: string): string => {
   return spaced ? `${spaced.charAt(0).toUpperCase()}${spaced.slice(1)}` : item
 }
 
-/** `objet:quantité` ou `objet=quantité` ; à défaut, le dernier espace sépare (`acetone 2790`). */
+/** Puce ou tiret en début de ligne (`- `, `* `, `• `), ignoré. */
+const BULLET = /^(?:[•·▪‣◦]\s*|[-*–—]\s+)/u
+/** `42x repair_kit`, `42 x repair_kit`, `42×repair_kit`. */
+const QUANTITY_FIRST = /^(?<quantity>[0-9][0-9\s_]*?)\s*(?:[xX]\s+|×\s*)(?<item>\S.*)$/u
+/** `repair_kit x42`, `repair_kit x 42`, `repair_kit×42`. */
+const QUANTITY_LAST = /^(?<item>.*?\S)(?:\s+[xX]|\s*×)\s*(?<quantity>[0-9][0-9\s_]*)$/u
+/** Dernier espace (ou tabulation) : `acetone 2790`. */
+const LAST_SPACE = /^(?<item>.*)\s(?<quantity>.*)$/u
+/** Premier espace, quand la quantité est en tête : `42 acetone`. */
+const FIRST_SPACE = /^(?<quantity>\S*)\s(?<item>.*)$/u
+
+type Groups = { item?: string; quantity?: string } | undefined
+
+const pair = (groups: Groups): [string, string] => [groups?.item ?? '', groups?.quantity ?? '']
+
+/**
+ * Sépare une entrée en [objet, quantité]. Formats, dans l'ordre : `objet:quantité` ou `objet=quantité` ;
+ * `42x objet` ; `objet x42` ; à défaut le dernier espace ou la dernière tabulation (`acetone 2790`), ou le
+ * premier si la quantité est en tête (`42 acetone`). Même règle que le bot (`parse_inventory`).
+ */
 const splitEntry = (part: string): [string, string] | null => {
   const separator = part.search(/[:=]/u)
   if (separator !== -1) return [part.slice(0, separator), part.slice(separator + 1)]
-  const space = part.lastIndexOf(' ')
-  return space === -1 ? null : [part.slice(0, space), part.slice(space + 1)]
+  const first = QUANTITY_FIRST.exec(part)
+  if (first) return pair(first.groups)
+  const last = QUANTITY_LAST.exec(part)
+  if (last) return pair(last.groups)
+  const lastSpace = LAST_SPACE.exec(part)
+  if (!lastSpace) return null
+  const [item, quantity] = pair(lastSpace.groups)
+  const [rest, head] = pair(FIRST_SPACE.exec(part)?.groups)
+  return readInteger(quantity) === null && readInteger(head) !== null ? [rest, head] : [item, quantity]
 }
 
 export type ParsedList = { ok: true; entries: InventoryEntry[] } | { ok: false; error: string }
 
 /**
- * Liste « objet:quantité » de la commande Discord : entrées séparées par `,`, `;` ou des retours à la ligne,
- * `objet:quantité`, `objet=quantité` ou, à défaut, `objet quantité` (dernier espace). Un objet répété garde
- * sa dernière quantité. Renvoie un message clair à la première entrée illisible.
+ * Liste d'inventaire, tapée ou collée depuis le jeu, comme la commande Discord : entrées séparées par `,`, `;`
+ * ou des retours à la ligne, puces ignorées, formats de `splitEntry` (`objet:quantité`, `objet x42`,
+ * `42x objet`, `objet<tab>42`…). Un objet répété garde sa dernière quantité. Renvoie un message clair à la
+ * première entrée illisible.
  */
 export const parseInventoryList = (raw: string): ParsedList => {
   const entries: InventoryEntry[] = []
   const parts = raw
     .split(/[,;\n]/u)
-    .map((part) => part.trim())
+    .map((line) => line.trim().replace(BULLET, '').trim())
     .filter(Boolean)
   for (const part of parts) {
     const split = splitEntry(part)

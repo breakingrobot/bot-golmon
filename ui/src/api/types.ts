@@ -40,7 +40,7 @@ export type Level = 'membre' | 'grade' | 'lead' | 'admin'
 export type Perm =
   | 'presence.creer' | 'presence.stats' | 'presence.gerer' | 'presence.reset' | 'presence.blocklist'
   | 'absence.autrui'
-  | 'transaction.utiliser' | 'transaction.supprimer' | 'transaction.historique'
+  | 'transaction.utiliser' | 'transaction.supprimer' | 'transaction.historique' | 'transaction.modeles'
   | 'vehicule.utiliser'
   | 'numero.ajouter_autrui' | 'numero.supprimer_autrui'
   | 'recrue.suivi' | 'recrue.avis' | 'recrue.veto' | 'recrue.reset'
@@ -71,6 +71,8 @@ export type GuildAccess = {
   iconUrl: string | null
   /** « Gérer le serveur » : réglages (permissions, objectifs, alertes, état). */
   isAdmin: boolean
+  /** Membre du groupe (rôle membre, gradé ou lead) : absences, numéros, saisies à son nom. */
+  inGroup: boolean
   /** Actions autorisées sur ce serveur. */
   perms: Perm[]
 }
@@ -154,6 +156,8 @@ export type Transaction = {
   prix: number
   creator: MemberRef
   items: { nom: string; quantite: number; prixUnitaire: number | null }[]
+  /** Note libre saisie sur Discord. */
+  note?: string | null
 }
 
 export type TransactionsResponse = {
@@ -489,3 +493,6 @@ export type LogEntry = {
   /** Identifiants techniques (vue « détails techniques »). */
   technical: string | null
 }
+
+// Présences, absences, recrues, annuaire et écritures des transactions : types-groupe.ts.
+export type * from './types-groupe'

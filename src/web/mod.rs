@@ -67,6 +67,11 @@ impl GuildAccess {
         self.grants.can(perm)
     }
 
+    /// Membre du groupe (rôle membre, gradé ou lead) : ce qu'il peut enregistrer à son nom.
+    pub fn in_group(&self) -> bool {
+        self.grants.in_group()
+    }
+
     pub fn level(&self, perm: Perm) -> crate::modules::permissions::Level {
         self.grants.level(perm)
     }
@@ -163,7 +168,7 @@ async fn security_headers(mut response: Response) -> Response {
         HeaderValue::from_static(
             "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; \
              connect-src 'self'; img-src 'self' data: https://cdn.discordapp.com https://media.discordapp.net; \
-             manifest-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'",
+             manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'",
         ),
     );
     response

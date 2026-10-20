@@ -50,6 +50,12 @@ impl Reply {
         self
     }
 
+    /// Lignes de composants (boutons, menus) sous le message.
+    pub fn with_components(mut self, components: Vec<Component>) -> Self {
+        self.message.components.extend(components);
+        self
+    }
+
     fn data(&self) -> InteractionResponseData {
         InteractionResponseData {
             content: self.message.content.clone(),
@@ -135,20 +141,31 @@ impl Ix {
         self.respond(InteractionResponseType::DeferredUpdateMessage, None).await
     }
 
-    /// Remplace la réponse différée (ou initiale).
+    /// Remplace la réponse différée (ou initiale). Les composants sont toujours
+    /// envoyés : sans composant, les boutons d'une réponse précédente disparaissent.
     pub async fn edit(&self, reply: Reply) -> Result<()> {
         let allowed = reply.message.mentions.to_allowed();
         let client = self.ctx.interaction();
-        let mut request = client
+        client
             .update_response(&self.interaction.token)
             .allowed_mentions(Some(&allowed))
             .content(reply.message.content.as_deref())
-            .embeds(Some(&reply.message.embeds));
-        if !reply.message.components.is_empty() {
-            request = request.components(Some(&reply.message.components));
-        }
-        request.await?;
+            .embeds(Some(&reply.message.embeds))
+            .components(Some(&reply.message.components))
+            .await?;
         Ok(())
+    }
+
+    /// Répond à un composant en remplaçant le message qui le porte (boutons compris).
+    pub async fn update(&self, reply: Reply) -> Result<()> {
+        let data = InteractionResponseData {
+            content: reply.message.content.clone(),
+            embeds: Some(reply.message.embeds.clone()),
+            components: Some(reply.message.components.clone()),
+            allowed_mentions: Some(reply.message.mentions.to_allowed()),
+            ..Default::default()
+        };
+        self.respond(InteractionResponseType::UpdateMessage, Some(data)).await
     }
 
     pub async fn edit_text(&self, content: impl Into<String>) -> Result<()> {
@@ -165,6 +182,9 @@ impl Ix {
         }
         if !reply.message.embeds.is_empty() {
             request = request.embeds(&reply.message.embeds);
+        }
+        if !reply.message.components.is_empty() {
+            request = request.components(&reply.message.components);
         }
         if reply.ephemeral {
             request = request.flags(MessageFlags::EPHEMERAL);

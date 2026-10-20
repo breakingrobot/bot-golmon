@@ -9,6 +9,8 @@ export const Toaster = (props: ToasterProps) => {
     <Sonner
       theme={resolved}
       position="bottom-right"
+      // Au-dessus de la barre d'onglets du bas sur téléphone.
+      mobileOffset={{ bottom: 'calc(4.5rem + env(safe-area-inset-bottom))' }}
       closeButton
       richColors
       toastOptions={{ classNames: { toast: 'font-sans' } }}

@@ -7,12 +7,29 @@
 | `/config <module>` | « Gérer le serveur » | Réglages de chaque module, **une fois par serveur**. Sans option, affiche la configuration actuelle. `/config etat` fait le point sur tous les modules ([détails](#état-de-la-configuration)). |
 | `/gestion …` | Selon l'action (gradés par défaut) | Actions de staff : votes forcés, annulations, planning des présences, blocklist, panneau des absences… |
 | `/presence`, `/absence`, `/transaction`, `/vehicle`, `/recrue`, `/numero`, `/cotisation`, `/contact`, `/coffre` | Selon l'action, voir [Permissions](#permissions) | Utilisation courante. |
+| `/fiche [membre]` | Chacun la sienne ; `membre.fiche` pour les autres | [Fiche du membre](#fiche-du-membre). |
+| `/rappels` | Membres du groupe | Ses [rappels en message privé](#rappels-en-message-privé). |
 | Clic droit → *Applications* | Voir [plus bas](#actions-au-clic-droit) | Raccourcis sur un membre ou un message. |
 
 `/config` n'apparaît qu'aux membres ayant « Gérer le serveur ». Les autres commandes sont visibles de tous
 et vérifient le niveau de chaque action à l'exécution ([Permissions](#permissions)).
 
 Les heures saisies sont en **heure de Paris** ; les dates affichées s'adaptent au fuseau de chacun.
+
+**Autocomplétion** : Discord propose les valeurs existantes dès qu'on tape — présences, transactions, groupes
+(répertoire des contacts puis groupes déjà utilisés), objets, propriétés et personnages des coffres (ceux pas
+encore reliés d'abord), webhooks, contacts, plaques, cotisations, modèles, actions des permissions — ainsi que les
+**dates** des deux semaines à venir (présences, absences) ou passées (cotisations) : `vendredi`, `demain` ou le
+début d'une date suffisent. Une saisie libre reste toujours possible. Les propositions respectent les permissions.
+
+**Ouvrir sur le site** : si le [site](site-web.md) est configuré, un bouton 🌐 sous les réponses et tableaux de
+bord ouvre la page correspondante, déjà filtrée quand c'est possible (propriété des coffres, contact, membre,
+groupe d'une transaction).
+
+**En cas de refus**, le message donne le niveau requis et le tien, et la commande pour s'en sortir : rôle membre
+à régler, ou, pour « Gérer le serveur », `/config permission action:… niveau:…` avec un bouton vers la page
+Permissions du site. Une erreur inattendue affiche une courte **référence** (ex. `K7M2QD`), écrite aussi dans le
+journal du bot : à donner à un admin pour retrouver l'erreur exacte.
 
 ## Permissions
 
@@ -47,6 +64,8 @@ serveur » ni « Gérer les messages » n'y donnent accès.
 
 L'action se choisit dans la liste proposée par Discord. Changer un niveau demande « Gérer le serveur ».
 Les pages du site suivent les mêmes réglages (`site.stats`, `cotisation.stats`, `coffre.voir`…).
+Présences, absences, recrues, véhicules et numéros se gèrent aussi depuis le site, avec les mêmes actions et les
+mêmes effets que les commandes ([pages du site](site-web.md#présences)).
 
 | Action | Module | Ce qu'elle permet | Par défaut |
 |---|---|---|---|
@@ -59,6 +78,7 @@ Les pages du site suivent les mêmes réglages (`site.stats`, `cotisation.stats`
 | `transaction.utiliser` | Transactions | Créer, compléter, changer le statut, annuler | Membres du groupe |
 | `transaction.supprimer` | Transactions | Supprimer définitivement une transaction | Gradés |
 | `transaction.historique` | Transactions | Historique et export sur le site | « Gérer le serveur » |
+| `transaction.modeles` | Transactions | Créer, lister et supprimer les modèles de transaction | Gradés |
 | `vehicule.utiliser` | Véhicules | Enregistrer, consulter, modifier, retirer un véhicule | Membres du groupe |
 | `numero.ajouter_autrui` | Numéros | Enregistrer le numéro d'un autre membre | « Gérer le serveur » |
 | `numero.supprimer_autrui` | Numéros | Supprimer le numéro d'un autre membre | Gradés |
@@ -171,13 +191,37 @@ période passent en **Absent**. Déclarer ou clore l'absence d'un autre membre :
 
 - **Tableau de bord** permanent, mis à jour automatiquement : transactions en cours par statut, total
   engagé, dernières terminées. `clear_ping_role:true` retire le rôle mentionné à la création.
-- `/transaction create groupe type:Vente prix:1500` publie la fiche dans le salon courant, avec boutons
-  de statut, d'ajout d'objet et de suppression.
+- `/transaction nouvelle [modele]` ouvre un **formulaire** : groupe, achat ou vente (menu), prix total, objets
+  (un par ligne) et note. Laissé vide, le prix total est **calculé depuis les objets** s'ils ont tous un prix
+  unitaire. Avec un modèle, le formulaire arrive pré-rempli.
+- `/transaction create groupe type:Vente prix:1500 [note]` fait la même chose en une commande (le groupe est
+  proposé depuis le répertoire des contacts et les groupes déjà utilisés).
+- La fiche est publiée dans le salon courant, avec les boutons de statut, **Ajouter un objet**, **Retirer un
+  objet** (menu des objets), **Supprimer** et 🌐 vers l'historique du site. Elle affiche la **note** et, si le
+  groupe figure au répertoire des contacts, sa **relation** (🟢 allié, ⚪ neutre, 🔴 hostile).
 - `add-item`, `status`, `view`, `cancel` sont ouverts à tous ; la suppression définitive se fait avec
-  `/gestion transaction supprimer`.
-  Une transaction **clôturée** n'est plus modifiable.
+  `/gestion transaction supprimer` ou le bouton (`transaction.supprimer`), inscrite au journal du staff dans
+  les deux cas. Une transaction **clôturée** n'est plus modifiable.
+
+**Format des objets** (formulaire et modèles) : séparés par des virgules ou des retours à la ligne, quantité
+devant (`2x Pistolet`) ou derrière (`Kevlar x5`), 1 par défaut, prix unitaire après `@` (`@ 15000`,
+`@ 1500.50` : point pour les décimales).
+
+```
+2x Pistolet @ 15000, Kevlar x5, Munitions
+```
+
+**Modèles** (`transaction.modeles`, gradés par défaut), 25 par serveur :
+
+```
+/transaction modele creer nom:"Armes Ballas" type:Achat [groupe:Ballas] [prix:…] [objets:"2x Pistolet @ 15000, Kevlar x5"]
+/transaction modele liste
+/transaction modele supprimer modele:…
+```
 - **Historique** sur le site web (`/stats/<serveur>/transactions`) : filtres, totaux par mois, export
   CSV ([détails](site-web.md#transactions)).
+  Création, statut, objets et annulation aussi depuis le site (`transaction.utiliser`), fiche publiée dans le salon
+  du tableau de bord.
 
 ## Véhicules
 
@@ -301,11 +345,11 @@ jamais compté deux fois.
 |---|---|
 | `/coffre stock [propriete]` | Stock par propriété et par objet (⚠️ = sous son seuil). |
 | `/coffre historique [propriete] [membre] [objet] [jours]` | Derniers dépôts et retraits (par membre : ses personnages reliés). |
-| `/coffre lier id_jeu membre` | Relie un personnage du jeu à un membre Discord (journalisé). |
+| `/coffre lier id_jeu membre` | Relie un personnage du jeu à un membre Discord (journalisé). Les personnages vus sont proposés, ceux pas encore reliés d'abord. |
 | `/coffre nommer propriete nom` | Nom lisible d'une propriété. |
 | `/coffre seuil objet min [propriete]` | Seuil de stock bas d'un objet, dans une propriété ou dans toutes ; `min:0` retire le seuil (journalisé). |
 | `/coffre seuils` | Seuils réglés, et les propriétés où l'objet est actuellement en dessous. |
-| `/coffre inventaire propriete [objet quantite] [liste]` | Saisit la quantité **réellement présente** en jeu ; l'écart devient une correction (voir ci-dessous). |
+| `/coffre inventaire propriete [objet quantite] [liste]` | Saisit la quantité **réellement présente** en jeu ; l'écart devient une correction (voir ci-dessous). Sans objet ni liste : formulaire pour coller l'inventaire du jeu, avec aperçu. |
 
 Réservé aux gradés par défaut (`coffre.voir`, `coffre.gerer`). Le stock est calculé à partir des mouvements lus depuis
 le début du suivi : un objet déjà présent avant peut apparaître en négatif après un retrait, jusqu'au premier inventaire.
@@ -316,7 +360,16 @@ rattrapent en comptant ce qu'il y a vraiment dans le coffre :
 ```
 /coffre inventaire propriete:8740 objet:repair_kit quantite:42
 /coffre inventaire propriete:8740 liste:repair_kit:42, acetone:2790, red_powder:650
+/coffre inventaire propriete:8740                ← formulaire pour coller l'inventaire du jeu
 ```
+
+**Inventaire collé** : sans `objet` ni `liste`, un formulaire s'ouvre pour coller l'inventaire tel que copié du
+jeu (une ligne par objet). Le bot répond en privé avec un **aperçu** : chaque écart (stock connu → quantité
+comptée, +/−) et le nombre d'objets inchangés, avec **Valider** et **Annuler**. Rien n'est enregistré avant
+« Valider » ; les écarts sont recalculés à ce moment-là (le stock a pu bouger). La saisie attend 15 minutes,
+réservée à son auteur. Formats acceptés, mélangeables : `repair_kit:42`, `repair_kit=42`, `repair_kit 42`,
+`repair_kit x42`, `42x repair_kit`, `42 × repair_kit`, tabulations, puces ou tirets en début de ligne
+(`- repair_kit x42`). Le site lit exactement les mêmes formats.
 
 Le bot n'écrase rien : il enregistre l'**écart** comme une correction signée (« 🧮 +34 (correction) »), avec son
 auteur, inscrite au journal du staff. Le stock vaut ensuite dépôts − retraits + corrections, et les mouvements du
@@ -409,9 +462,10 @@ Sur le site : `/contacts` (ou `/stats/<serveur>/contacts`), avec les notes, voir
 
 Les actions sensibles sont enregistrées : configuration modifiée (`/config`), votes forcés, présences
 annulées ou planifiées, statistiques réinitialisées, blocklist, absences déclarées ou clôturées **pour un
-autre membre**, transactions supprimées, recrues ajoutées ou retirées, vétos, numéros modifiés pour un
+autre membre**, transactions supprimées (commande ou bouton), modèles de transaction, recrues ajoutées ou retirées, vétos, numéros modifiés pour un
 autre membre, cotisations déclarées pour un autre membre ou supprimées, contacts ajoutés, modifiés ou
-supprimés et notes du staff sur les contacts.
+supprimés et notes du staff sur les contacts, et, depuis le site, transactions créées, statut changé, objet ajouté
+ou transaction annulée.
 
 - Sur le site : `/stats/<serveur>/journal`, filtrable par action (`site.journal`, « Gérer le serveur » par défaut).
 - Sur Discord, en option : `/config journal salon:#journal-staff` publie chaque action dans ce salon
@@ -424,13 +478,50 @@ Clic droit sur un membre ou un message → **Applications** :
 | Action | Sur | Effet | Visible par défaut |
 |---|---|---|---|
 | Présences du membre | Membre | Sa fiche de présence (comme `/presence stats joueur`) | Membres |
-| Fiche du membre | Membre | Résumé privé : taux de présence, absence en cours, cotisations (semaine, 30 jours, objectif), activité des coffres (personnages reliés), recrue, numéro, véhicules, et lien vers sa fiche sur le site | `membre.fiche` (gradés par défaut) ; chacun peut voir la sienne |
+| Fiche du membre | Membre | Comme `/fiche` ([détails](#fiche-du-membre)) | `membre.fiche` (gradés par défaut) ; chacun peut voir la sienne |
 | Ajouter aux recrues | Membre | L'ajoute aux recrues de la semaine et crée son salon d'essai | `recrue.suivi` (gradés par défaut) |
 | Ouvrir un ticket | Membre | Ouvre un ticket avec lui (comme `!newthread`) | « Gérer les messages » ; module ticket requis |
 | Signaler au staff | Message | Transmet le message (texte, auteur, lien) dans le ticket de la personne qui signale, ouvert au besoin | Tout le monde ; module ticket requis |
 
-Discord limite à 5 les actions sur un membre : le bot en utilise 4 (3 sans le module ticket). Dans la fiche,
-le détail des avis d'une recrue reste réservé à `recrue.suivi`.
+Discord limite à 5 les actions sur un membre : le bot en utilise 4 (3 sans le module ticket).
+
+### Fiche du membre
+
+`/fiche [membre]` ou clic droit → *Fiche du membre* : résumé privé de tous les modules — arrivée sur le serveur,
+taux de présence global et sur les **4 dernières semaines** (même règle que le rapport hebdomadaire), absence en
+cours ou à venir et absences déclarées sur 90 jours, cotisations (semaine, 30 jours, objectif), transactions
+créées sur 30 jours, activité des coffres (personnages reliés, dernier mouvement), recrue, numéro, véhicules, et
+le bouton 🌐 vers sa fiche sur le site. Chacun voit la sienne ; celle des autres demande `membre.fiche` (gradés
+par défaut). Le détail des avis d'une recrue reste réservé à `recrue.suivi`.
+
+## Rappels en message privé
+
+Désactivés par défaut. « Gérer le serveur » les active :
+
+```
+/config rappels actif:true [presence_heures:2] [objectif:true]
+```
+
+- **Présence** : quand une présence ouverte commence dans moins de `presence_heures` heures (2 par défaut),
+  chaque membre attendu qui n'a pas répondu reçoit un MP (titre, heure, lien vers le message pour répondre).
+  Mêmes attendus que les relances : hors absents d'office (rôle d'absence, absence déclarée) et blocklist. Une
+  présence publiée depuis moins de 30 minutes attend (sa publication pingue déjà).
+- **Objectif de cotisation** : le **samedi à partir de 18:00** (heure de Paris), les membres suivis encore sous
+  l'objectif (hors exemptés) reçoivent un MP avec le reste à verser. Il faut un objectif (`/config cotisation
+  objectif:…`).
+
+Un seul MP par présence, ou par semaine d'objectif, et par membre, même après un redémarrage du bot. Chaque MP
+se termine par « Pour ne plus recevoir ces rappels : `/rappels` ».
+
+```
+/rappels                       ← voir ses rappels
+/rappels presences:false       ← couper les rappels de présence
+/rappels objectif:false        ← couper le rappel de l'objectif
+/rappels tout:false            ← tout couper (tout:true réactive)
+```
+
+Un membre dont les messages privés sont fermés est ignoré sans erreur, et pas relancé pendant 7 jours (changer
+ses choix avec `/rappels` efface ce blocage).
 
 ## État de la configuration
 
@@ -447,6 +538,7 @@ exemple :
 | Cotisations | Salon des annonces, objectif, membres suivis, salon du rappel, tableau de bord |
 | Coffres | *Message Content Intent*, salon du webhook suivi, webhook du jeu reconnu, alertes et leurs déclencheurs, tableau du stock |
 | Contacts, Journal du staff | Salon de publication |
+| Rappels en MP | Activés, objectif de cotisation fixé (pour le rappel du samedi) |
 | Permissions | Rôles membre, gradé et lead |
 | Tickets | Serveur relié au module, salon des logs (si le module est configuré) |
 

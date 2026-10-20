@@ -39,7 +39,7 @@ import type {
   TransactionsResponse,
 } from './types'
 
-const g = (guildId: string) => `/guilds/${encodeURIComponent(guildId)}`
+export const g = (guildId: string) => `/guilds/${encodeURIComponent(guildId)}`
 
 export const meQuery = queryOptions({
   queryKey: ['me'],
@@ -194,7 +194,7 @@ export const ticketLogQuery = (threadId: string) =>
 // Écritures
 
 /** Mutation commune : message de succès en toast, erreurs du serveur en toast, invalidation du serveur. */
-const useGuildMutation = <TVars, TResult>(
+export const useGuildMutation = <TVars, TResult>(
   guildId: string,
   run: (vars: TVars) => Promise<TResult>,
   success: string | ((result: TResult, vars: TVars) => string),
@@ -221,14 +221,6 @@ export const useAddCotisation = (guildId: string) =>
     [['cotisations'], ['member']],
   )
 
-export const useDeleteCotisation = (guildId: string) =>
-  useGuildMutation(
-    guildId,
-    (id: string) => api<void>('DELETE', `${g(guildId)}/cotisations/${encodeURIComponent(id)}`),
-    'Cotisation supprimée.',
-    [['cotisations'], ['member']],
-  )
-
 export const useSaveObjective = (guildId: string) =>
   useGuildMutation(
     guildId,
@@ -252,14 +244,6 @@ export const useLinkPlayer = (guildId: string) =>
     ({ gameId, memberId }: { gameId: string; memberId: string }) =>
       api<unknown>('PUT', `${g(guildId)}/coffres/players/${encodeURIComponent(gameId)}`, { body: { memberId } }),
     'Personnage relié.',
-    [['coffres'], ['member']],
-  )
-
-export const useUnlinkPlayer = (guildId: string) =>
-  useGuildMutation(
-    guildId,
-    (gameId: string) => api<void>('DELETE', `${g(guildId)}/coffres/players/${encodeURIComponent(gameId)}`),
-    'Personnage délié.',
     [['coffres'], ['member']],
   )
 

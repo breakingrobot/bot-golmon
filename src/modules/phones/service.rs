@@ -5,6 +5,7 @@ use crate::{
     discord::{
         components::{button, container, section, separator, text_display, text_displays},
         messages::{self, Outgoing, parse_id},
+        site::{self, Page},
     },
     util::{
         format::{V2_TEXT_LIMIT, and_others, bounded_lines, mention, plural},
@@ -160,7 +161,9 @@ pub async fn sync_dashboard(ctx: &Ctx, guild_id: &str) -> Result<()> {
     let Some(channel_id) = config.dashboard_channel_id.as_deref().and_then(parse_id) else {
         return Ok(());
     };
-    let message = Outgoing::components_v2(build_dashboard(guild_id, &list(&ctx.db, guild_id).await?));
+    let mut components = build_dashboard(guild_id, &list(&ctx.db, guild_id).await?);
+    site::attach_page(ctx, guild_id, Page::Annuaire, &mut components);
+    let message = Outgoing::components_v2(components);
     let known = config.dashboard_message_id.as_deref().and_then(parse_id);
     match messages::upsert(ctx, channel_id, known, &message).await {
         Ok(Some(new_id)) => {

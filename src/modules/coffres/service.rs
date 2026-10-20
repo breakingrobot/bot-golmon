@@ -3,7 +3,9 @@
 use super::parser::{Kind, Movement};
 use crate::util::time::DbTime;
 use anyhow::Result;
+use regex::Regex;
 use sqlx::{FromRow, SqlitePool};
+use std::sync::LazyLock;
 
 /// Mouvement à enregistrer : identifiant « message:rang », contenu, date.
 pub struct NewMovement {
@@ -263,6 +265,8 @@ pub async fn by_player(
 
 /// Quantité maximale saisie lors d'un inventaire (comme pour un mouvement du jeu).
 pub const MAX_INVENTORY: i64 = super::parser::MAX_AMOUNT;
+/// Objets au plus par inventaire (comme sur le site).
+pub const MAX_INVENTORY_ITEMS: usize = 300;
 
 /// Écart enregistré par un inventaire.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -339,23 +343,66 @@ pub async fn set_inventory(
     Ok(corrections)
 }
 
-/// Lit une liste « objet:quantité » (`repair_kit:42, acetone 2790`) ; renvoie
-/// un message clair à la première entrée illisible.
+/// Puce ou tiret en début de ligne (`- `, `* `, `• `), ignoré.
+static BULLET: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^(?:[•·▪‣◦]\s*|[-*–—]\s+)").unwrap());
+/// `42x repair_kit`, `42 x repair_kit`, `42×repair_kit`.
+static QUANTITY_FIRST: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"^([0-9][0-9\s_]*?)\s*(?:[xX]\s+|×\s*)(\S.*)$").unwrap());
+/// `repair_kit x42`, `repair_kit x 42`, `repair_kit×42`.
+static QUANTITY_LAST: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"^(.*?\S)(?:\s+[xX]|\s*×)\s*([0-9][0-9\s_]*)$").unwrap());
+
+/// Quantité saisie : entier, espaces (de milliers) et `_` ignorés.
+fn read_integer(raw: &str) -> Option<i64> {
+    let digits: String = raw.chars().filter(|c| !c.is_whitespace() && *c != '_').collect();
+    let unsigned = digits.strip_prefix(['+', '-']).unwrap_or(&digits);
+    (!unsigned.is_empty() && unsigned.len() <= 16 && unsigned.bytes().all(|b| b.is_ascii_digit()))
+        .then(|| digits.parse().ok())
+        .flatten()
+}
+
+/// Sépare une entrée en (objet, quantité). Formats, dans l'ordre : `objet:quantité`
+/// ou `objet=quantité` ; `42x objet` ; `objet x42` ; à défaut le dernier espace ou
+/// la dernière tabulation (`acetone 2790`), ou le premier si la quantité est en tête
+/// (`42 acetone`). Même règle que l'interface (`ui/src/lib/coffre-inventory.ts`).
+fn split_entry(part: &str) -> Option<(&str, &str)> {
+    if let Some(at) = part.find([':', '=']) {
+        return Some((&part[..at], &part[at + 1..]));
+    }
+    if let Some(captures) = QUANTITY_FIRST.captures(part) {
+        let (quantity, item) = (captures.get(1)?, captures.get(2)?);
+        return Some((item.as_str(), quantity.as_str()));
+    }
+    if let Some(captures) = QUANTITY_LAST.captures(part) {
+        let (item, quantity) = (captures.get(1)?, captures.get(2)?);
+        return Some((item.as_str(), quantity.as_str()));
+    }
+    let (item, quantity) = part.rsplit_once(char::is_whitespace)?;
+    if read_integer(quantity).is_none()
+        && let Some((first, rest)) = part.split_once(char::is_whitespace)
+        && read_integer(first).is_some()
+    {
+        return Some((rest, first));
+    }
+    Some((item, quantity))
+}
+
+/// Lit une liste d'inventaire, telle que tapée ou collée depuis le jeu : entrées
+/// séparées par `,`, `;` ou des retours à la ligne, puces ignorées (formats :
+/// [`split_entry`]). Un objet répété garde sa dernière quantité. Renvoie un
+/// message clair à la première entrée illisible.
 pub fn parse_inventory(raw: &str) -> Result<Vec<(String, i64)>, String> {
     let mut entries: Vec<(String, i64)> = Vec::new();
-    for part in raw.split([',', ';', '\n']).map(str::trim).filter(|p| !p.is_empty()) {
-        // `objet:quantité` ou `objet=quantité` ; à défaut, le dernier espace sépare (`acetone 2790`).
-        let split = match part.find([':', '=']) {
-            Some(at) => Some((&part[..at], &part[at + 1..])),
-            None => part.rsplit_once(' '),
-        };
-        let (item, quantity) = split
+    for line in raw.split([',', ';', '\n']).map(str::trim).filter(|p| !p.is_empty()) {
+        let part = BULLET.replace(line, "");
+        let part = part.trim();
+        if part.is_empty() {
+            continue;
+        }
+        let (item, quantity) = split_entry(part)
             .map(|(i, q)| (i.trim(), q.trim()))
             .ok_or_else(|| format!("« {part} » : écris `objet:quantité`, par exemple `repair_kit:42`."))?;
-        let quantity: i64 = quantity
-            .replace([' ', '\u{202f}', '\u{a0}', '_'], "")
-            .parse()
-            .map_err(|_| format!("« {part} » : quantité illisible."))?;
+        let quantity = read_integer(quantity).ok_or_else(|| format!("« {part} » : quantité illisible."))?;
         let item = normalize_item(item).ok_or_else(|| format!("« {part} » : nom d'objet invalide."))?;
         if !(0..=MAX_INVENTORY).contains(&quantity) {
             return Err(format!("« {part} » : quantité entre 0 et {MAX_INVENTORY}."));
@@ -437,6 +484,50 @@ pub async fn player_links(db: &SqlitePool, guild_id: &str) -> Result<std::collec
             .fetch_all(db)
             .await?;
     Ok(rows.into_iter().collect())
+}
+
+/// Personnage vu dans les mouvements, pour l'autocomplétion de `/coffre lier`.
+#[derive(Clone, Debug, PartialEq, Eq, FromRow)]
+#[sqlx(rename_all = "camelCase")]
+pub struct PlayerSeen {
+    pub game_id: String,
+    pub name: String,
+    /// Membre relié, le cas échéant.
+    pub user_id: Option<String>,
+    pub last_seen: DbTime,
+}
+
+/// Personnages vus dans les mouvements (avec un identifiant de jeu).
+pub async fn players_seen(db: &SqlitePool, guild_id: &str) -> Result<Vec<PlayerSeen>> {
+    Ok(sqlx::query_as(
+        r#"SELECT m."playerGameId" AS "gameId", MAX(m."playerName") AS "name", p."userId", MAX(m."at") AS "lastSeen"
+           FROM "CoffreMovement" m
+           LEFT JOIN "CoffrePlayer" p ON p."guildId" = m."guildId" AND p."gameId" = m."playerGameId"
+           WHERE m."guildId" = ? AND m."playerGameId" IS NOT NULL
+           GROUP BY m."playerGameId""#,
+    )
+    .bind(guild_id)
+    .fetch_all(db)
+    .await?)
+}
+
+/// Choix de `/coffre lier id_jeu` : « Nom (id) », les personnages encore
+/// reliés à personne d'abord, puis les plus récemment vus.
+pub fn player_choices(mut players: Vec<PlayerSeen>, typed: &str) -> Vec<(String, String)> {
+    players.sort_by(|a, b| {
+        a.user_id
+            .is_some()
+            .cmp(&b.user_id.is_some())
+            .then(b.last_seen.cmp(&a.last_seen))
+            .then(a.game_id.cmp(&b.game_id))
+    });
+    crate::discord::suggest::filter(
+        players.into_iter().map(|p| {
+            let linked = if p.user_id.is_some() { " · déjà relié" } else { "" };
+            (format!("{} ({}){linked}", p.name, p.game_id), p.game_id)
+        }),
+        typed,
+    )
 }
 
 /// Objets connus, pour l'autocomplétion.
@@ -696,6 +787,78 @@ mod tests {
         assert!(parse_inventory("repair_kit:-1").is_err());
         assert!(parse_inventory("drop table:1").is_ok(), "espaces → _");
         assert!(parse_inventory("kit;--:1").is_err());
+    }
+
+    #[test]
+    fn parses_pasted_inventories() {
+        let pasted = "- repair_kit x42\n• 2790x acetone\n* 650 × red_powder\r\nlockpick\t12\nmedikit×3\n\n— 5 bandage\n· weapon_pistol x 1 200";
+        assert_eq!(
+            parse_inventory(pasted).unwrap(),
+            [
+                ("repair_kit".to_owned(), 42),
+                ("acetone".to_owned(), 2790),
+                ("red_powder".to_owned(), 650),
+                ("lockpick".to_owned(), 12),
+                ("medikit".to_owned(), 3),
+                ("bandage".to_owned(), 5),
+                ("weapon_pistol".to_owned(), 1200),
+            ]
+        );
+        // Un nom qui finit par « x » n'est pas pris pour un multiplicateur.
+        assert_eq!(parse_inventory("box 4").unwrap(), [("box".to_owned(), 4)]);
+        assert_eq!(parse_inventory("42 X Repair Kit").unwrap(), [("repair_kit".to_owned(), 42)]);
+        assert_eq!(parse_inventory("4x4_kit 3").unwrap(), [("4x4_kit".to_owned(), 3)]);
+        assert_eq!(parse_inventory("x=1").unwrap(), [("x".to_owned(), 1)]);
+        assert!(parse_inventory("-1 x kit").is_err(), "le tiret sans espace n'est pas une puce");
+        assert_eq!(
+            parse_inventory("repair_kit x beaucoup").unwrap_err(),
+            "« repair_kit x beaucoup » : quantité illisible."
+        );
+    }
+
+    #[test]
+    fn suggests_unlinked_players_first() {
+        let seen = |id: &str, name: &str, user: Option<&str>, hours: i64| PlayerSeen {
+            game_id: id.into(),
+            name: name.into(),
+            user_id: user.map(Into::into),
+            last_seen: DbTime(DbTime::now().0 - chrono::Duration::hours(hours)),
+        };
+        let players = vec![
+            seen("1", "Jean Dupont", Some("u1"), 0),
+            seen("2", "Marie Curie", None, 5),
+            seen("3", "Paul Martin", None, 1),
+        ];
+        let values: Vec<String> = player_choices(players.clone(), "").into_iter().map(|(_, v)| v).collect();
+        assert_eq!(values, ["3", "2", "1"]);
+        assert_eq!(
+            player_choices(players.clone(), "dupont"),
+            [("Jean Dupont (1) · déjà relié".to_owned(), "1".to_owned())]
+        );
+        assert_eq!(player_choices(players, "2").len(), 1, "par identifiant");
+    }
+
+    #[tokio::test]
+    async fn lists_players_seen() {
+        let dir = std::env::temp_dir().join(format!("coffre-players-{}", uuid::Uuid::new_v4()));
+        let db = crate::db::open_main(&dir.join("bot.db")).await.unwrap();
+        add_channel(&db, "g", "c").await.unwrap();
+        let batch: Vec<NewMovement> = [("m1:0", "1"), ("m2:0", "2"), ("m3:0", "1")]
+            .iter()
+            .map(|(id, player)| NewMovement {
+                id: (*id).to_owned(),
+                movement: movement("kit", 1, Kind::Deposit, player),
+                at: DbTime::now(),
+            })
+            .collect();
+        insert_all(&db, "g", "c", &batch, None).await.unwrap();
+        link_player(&db, "g", "2", "u2").await.unwrap();
+        let mut players = players_seen(&db, "g").await.unwrap();
+        players.sort_by(|a, b| a.game_id.cmp(&b.game_id));
+        let summary: Vec<_> = players.iter().map(|p| (p.game_id.as_str(), p.user_id.as_deref())).collect();
+        assert_eq!(summary, [("1", None), ("2", Some("u2"))]);
+        db.close().await;
+        let _ = std::fs::remove_dir_all(dir);
     }
 
     #[tokio::test]

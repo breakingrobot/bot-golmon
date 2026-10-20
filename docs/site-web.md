@@ -2,26 +2,35 @@
 
 Le bot sert sur le port **8890** une interface React (dossier [`ui/`](../ui/README.md)) et l'API JSON qu'elle
 utilise (`/api`, [spécification OpenAPI](#api)). Il démarre toujours, même sans module ticket, ne serait-ce que
-pour `/healthz`. Thème clair ou sombre (selon le système ou au choix), adapté au mobile.
+pour `/healthz`. Thème clair ou sombre (selon le système ou au choix), adapté au mobile et
+[installable sur téléphone](#installation-sur-téléphone), avec une [palette de recherche](#palette-de-commandes) et
+une [mise à jour en direct](#mise-à-jour-en-direct).
 
 | Page | Contenu | Accès |
 |---|---|---|
 | `/` | Accueil : pages ouvertes au compte connecté, par serveur | Tout le monde |
-| `/serveurs/<serveur>` | [Statistiques](#statistiques) du serveur | `site.stats` (« Gérer le serveur » par défaut) |
+| `/serveurs/<serveur>` | [Accueil](#accueil-dun-serveur) : tuiles des modules ouverts au compte | Membres du serveur (chaque tuile suit son droit) |
+| `/serveurs/<serveur>/stats` | [Statistiques](#statistiques) du serveur | `site.stats` (« Gérer le serveur » par défaut) |
 | `/serveurs/<serveur>/transactions` | [Transactions](#transactions) : historique, graphique mensuel, export CSV | `transaction.historique` (« Gérer le serveur » par défaut) |
 | `/serveurs/<serveur>/cotisations` | [Cotisations](#cotisations) : totaux, graphique, objectif, saisie, export CSV | `cotisation.stats` (gradés par défaut) |
 | `/serveurs/<serveur>/coffres` | [Coffres](#coffres) : stock, évolution d'un objet, mouvements, export CSV | `coffre.voir` (gradés par défaut) |
 | `/serveurs/<serveur>/contacts` | [Contacts](#contacts) : répertoire, notes du staff, saisie | `contact.voir` (notes : `contact.notes`) |
+| `/serveurs/<serveur>/presences` | [Présences](#présences) : liste, détail, assiduité, plannings, création | `presence.stats` (créer : `presence.creer`, plannings : `presence.gerer`) |
+| `/serveurs/<serveur>/absences` | [Absences](#absences) : frise, liste, déclaration | Membres du groupe (pour un autre : `absence.autrui`) |
+| `/serveurs/<serveur>/recrues` | [Recrues](#recrues) : avis de la semaine, vétos, historique | `recrue.suivi`, `recrue.avis` ou `recrue.veto` (strictes) |
+| `/serveurs/<serveur>/annuaire` | [Annuaire](#annuaire) : véhicules et numéros | `vehicule.utiliser` (véhicules), membres du groupe (numéros) |
 | `/serveurs/<serveur>/membres/<id>` | [Fiche d'un membre](#fiche-dun-membre) | `membre.fiche` (gradés par défaut), ou soi-même |
 | `/serveurs/<serveur>/journal` | [Journal du staff](modules.md#journal-du-staff) | `site.journal` (« Gérer le serveur » par défaut) |
 | `/serveurs/<serveur>/permissions` | [Permissions](#permissions) de chaque action | « Gérer le serveur » |
 | `/serveurs/<serveur>/configuration` | [État de la configuration](#configuration), objectif, alertes des coffres | « Gérer le serveur » |
+| `/serveurs/<serveur>/sante` | [Santé](#santé) : bot, webhooks des coffres, dernières erreurs | « Gérer le serveur » |
 | `/tickets`, `/tickets/staff` | Liste et recherche des tickets, statistiques du staff sur 30 jours | Staff des tickets |
 | `/logs/<id>` | [Log d'un ticket](#log-dun-ticket) (`?raw=1` : texte brut au format modmailbot) | Staff des tickets (ou lien seul, voir plus bas) |
 | `/healthz` | Répond `ok` (health check de la plateforme) | Tout le monde |
 
 Les anciennes adresses (`/stats/<serveur>/…`, `/logs`, `/logs/staff`, `/cotisations`, `/contacts`) redirigent vers
-les nouvelles, filtres compris : les favoris et les liens déjà envoyés sur Discord restent valables.
+les nouvelles, filtres compris : les favoris et les liens déjà envoyés sur Discord restent valables. `/stats/<serveur>`
+mène aux statistiques (`/serveurs/<serveur>/stats`), `/serveurs/<serveur>` est désormais l'accueil.
 
 Le **staff des tickets** est défini par l'option `inboxServerPermission` sur le serveur inbox
 ([options](tickets-options.md)), comme pour les commandes `!r`, `!close`…
@@ -76,6 +85,75 @@ Une tuile par serveur avec les pages ouvertes au compte (le dernier serveur ouve
 navigateur) ; dans un serveur, un menu latéral (tiroir sur mobile) et un sélecteur de serveur. Les graphiques
 s'inspectent à la souris ou au clavier (flèches) et gardent un tableau des valeurs (« Afficher les données »). Une page sans le droit nécessaire affiche « Accès refusé ».
 
+Sur téléphone, une **barre d'onglets** en bas de l'écran donne quatre raccourcis parmi les pages ouvertes (accueil,
+cotisations, coffres, contacts…) et **Plus** ouvre le menu complet. Les tableaux larges (transactions, mouvements,
+cotisations, joueurs, tickets) s'affichent en cartes, les boutons font au moins 44 px au doigt.
+
+### Accueil d'un serveur
+
+`/serveurs/<serveur>` : une tuile par module ouvert au compte, chacune menant à sa page. Une tuile n'apparaît que si le
+compte a le droit correspondant (et que le module sert sur le serveur).
+
+| Tuile | Contenu | Droit |
+|---|---|---|
+| Objectif de la semaine | Ce qu'il reste à verser ; membres l'ayant atteint avec `cotisation.stats` | `cotisation.ajouter` |
+| Prochaine présence | Titre, date, sa propre réponse, nombre de réponses | `presence.stats` |
+| Absents aujourd'hui | Nombre et noms | `presence.stats` |
+| Stock bas | Objets sous leur seuil, les 3 plus en manque | `coffre.voir` |
+| Recrues en cours | Recrues de la semaine, avis encore à donner (avec `recrue.avis`) | `recrue.suivi` |
+| Transactions en cours | Nombre et montant engagé | `transaction.utiliser` |
+| Tickets ouverts | Sur le serveur principal du module ticket | Staff des tickets |
+| Dernière activité | Dernière entrée du journal du staff | `site.journal` |
+
+Le bouton **Déclarer une cotisation** ouvre le même dialogue que la page des cotisations.
+
+### Palette de commandes
+
+**Ctrl+K** (⌘K sur Mac) ou le bouton **Rechercher** de l'en-tête : un champ unique pour aller à une page du serveur,
+changer de serveur, ouvrir la fiche d'un membre, un contact, un objet ou une propriété des coffres, déclarer une
+cotisation ou basculer le thème. La recherche ignore accents et majuscules (« elodie » trouve « Élodie ») ; seuls les
+résultats ouverts au compte sont proposés. Flèches pour choisir, Entrée pour ouvrir, Échap pour fermer ; plein écran
+sur téléphone.
+
+### Mise à jour en direct
+
+Dans un serveur, les pages se mettent à jour seules quand quelque chose change (mouvement de coffre, cotisation,
+transaction, contact, présence, absence, recrue, journal, réglage), sur Discord comme sur le site. La pastille
+**En direct** (menu latéral, ou barre du haut sur téléphone) le confirme ; **Reconnexion…** signale une coupure, le
+site retente seul et recharge tout à la reprise.
+
+Le bot n'envoie que le sujet du changement (`coffres`, `cotisations`…), jamais de données : la page recharge ensuite
+ce qu'elle affiche par l'API, avec les droits de la personne. Flux `GET /api/guilds/<serveur>/events`
+(`text/event-stream`, membre du serveur, 4 onglets ouverts au plus par personne), avec `Cache-Control: no-cache` et
+`X-Accel-Buffering: no` : derrière Nginx ou un autre proxy, ne pas mettre en tampon ni couper les connexions longues
+avant une minute (un commentaire de maintien part toutes les 25 s).
+
+### Suppressions et « Annuler »
+
+Supprimer une cotisation ou délier un personnage ne demande plus de confirmation : la ligne disparaît tout de suite et
+une notification **Annuler** reste 6 secondes. La suppression n'est envoyée qu'ensuite (ou aussitôt si l'onglet se
+ferme) ; un refus du serveur fait revenir la ligne avec le message. La suppression d'un contact garde sa confirmation
+(saisie du nom) : elle efface aussi les notes du staff et le republie sur Discord, une action rare qu'on ne fait pas
+par erreur d'un clic.
+
+### Exports CSV
+
+Cotisations, coffres (mouvements) et transactions sont exportés par le bot (jusqu'à 10 000 lignes). Contacts,
+journal du staff, membres (résultats de la recherche), tickets et joueurs des coffres ont un bouton **Exporter en
+CSV** qui construit le fichier dans le navigateur, au même format ; le journal et les tickets exportent toutes les
+pages du filtre (1 000 lignes au plus).
+
+### Installation sur téléphone
+
+Le site s'installe comme une application (« Bot du groupe ») : sur Android, menu de Chrome → **Ajouter à l'écran
+d'accueil** (ou **Installer l'application**) ; sur iPhone, Safari → **Partager** → **Sur l'écran d'accueil**. Il
+s'ouvre alors en plein écran, avec son icône.
+
+Un service worker (`/sw.js`) garde en cache les fichiers de l'interface (`/assets/`, immuables) et affiche une page
+« Pas de connexion » hors ligne. Il ne met **jamais** en cache l'API (`/api/`) ni la connexion : les données sont
+toujours celles du bot. `/sw.js` et `/manifest.webmanifest` sont servis sans cache long (une nouvelle version est
+prise au rechargement suivant).
+
 ### Statistiques
 
 <img src="images/statistiques.png" alt="Statistiques d'un serveur" width="640"> <img src="images/mobile-statistiques.png" alt="Statistiques sur mobile" width="200">
@@ -92,7 +170,13 @@ s'affiche sur le serveur principal du module ticket.
   en heure de Paris, bornes incluses).
 - **Totaux** : nombre, achats, ventes, solde, en cours. Les transactions **annulées** comptent dans le nombre, pas
   dans les montants.
-- **Graphique par mois** (achats et ventes), détail paginé avec les objets de chaque transaction.
+- **Graphique par mois** (achats et ventes), détail paginé avec les objets de chaque transaction (et sa note,
+  saisie sur Discord : champ `note` de l'API).
+- **Écriture** (`transaction.utiliser`) : **Nouvelle transaction** (groupe, achat ou vente, prix, objets) ; sous les
+  objets d'une transaction dépliée, changer le statut, ajouter un objet, annuler. Comme `/transaction`, la fiche Discord
+  et le tableau de bord sont mis à jour ; depuis le site, la fiche d'une nouvelle transaction est publiée dans le **salon
+  du tableau de bord** (`/config transaction dashboard_channel`), sans lequel la création est refusée. Chaque écriture
+  va au journal du staff ; une transaction clôturée n'est plus modifiable.
 - **Export CSV** (10 000 lignes au plus) : séparateur `;`, UTF-8 reconnu par Excel, dates `JJ/MM/AAAA HH:MM`. Une
   cellule qui commence par `=`, `+`, `-` ou `@` est préfixée d'une apostrophe (pas de formule exécutée).
 
@@ -119,8 +203,8 @@ des mouvements, export CSV. Avec `coffre.gerer` : nommer une propriété, relier
 des objets entrés sans message du jeu, on compte en jeu et on saisit la quantité réelle, depuis le bouton de la
 carte d'une propriété ou le bouton **Inventaire** de la page (propriété connue ou nouveau numéro). Chaque objet
 connu montre son stock actuel ; une ligne laissée vide ne change rien. **Ajouter un objet** propose les objets
-connus ou accepte un identifiant du jeu (`repair_kit`), et **Coller une liste** lit la même syntaxe que la commande
-(`repair_kit:42, acetone 2790; x=1`). L'**aperçu des corrections** affiche avant l'envoi chaque écart (stock connu →
+connus ou accepte un identifiant du jeu (`repair_kit`), et **Coller une liste** lit les mêmes formats que la commande
+(`repair_kit:42, acetone 2790; x=1`, `repair_kit x42`, `42x repair_kit`, tabulations, puces). L'**aperçu des corrections** affiche avant l'envoi chaque écart (stock connu →
 quantité comptée, +/−) ; seuls ces écarts partent et deviennent des mouvements **Correction** signés, avec leur
 auteur. Les corrections apparaissent dans les mouvements (filtre « Corrections »), dans le stock (icône « dont +34
 de corrections ») et dans l'évolution d'un objet (barres « Corrigé », courbe du stock comprise) ; elles ne comptent
@@ -133,6 +217,56 @@ pas dans l'activité des joueurs.
 Nombre d'alliés, de neutres et d'hostiles, filtres par relation et par type, recherche. La fiche d'un contact
 montre sa description et les **notes du staff** (`contact.notes`). Ajout, modification, suppression et notes depuis
 le site, avec les mêmes effets que les commandes : répertoire publié sur Discord mis à jour, journal du staff.
+
+### Présences
+
+Trois vues : **Présences** (filtres état — à venir, ouvertes, closes — et période du / au, décompte ✅ ❌ ⏳ ❔ de
+chacune), **Assiduité** et **Plannings** (avec `presence.gerer`). Un clic ouvre le détail : présents, retards (en
+minutes), absents, sans réponse (membres actuels du rôle, comme le message Discord), changements d'avis.
+
+- **Nouvelle présence** (`presence.creer`) : jour (aujourd'hui par défaut, ou demain si l'heure est passée), heure de
+  Paris, titre, description. Elle est publiée dans le salon des présences de `/config presence` (obligatoire depuis le
+  site) avec le ping habituel, comme `/presence create`. **Clôturer** (`presence.creer`) désactive les boutons du message.
+- **Assiduité** : périodes 7, 30, 90 jours, 1 an ou tout ; taux de présence (présents ÷ attendus, la règle du
+  [rapport hebdomadaire](modules.md#rapport-hebdomadaire)), courbe par semaine, classement des membres (présent, retard,
+  absent, sans réponse, attendu ; les membres sous le seuil d'alerte sont signalés), export CSV.
+- **Plannings** : liste, ajout et suppression des présences récurrentes, comme `/gestion presence planifier` (journal du
+  staff).
+
+### Absences
+
+Absences en cours, à venir et terminées depuis 30 jours. Vue **Frise** : une ligne par membre sur cinq semaines
+(semaine précédente, en cours, trois suivantes), aujourd'hui marqué, barres en cours / à venir / terminées ; au clavier,
+Tab atteint la frise et les flèches passent d'une absence à l'autre, Entrée affiche le détail. Sur un petit écran, la
+frise laisse place à la liste. Vue **Liste** : en cours, à venir, récentes.
+
+**Déclarer une absence** (membres du groupe ; pour un autre membre : `absence.autrui`) : motif, premier et dernier jour,
+mêmes règles et mêmes effets que `/absence declare` (annonce dans le salon des absences, rôle d'absence, présences
+ouvertes passées en absent). **Terminer** une absence en cours ou **annuler** une absence à venir : la sienne, ou celle
+d'un autre avec `absence.autrui`. Les actions pour un autre membre vont au journal du staff.
+
+### Recrues
+
+Une carte par recrue de la semaine : ancienneté d'essai, décompte ✅ / ❌ / ⬜, véto, son propre avis. Actions
+**strictes** (seuls les rôles comptent, « Gérer le serveur » n'y donne pas accès) :
+
+- `recrue.avis` : **donner ou modifier son avis** (vote et motif obligatoire), comme le menu du message hebdomadaire ;
+- `recrue.veto` : **poser** (motif obligatoire) ou **lever un véto** (journal du staff) ;
+- `recrue.suivi` : avis détaillés (qui a voté quoi, avec le motif) et **historique** des semaines d'une recrue.
+
+Chaque action met à jour le message d'avis de la semaine sur Discord. Une semaine clôturée n'accepte plus d'avis.
+
+### Annuaire
+
+Deux onglets, avec recherche (insensible aux tirets et aux espaces) :
+
+- **Véhicules** (`vehicule.utiliser`) : plaque, modèle, propriétaire (membre ou rôle), plaque à copier. **Enregistrer**
+  (le propriétaire membre doit être du groupe ; sans modèle, l'API GLife est consultée une fois, sans bloquer l'ajout) et
+  **retirer** un véhicule, comme `/vehicle add` et `remove` ; le tableau de bord Discord est mis à jour. Le transfert de
+  propriétaire reste sur Discord (`/vehicle owner`).
+- **Numéros** (membres du groupe) : numéro de chaque membre, à copier. Ajouter ou modifier **son** numéro, supprimer le
+  sien ; pour un autre membre : `numero.ajouter_autrui` / `numero.supprimer_autrui` (journal du staff). L'annuaire publié
+  sur Discord est mis à jour.
 
 ### Fiche d'un membre
 
@@ -158,6 +292,21 @@ modifiées sont envoyées ; chaque ligne peut revenir à son niveau par défaut.
 Pour chaque module : prêt, incomplet ou non utilisé, avec ce qui manque et la commande Discord qui corrige (comme
 `/config etat`). Réglage de l'**objectif de cotisation** et des **alertes des coffres** (salon, rôle, gros
 retrait, joueur inconnu, seuils de stock bas).
+
+### Santé
+
+Réservée à « Gérer le serveur », dans la section Réglages :
+
+- **Gateway Discord** : shards connectés et latence moyenne ; **en ligne depuis**, taille de la base (journal WAL
+  compris), **version** du bot et commit compilé (variable `GIT_COMMIT` à la compilation, par exemple
+  `docker build --build-arg GIT_COMMIT=$(git rev-parse HEAD) .`).
+- **Webhooks des coffres** : pour chaque salon suivi, salon encore visible par le bot, webhooks du jeu reconnus,
+  dernier mouvement reçu et dernier rattrapage depuis le démarrage (réussi ou non). Un salon sans mouvement depuis
+  7 jours (3, 14 ou 30 au choix) est signalé **silencieux** : webhook supprimé dans le jeu, salon déplacé, droits du
+  bot retirés…
+- **Dernières erreurs** : les 100 derniers avertissements et erreurs du journal du bot depuis le démarrage (date,
+  module, message court, sans autre donnée). Ne sont montrés que ceux qui concernent ce serveur ; ceux sans serveur
+  (connexion à Discord, base…) ne sont visibles que pour qui administre tous les serveurs du bot.
 
 ### Tickets
 
@@ -192,7 +341,8 @@ openapi_spec_is_up_to_date`). Les écritures exigent `Content-Type: application/
 - Les droits sont recalculés à **chaque requête** : retirer un rôle ou une permission coupe l'accès
   immédiatement, sans attendre l'expiration de la session.
 - En-têtes stricts : CSP sans script externe ni script en ligne (images seulement du site et du CDN de
-  Discord), pas d'intégration dans une autre page, pas d'indexation par les moteurs de recherche.
+  Discord ; manifeste et service worker du site seulement), pas d'intégration dans une autre page, pas
+  d'indexation par les moteurs de recherche.
 
 **Sans `DISCORD_CLIENT_SECRET`**, la connexion est désactivée : les logs restent lisibles par leur lien
 (identifiant non devinable, comme dans modmailbot) et l'accueil indique que la connexion n'est pas

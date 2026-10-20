@@ -1,9 +1,14 @@
-// Ancienne adresse : /stats/<serveur> → /serveurs/<serveur>.
+// Ancienne adresse : /stats/<serveur> → statistiques du serveur (/serveurs/<serveur>/stats).
 
 import { createFileRoute, redirect } from '@tanstack/react-router'
 
 export const Route = createFileRoute('/stats/$guildId/')({
-  beforeLoad: ({ params }) => {
-    throw redirect({ to: '/serveurs/$guildId', params: { guildId: params.guildId }, replace: true })
+  beforeLoad: ({ params, location }) => {
+    throw redirect({
+      to: '/serveurs/$guildId/stats',
+      params: { guildId: params.guildId },
+      search: location.search as Record<string, never>,
+      replace: true,
+    })
   },
 })

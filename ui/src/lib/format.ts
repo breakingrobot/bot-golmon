@@ -123,5 +123,20 @@ export const formatRelative = (iso: string, now = Date.now()): string => {
 export const todayParis = (): string =>
   new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Paris' }).format(new Date())
 
+/** Durée lisible : « 12 min », « 3 h 05 », « 2 j 4 h » (comme le bot). */
+export const formatDuration = (seconds: number): string => {
+  const minutes = Math.max(0, Math.round(seconds / 60))
+  if (minutes < 60) return `${minutes} min`
+  if (minutes < 1440) return `${Math.floor(minutes / 60)} h ${String(minutes % 60).padStart(2, '0')}`
+  return `${Math.floor(minutes / 1440)} j ${Math.floor((minutes % 1440) / 60)} h`
+}
+
+/** Taille de fichier : « 18 Mo », « 512 ko ». */
+export const formatBytes = (bytes: number): string => {
+  if (bytes < 1024 * 1024) return `${formatNumber(Math.max(1, Math.round(bytes / 1024)))} ko`
+  const mega = bytes / (1024 * 1024)
+  return `${spaces(new Intl.NumberFormat(LOCALE, { maximumFractionDigits: mega < 10 ? 1 : 0 }).format(mega))} Mo`
+}
+
 export const plural = (count: number, singular: string, pluralForm = `${singular}s`): string =>
   `${formatNumber(count)} ${count > 1 ? pluralForm : singular}`

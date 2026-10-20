@@ -9,7 +9,9 @@ use crate::{
         interaction::{GUILD_ONLY, Ix, MANAGE_GUILD_ONLY, Reply},
         messages::parse_id,
     },
-    modules::{coffres, contacts, cotisations, permissions, phones, presences, recrues, transactions, vehicles},
+    modules::{
+        coffres, contacts, cotisations, permissions, phones, presences, rappels, recrues, transactions, vehicles,
+    },
     util::format::{field, truncate},
 };
 use anyhow::Result;
@@ -323,6 +325,24 @@ pub async fn config_status(ctx: &Ctx, guild_id: Id<GuildMarker>) -> Result<Confi
         checks,
     ));
 
+    // Rappels en MP : l'objectif doit exister pour son rappel.
+    let reminders = rappels::service::get_config(db, &guild).await?;
+    let mut checks = vec![optional(
+        "Rappels de présence",
+        reminders.enabled,
+        "Désactivés : aucun MP avant les présences.",
+        "/config rappels actif:true",
+    )];
+    if reminders.enabled && reminders.objective {
+        checks.push(optional(
+            "Rappel de l'objectif",
+            objective.is_some(),
+            "Pas d'objectif de cotisation : pas de MP le samedi.",
+            "/config cotisation objectif:…",
+        ));
+    }
+    modules.push(module("rappels", "Rappels en MP", reminders.enabled, checks));
+
     // Coffres.
     let channels = coffres::service::channels(db, &guild).await?;
     let alerts = coffres::alerts::get_alerts(db, &guild).await?;
@@ -538,11 +558,12 @@ pub async fn command(ix: &Ix) -> Result<()> {
         Status::Off => 2,
     });
     let mut embed = EmbedBuilder::new().title("⚙️ État de la configuration").color(0x5865f2).description(description);
-    // Un embed ne dépasse pas 6 000 caractères au total : 450 par module au plus.
+    // Un embed ne dépasse pas 6 000 caractères au total : 5 200 répartis entre les modules.
+    let budget = (5200 / modules.len().max(1)).min(450);
     for module in modules {
         embed = embed.field(field(
             format!("{} {}", status_icon(module.status), module.label),
-            truncate(&module_field(module), 450),
+            truncate(&module_field(module), budget),
             false,
         ));
     }

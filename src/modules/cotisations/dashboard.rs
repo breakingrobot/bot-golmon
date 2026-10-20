@@ -13,6 +13,7 @@ use crate::{
     discord::{
         components::{container, separator, text_display, text_displays},
         messages::{self, Outgoing, parse_id},
+        site::{self, Page},
     },
     util::{
         format::{ListBlock, V2_TEXT_LIMIT, and_others, pack_blocks},
@@ -203,7 +204,9 @@ pub async fn sync_dashboard(ctx: &Ctx, guild_id: Id<GuildMarker>) -> Result<()> 
         None => Vec::new(),
     };
     let board = Board { week, totals: &totals, members: &members, objective: objective.as_ref(), progress: &progress };
-    let message = Outgoing::components_v2(build(&board));
+    let mut components = build(&board);
+    site::attach_page(ctx, &guild, Page::Cotisations { membre: None }, &mut components);
+    let message = Outgoing::components_v2(components);
     match messages::upsert(ctx, channel_id, known.as_deref().and_then(parse_id), &message).await {
         Ok(new_id) => {
             sqlx::query(
@@ -223,6 +226,7 @@ pub async fn sync_dashboard(ctx: &Ctx, guild_id: Id<GuildMarker>) -> Result<()> 
 
 /// Met à jour le tableau sans faire échouer l'action qui l'a déclenchée.
 pub async fn refresh(ctx: &Ctx, guild_id: Id<GuildMarker>) {
+    ctx.events.publish(guild_id, crate::events::Topic::Cotisations);
     if let Err(error) = sync_dashboard(ctx, guild_id).await {
         tracing::warn!(%guild_id, ?error, "mise à jour du tableau des cotisations impossible");
     }

@@ -29,6 +29,7 @@ use crate::{
         components::{container, separator, text_displays},
         members::role_member_ids,
         messages::{self, Outgoing, parse_id},
+        site,
     },
     util::{
         format::{V2_TEXT_LIMIT, and_others, bounded_lines, mention, plural, truncate},
@@ -200,6 +201,25 @@ impl Rate {
         self.present += other.present;
         self.expected += other.expected;
     }
+}
+
+/// Taux d'un membre sur les présences clôturées de `data`, avec la règle du
+/// rapport : attendu s'il a répondu, ou s'il porte le rôle des présences
+/// (`holds_role`) et était déjà arrivé sur le serveur à la date.
+pub fn member_rate(data: &WindowData, member: &TrackedMember, holds_role: bool) -> Rate {
+    let mut rate = Rate::default();
+    for presence in &data.presences {
+        let status = data
+            .responses
+            .iter()
+            .find(|r| r.presence_id == presence.id && r.user_id == member.user_id)
+            .map(|r| ResponseStatus::parse(&r.status).unwrap_or(ResponseStatus::Absent));
+        if status.is_some() || (holds_role && member.expected_at(presence.event_date)) {
+            rate.expected += 1;
+            rate.present += i64::from(status == Some(ResponseStatus::Present));
+        }
+    }
+    rate
 }
 
 /// Écart en points entre deux taux, arrondi (`None` sans base de comparaison).
@@ -539,7 +559,7 @@ pub async fn pending_guilds(db: &SqlitePool, week_start: DbTime) -> Result<Vec<S
 }
 
 /// Membres actuels du rôle des présences, hors bots et blocklist (cache).
-fn tracked_members(
+pub fn tracked_members(
     ctx: &Ctx,
     guild_id: Id<GuildMarker>,
     role_id: &str,
@@ -595,8 +615,10 @@ pub async fn send_report(ctx: &Ctx, guild_id: Id<GuildMarker>, now: DateTime<Utc
         return Ok(());
     };
 
+    let mut components = report_components(&report);
+    site::attach(&mut components, site::button(ctx, guild_id, site::Page::Presences));
     // Mentions vides par défaut : les membres cités ne sont pas pingés.
-    messages::send(ctx, channel_id, &Outgoing::components_v2(report_components(&report))).await?;
+    messages::send(ctx, channel_id, &Outgoing::components_v2(components)).await?;
     tracing::info!(%guild_id, presences = report.presences.len(), "rapport d'assiduité envoyé");
     Ok(())
 }
@@ -650,6 +672,31 @@ mod tests {
 
     fn member(id: &str) -> TrackedMember {
         TrackedMember { user_id: id.to_owned(), joined_at: None }
+    }
+
+    #[test]
+    fn rates_one_member_like_the_report() {
+        let data = WindowData {
+            presences: vec![
+                presence("p1", at(2026, 8, 3, 19)),
+                presence("p2", at(2026, 8, 5, 19)),
+                presence("p3", at(2026, 8, 7, 19)),
+            ],
+            responses: vec![
+                response("p1", "a", ResponseStatus::Present),
+                response("p2", "a", ResponseStatus::Retard),
+                response("p3", "b", ResponseStatus::Present),
+            ],
+            absences: Vec::new(),
+        };
+        // Sans réponse à p3, mais attendu : il porte le rôle.
+        assert_eq!(member_rate(&data, &member("a"), true), Rate { present: 1, expected: 3 });
+        // Sans le rôle, seules ses réponses comptent.
+        assert_eq!(member_rate(&data, &member("a"), false), Rate { present: 1, expected: 2 });
+        // Arrivé après p1 et p2.
+        let newcomer = TrackedMember { user_id: "b".into(), joined_at: Some(at(2026, 8, 6, 0)) };
+        assert_eq!(member_rate(&data, &newcomer, true), Rate { present: 1, expected: 1 });
+        assert_eq!(member_rate(&WindowData::default(), &member("a"), true).rounded(), None);
     }
 
     #[test]

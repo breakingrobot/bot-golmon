@@ -6,6 +6,7 @@ import { csvUrl } from '@/api/client'
 import { transactionsQuery } from '@/api/queries'
 import { Card, CardContent } from '@/atoms/Card'
 import { formatMoney, formatNumber, formatSignedMoney } from '@/lib/format'
+import { hasPerm } from '@/lib/guild'
 import { useGuild } from '@/lib/guild-context'
 import { compact } from '@/lib/search'
 import { cn } from '@/lib/utils'
@@ -19,6 +20,7 @@ import { Section } from '@/molecules/Section'
 import { StatCard } from '@/molecules/StatCard'
 import { StatGrid } from '@/molecules/StatGrid'
 import { MonthlyTransactionsChart } from '@/organisms/MonthlyTransactionsChart'
+import { NewTransactionDialog } from '@/pages/transactions/NewTransactionDialog'
 import { TransactionFiltersForm } from '@/pages/transactions/TransactionFiltersForm'
 import { TransactionTable } from '@/pages/transactions/TransactionTable'
 
@@ -31,13 +33,21 @@ export const TransactionsView = () => {
   const { page = 1, ...filters } = search
   const query = useQuery(transactionsQuery(guild.id, filters, page))
   const filtered = Object.keys(filters).length > 0
+  const canEdit = hasPerm(guild, 'transaction.utiliser')
+  // « Annulée » a son propre bouton, comme `/transaction cancel`.
+  const statuses = (query.data?.statuses ?? []).filter((status) => status.value !== 'ANNULEE')
 
   return (
     <>
       <PageHeader
         title="Transactions"
         description={`${guild.name} · historique des achats et ventes`}
-        actions={<CsvButton href={csvUrl(`/guilds/${guild.id}/transactions/export.csv`, filters)} />}
+        actions={
+          <>
+            <CsvButton href={csvUrl(`/guilds/${guild.id}/transactions/export.csv`, filters)} />
+            {canEdit && <NewTransactionDialog guildId={guild.id} />}
+          </>
+        }
       />
       <TransactionFiltersForm
         key={JSON.stringify(filters)}
@@ -88,7 +98,7 @@ export const TransactionsView = () => {
               </EmptyState>
             ) : (
               <Card className="py-0">
-                <TransactionTable items={query.data.list.items} guildId={guild.id} />
+                <TransactionTable items={query.data.list.items} guildId={guild.id} {...(canEdit ? { statuses } : {})} />
               </Card>
             )}
             <Pagination

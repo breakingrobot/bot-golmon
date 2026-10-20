@@ -38,6 +38,7 @@ pub fn config_definition() -> Command {
         .option(crate::modules::coffres::commands::config_subcommand())
         .option(crate::modules::contacts::commands::config_subcommand())
         .option(crate::modules::permissions::commands::config_subcommand())
+        .option(crate::modules::rappels::commands::config_subcommand())
         .option(audit::config_subcommand())
         .option(crate::modules::status::config_subcommand())
         .build()
@@ -84,6 +85,7 @@ pub async fn handle_config(ix: &Ix, options: &Options) -> Result<()> {
         "coffre" => crate::modules::coffres::commands::config(ix, options, &guild).await,
         "contact" => crate::modules::contacts::commands::config(ix, options, &guild).await,
         "permission" => crate::modules::permissions::commands::config(ix, options, &guild).await,
+        "rappels" => crate::modules::rappels::commands::config(ix, options, &guild).await,
         "etat" => crate::modules::status::command(ix).await,
         _ => Ok(()),
     };

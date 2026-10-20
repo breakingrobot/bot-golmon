@@ -4,12 +4,25 @@ use super::{
 };
 use crate::{
     context::Ctx,
-    discord::messages::parse_id,
-    util::{ids::new_id, time::DbTime},
+    discord::{
+        embed::{EmbedBuilder, EmbedBuilderExt as _, footer},
+        messages::{self, Outgoing, parse_id},
+    },
+    util::{
+        format::{field, truncate_field},
+        ids::new_id,
+        time::DbTime,
+    },
 };
 use anyhow::Result;
 use sqlx::SqlitePool;
-use twilight_model::id::{Id, marker::GuildMarker};
+use twilight_model::{
+    channel::message::Embed,
+    id::{
+        Id,
+        marker::{ChannelMarker, GuildMarker},
+    },
+};
 
 const ABSENCE_COLUMNS: &str = r#""id", "guildId", "userId", "motif", "endsAt""#;
 
@@ -130,6 +143,7 @@ pub struct Declared {
 /// Enregistre une absence, attribue le rôle si elle a déjà commencé et marque
 /// le membre absent sur les présences ouvertes tombant dans la période.
 pub async fn declare(ctx: &Ctx, guild_id: Id<GuildMarker>, absence: NewAbsence) -> Result<Declared> {
+    ctx.events.publish(guild_id, crate::events::Topic::Absences);
     let id = new_id();
     sqlx::query(
         r#"INSERT INTO "Absence" ("id", "guildId", "userId", "motif", "startsAt", "endsAt", "createdById", "createdAt") VALUES (?, ?, ?, ?, ?, ?, ?, ?)"#,
@@ -177,6 +191,7 @@ pub async fn declare(ctx: &Ctx, guild_id: Id<GuildMarker>, absence: NewAbsence) 
 /// annonce. Le rôle n'est retiré que si le membre n'a aucune autre absence
 /// encore active (périodes qui se chevauchent).
 pub async fn end(ctx: &Ctx, guild_id: Id<GuildMarker>, absence_id: &str, user_id: &str) -> Result<RoleUpdate> {
+    ctx.events.publish(guild_id, crate::events::Topic::Absences);
     let now = DbTime::now();
     let (still_absent,): (bool,) = sqlx::query_as(
         r#"SELECT EXISTS (SELECT 1 FROM "Absence" WHERE "guildId" = ? AND "userId" = ? AND "endedAt" IS NULL AND "id" != ? AND "startsAt" <= ? AND "endsAt" > ?)"#,
@@ -244,4 +259,45 @@ pub async fn started(db: &SqlitePool) -> Result<Vec<Absence>> {
 
 pub async fn apply_role(ctx: &Ctx, guild_id: Id<GuildMarker>, user_id: &str) -> Result<RoleUpdate> {
     update_absence_role(ctx, guild_id, user_id, true).await
+}
+
+/// Annonce d'une absence déclarée (commande, panneau ou site).
+pub fn announcement(
+    user_id: &str,
+    starts_at: DbTime,
+    ends_at: DbTime,
+    motif: &str,
+    avatar: Option<String>,
+    declared_by: Option<&str>,
+) -> Embed {
+    let mut embed = EmbedBuilder::new()
+        .title("🌙 Absence déclarée")
+        .color(0xe67e22)
+        .field(field("Membre", format!("<@{user_id}>"), true))
+        .field(field("Du", format!("<t:{}:d>", starts_at.unix()), true))
+        .field(field("Au", format!("<t:{}:d>", ends_at.unix()), true))
+        .field(field("Motif", truncate_field(motif), false))
+        .maybe_thumbnail(avatar);
+    if let Some(name) = declared_by {
+        embed = embed.footer(footer(format!("Déclarée par {name}")));
+    }
+    embed.build()
+}
+
+/// Publie l'annonce dans le salon des absences et la mémorise. L'annonce est un
+/// bonus : un salon inaccessible ne fait pas échouer la déclaration. Elle est
+/// supprimée automatiquement quand l'absence se termine ou est annulée.
+pub async fn announce(ctx: &Ctx, guild_id: Id<GuildMarker>, absence_id: &str, embed: &Embed) -> Result<()> {
+    let config = service::get_config(&ctx.db, &guild_id.to_string()).await?;
+    let Some(channel_id) = config.and_then(|c| c.absence_channel_id).as_deref().and_then(parse_id::<ChannelMarker>)
+    else {
+        return Ok(());
+    };
+    match messages::send(ctx, channel_id, &Outgoing::embeds(vec![embed.clone()])).await {
+        Ok(message) => {
+            remember_announcement(&ctx.db, absence_id, &channel_id.to_string(), &message.id.to_string()).await?;
+        }
+        Err(error) => tracing::warn!(?error, "annonce d'absence impossible"),
+    }
+    Ok(())
 }

@@ -1,4 +1,4 @@
-use crate::{config::Config, modmail::Modmail, modules::vehicles::api::VehicleApi};
+use crate::{config::Config, events::EventBus, health::Health, modmail::Modmail, modules::vehicles::api::VehicleApi};
 use sqlx::SqlitePool;
 use std::sync::{Arc, OnceLock};
 use twilight_cache_inmemory::DefaultInMemoryCache;
@@ -26,6 +26,10 @@ pub struct Ctx {
     pub message_content: bool,
     /// Un émetteur par shard, pour les commandes gateway (demande de membres).
     pub shard_senders: OnceLock<Vec<MessageSender>>,
+    /// Changements par serveur, pour la mise à jour en direct du site (SSE).
+    pub events: EventBus,
+    /// Démarrage, shards, rattrapages, dernières erreurs (page « Santé »).
+    pub health: Health,
 }
 
 pub type Context = Arc<Ctx>;

@@ -6,6 +6,7 @@ pub mod fiche;
 pub mod permissions;
 pub mod phones;
 pub mod presences;
+pub mod rappels;
 pub mod recrues;
 pub mod status;
 pub mod transactions;

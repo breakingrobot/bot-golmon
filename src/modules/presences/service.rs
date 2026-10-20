@@ -394,6 +394,17 @@ pub async fn find_presences(
     Ok(sqlx::query_as(&sql).bind(guild_id).bind(like_contains(query)).fetch_all(db).await?)
 }
 
+/// Titres des dernières présences, sans doublon, pour l'autocomplétion.
+pub async fn recent_titles(db: &SqlitePool, guild_id: &str) -> Result<Vec<String>> {
+    let rows: Vec<(String,)> = sqlx::query_as(
+        r#"SELECT "titre" FROM "Presence" WHERE "guildId" = ? GROUP BY "titre" ORDER BY MAX("eventDate") DESC LIMIT 50"#,
+    )
+    .bind(guild_id)
+    .fetch_all(db)
+    .await?;
+    Ok(rows.into_iter().map(|(titre,)| titre).collect())
+}
+
 /// Présence ouverte la plus proche, utilisée par défaut quand aucune n'est précisée.
 pub async fn current_presence(db: &SqlitePool, guild_id: &str) -> Result<Option<Presence>> {
     Ok(sqlx::query_as(&format!(
@@ -511,6 +522,7 @@ pub async fn sync_message(ctx: &Ctx, presence_id: &str) -> Result<()> {
     let Some(presence) = get_presence(&ctx.db, presence_id).await? else {
         return Ok(());
     };
+    ctx.events.publish(&presence.guild_id, crate::events::Topic::Presences);
     let (Some(guild_id), Some(channel_id)) = (parse_id(&presence.guild_id), parse_id(&presence.channel_id)) else {
         return Ok(());
     };

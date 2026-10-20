@@ -15,10 +15,12 @@ use crate::{
         members::avatar_url,
         messages::{self, Mentions, Outgoing, parse_id},
         options::Options,
+        site::{self, Page},
+        suggest::{self, Dates},
     },
     util::{
         format::{DESCRIPTION_LIMIT, chunk_mentions, field, truncate, truncate_field},
-        time::{self, DbTime, format_date_label, parse_event_date, today_label},
+        time::{self, DbTime, TIMEZONE, format_date_label, parse_event_date, today_label},
     },
 };
 use anyhow::Result;
@@ -42,8 +44,8 @@ pub fn presence_definition() -> Command {
         .option(
             SubCommandBuilder::new("create", "Crée une présence (rôles et salon viennent de la config)")
                 .option(StringBuilder::new("heure", "Heure, ex: 21:00").required(true))
-                .option(StringBuilder::new("titre", "Titre (défaut: Présence)"))
-                .option(StringBuilder::new("date", "Date JJ/MM/AAAA (défaut: aujourd'hui)"))
+                .option(StringBuilder::new("titre", "Titre (défaut: Présence)").autocomplete(true))
+                .option(StringBuilder::new("date", "Date JJ/MM/AAAA (défaut: aujourd'hui)").autocomplete(true))
                 .option(StringBuilder::new("description", "Description")),
         )
         .option(
@@ -150,8 +152,12 @@ pub fn absence_definition() -> Command {
         .option(
             SubCommandBuilder::new("declare", "Signale ton absence (le rôle d'absence est appliqué automatiquement)")
                 .option(StringBuilder::new("motif", "Motif de l'absence").required(true))
-                .option(StringBuilder::new("fin", "Dernier jour d'absence, JJ/MM/AAAA").required(true))
-                .option(StringBuilder::new("debut", "Premier jour, JJ/MM/AAAA (défaut: aujourd'hui)"))
+                .option(
+                    StringBuilder::new("fin", "Dernier jour d'absence, JJ/MM/AAAA").required(true).autocomplete(true),
+                )
+                .option(
+                    StringBuilder::new("debut", "Premier jour, JJ/MM/AAAA (défaut: aujourd'hui)").autocomplete(true),
+                )
                 .option(UserBuilder::new("membre", "Déclarer pour un autre membre (staff)")),
         )
         .option(
@@ -186,11 +192,28 @@ pub async fn handle_absence(ix: &Ix, options: &Options) -> Result<()> {
     }
 }
 
+/// Dates JJ/MM/AAAA autour d'aujourd'hui (heure de Paris).
+pub async fn date_autocomplete(ix: &Ix, typed: &str, direction: Dates) -> Result<()> {
+    let today = chrono::Utc::now().with_timezone(&TIMEZONE).date_naive();
+    let choices = suggest::dates(today, typed, direction).into_iter().map(|(l, v)| choice(&l, v)).collect();
+    ix.autocomplete(choices).await
+}
+
 pub async fn autocomplete(ix: &Ix, options: &Options) -> Result<()> {
     let Some(guild_id) = ix.guild_id() else {
         return ix.autocomplete(Vec::new()).await;
     };
-    let query = options.focused.as_ref().map(|(_, value)| value.as_str()).unwrap_or_default();
+    let (name, query) = options.focused.clone().unwrap_or_default();
+    match name.as_str() {
+        "date" | "fin" | "debut" => return date_autocomplete(ix, &query, Dates::Upcoming).await,
+        "titre" => {
+            let titles = service::recent_titles(&ix.ctx.db, &guild_id.to_string()).await?;
+            let choices = suggest::filter(titles.into_iter().map(|t| (t.clone(), t)), &query);
+            return ix.autocomplete(choices.into_iter().map(|(l, v)| choice(&l, v)).collect()).await;
+        }
+        _ => {}
+    }
+    let query = query.as_str();
     // forcevote sert aussi à corriger après coup : il doit voir les clôturées.
     let include_closed = options.sub() == "forcevote";
     let presences = service::find_presences(&ix.ctx.db, &guild_id.to_string(), query, include_closed).await?;
@@ -367,7 +390,8 @@ pub async fn member_stats(ix: &Ix, options: &Options, target: Id<UserMarker>) ->
         .field(field("Derniers changements d'avis", truncate_field(&changes), false))
         .maybe_thumbnail(options.resolved_user(target).map(|u| avatar_url(&u)))
         .build();
-    ix.reply(Reply::embed(embed).hidden()).await
+    let link = site::row_for(&ix.ctx, guild_id, Page::Membre(target));
+    ix.reply(Reply::embed(embed).hidden().with_components(link)).await
 }
 
 async fn stats(ix: &Ix, options: &Options) -> Result<()> {
@@ -405,7 +429,8 @@ async fn stats(ix: &Ix, options: &Options) -> Result<()> {
         .color(0x5865f2)
         .description(truncate(&lines, DESCRIPTION_LIMIT))
         .build();
-    ix.reply(Reply::embed(embed).hidden()).await
+    let link = site::row_for(&ix.ctx, guild_id, Page::Presences);
+    ix.reply(Reply::embed(embed).hidden().with_components(link)).await
 }
 
 async fn ping(ix: &Ix, options: &Options) -> Result<()> {
@@ -721,36 +746,10 @@ pub(super) async fn declare_absence(ix: &Ix, form: AbsenceForm) -> Result<()> {
     )
     .await?;
 
-    let mut embed = EmbedBuilder::new()
-        .title("🌙 Absence déclarée")
-        .color(0xe67e22)
-        .field(field("Membre", format!("<@{target}>"), true))
-        .field(field("Du", format!("<t:{}:d>", starts_at.unix()), true))
-        .field(field("Au", format!("<t:{}:d>", ends_at.unix()), true))
-        .field(field("Motif", truncate_field(&motif), false))
-        .maybe_thumbnail(form.avatar);
-    if for_someone_else {
-        embed = embed.footer(footer(format!("Déclarée par {}", ix.username())));
-    }
-    let embed = embed.build();
-
-    // L'annonce est un bonus : un salon inaccessible ne fait pas échouer la déclaration.
-    // Elle est supprimée automatiquement quand l'absence se termine ou est annulée.
-    let config = service::get_config(&ix.ctx.db, &guild_id.to_string()).await?;
-    if let Some(channel_id) = config.and_then(|c| c.absence_channel_id).as_deref().and_then(parse_id) {
-        match messages::send(&ix.ctx, channel_id, &Outgoing::embeds(vec![embed.clone()])).await {
-            Ok(message) => {
-                absences::remember_announcement(
-                    &ix.ctx.db,
-                    &declared.id,
-                    &channel_id.to_string(),
-                    &message.id.to_string(),
-                )
-                .await?;
-            }
-            Err(error) => tracing::warn!(?error, "annonce d'absence impossible"),
-        }
-    }
+    let declared_by = for_someone_else.then(|| ix.username());
+    let embed =
+        absences::announcement(&target.to_string(), starts_at, ends_at, &motif, form.avatar, declared_by.as_deref());
+    absences::announce(&ix.ctx, guild_id, &declared.id, &embed).await?;
 
     let presence_note = if declared.affected > 0 {
         format!("\n{} présence(s) ouverte(s) mise(s) à jour en absent.", declared.affected)

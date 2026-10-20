@@ -5,6 +5,7 @@
 
 import type * as G from './generated/types.gen'
 import type * as T from './types'
+import type * as S from './types-site'
 
 /** Erreur de compilation si `Server` ne convient pas à `Client`. */
 type Fits<Server extends Client, Client> = [Server, Client]
@@ -36,4 +37,35 @@ export type ContractChecks = [
   Fits<G.GetTicketsResponse, T.TicketsResponse>,
   Fits<G.GetTicketStaffResponse, T.TicketStats>,
   Fits<G.GetTicketLogResponse, T.TicketLog>,
+  // Accueil et santé.
+  Fits<G.GetGuildOverviewResponse, S.GuildOverview>,
+  Fits<G.GetGuildHealthResponse, S.GuildHealth>,
+  // Présences, absences, recrues, annuaire, écritures des transactions.
+  Fits<G.GetPresencesResponse, T.Page<T.PresenceSummary>>,
+  Fits<G.GetPresenceResponse, T.PresenceDetail>,
+  Fits<G.GetPresenceStatsResponse, T.PresenceStats>,
+  Fits<G.CreatePresenceResponse, T.PresenceSummary>,
+  Fits<G.ClosePresenceResponse, T.PresenceDetail>,
+  Fits<G.GetPresenceSchedulesResponse, T.PresenceSchedule[]>,
+  Fits<G.CreatePresenceScheduleResponse, T.PresenceSchedule>,
+  Fits<T.NewPresence, G.NewPresenceInput>,
+  Fits<T.NewPresenceSchedule, G.NewScheduleInput>,
+  Fits<G.GetAbsencesResponse, T.AbsencesResponse>,
+  Fits<G.CreateAbsenceResponse, T.DeclaredAbsence>,
+  Fits<G.EndAbsenceResponse, T.EndedAbsence>,
+  Fits<T.NewAbsence, G.NewAbsenceInput>,
+  Fits<G.GetRecruesResponse, T.RecruesResponse>,
+  Fits<G.GetRecrueHistoryResponse, T.RecrueHistoryWeek[]>,
+  Fits<G.VoteRecrueResponse, T.Recrue['myVote'] & object>,
+  Fits<G.SetRecrueVetoResponse, T.Veto>,
+  Fits<T.RecrueVoteInput, G.RecrueVoteInput>,
+  Fits<G.GetVehiclesResponse, T.VehiclesResponse>,
+  Fits<G.CreateVehicleResponse, T.VehicleEntry>,
+  Fits<T.VehicleInput, G.VehicleInput>,
+  Fits<G.GetPhonesResponse, T.PhoneEntry[]>,
+  Fits<G.SetPhoneResponse, T.PhoneEntry>,
+  Fits<G.CreateTransactionResponse, T.Transaction>,
+  Fits<G.SetTransactionStatusResponse, T.Transaction>,
+  Fits<T.NewTransaction, G.NewTransactionInput>,
+  Fits<T.TransactionItemInput, G.TransactionItemInput>,
 ]

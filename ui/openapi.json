@@ -1,6 +1,78 @@
 {
   "components": {
     "schemas": {
+      "AbsenceEntry": {
+        "properties": {
+          "createdBy": {
+            "$ref": "#/components/schemas/MemberRef"
+          },
+          "endedAt": {
+            "description": "Fin anticipée ou annulation ; `null` : en cours ou à venir.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "from": {
+            "description": "Début (00:00, heure de Paris).",
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "member": {
+            "$ref": "#/components/schemas/MemberRef"
+          },
+          "motif": {
+            "type": "string"
+          },
+          "to": {
+            "description": "Fin prévue (23:59 du dernier jour).",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "member",
+          "motif",
+          "from",
+          "to",
+          "endedAt",
+          "createdBy"
+        ],
+        "type": "object"
+      },
+      "AbsencesResponse": {
+        "properties": {
+          "current": {
+            "description": "Commencées, pas terminées (fin la plus proche d'abord).",
+            "items": {
+              "$ref": "#/components/schemas/AbsenceEntry"
+            },
+            "type": "array"
+          },
+          "recent": {
+            "description": "Terminées ou annulées depuis 30 jours (plus récentes d'abord).",
+            "items": {
+              "$ref": "#/components/schemas/AbsenceEntry"
+            },
+            "type": "array"
+          },
+          "upcoming": {
+            "description": "Pas encore commencées (début le plus proche d'abord).",
+            "items": {
+              "$ref": "#/components/schemas/AbsenceEntry"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "current",
+          "upcoming",
+          "recent"
+        ],
+        "type": "object"
+      },
       "ApiError": {
         "description": "Erreur : message lisible en français, lien de connexion pour un 401.",
         "properties": {
@@ -1034,6 +1106,51 @@
         ],
         "type": "object"
       },
+      "DeclaredAbsence": {
+        "properties": {
+          "absence": {
+            "$ref": "#/components/schemas/AbsenceEntry"
+          },
+          "affected": {
+            "description": "Présences ouvertes de la période passées en absent.",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "roleWarning": {
+            "description": "Rôle d'absence non posé : raison, sinon `null`.",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "absence",
+          "affected",
+          "roleWarning"
+        ],
+        "type": "object"
+      },
+      "EndedAbsence": {
+        "properties": {
+          "cancelled": {
+            "description": "`true` : l'absence n'avait pas commencé, elle est annulée.",
+            "type": "boolean"
+          },
+          "roleWarning": {
+            "description": "Rôle d'absence non retiré : raison (l'absence reste ouverte, le bot réessaiera).",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "cancelled",
+          "roleWarning"
+        ],
+        "type": "object"
+      },
       "GuildAccess": {
         "properties": {
           "iconUrl": {
@@ -1044,6 +1161,10 @@
           },
           "id": {
             "type": "string"
+          },
+          "inGroup": {
+            "description": "Membre du groupe (rôle membre, gradé ou lead) : absences, annuaire, saisies à son nom.",
+            "type": "boolean"
           },
           "isAdmin": {
             "type": "boolean"
@@ -1063,7 +1184,187 @@
           "name",
           "iconUrl",
           "isAdmin",
+          "inGroup",
           "perms"
+        ],
+        "type": "object"
+      },
+      "GuildHealth": {
+        "properties": {
+          "channels": {
+            "items": {
+              "$ref": "#/components/schemas/HealthChannel"
+            },
+            "type": "array"
+          },
+          "commit": {
+            "description": "Commit compilé (`GIT_COMMIT` à la compilation), `null` s'il n'est pas connu.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "databaseBytes": {
+            "description": "Taille de la base principale (journal WAL compris), `null` si illisible.",
+            "format": "int64",
+            "minimum": 0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "errors": {
+            "description": "Derniers avertissements et erreurs, du plus récent au plus ancien.",
+            "items": {
+              "$ref": "#/components/schemas/HealthLogEvent"
+            },
+            "type": "array"
+          },
+          "global": {
+            "description": "Vue globale : erreurs de tous les serveurs et sans serveur (administrateur partout).",
+            "type": "boolean"
+          },
+          "messageContent": {
+            "description": "*Message Content Intent* actif (lecture des encadrés du jeu).",
+            "type": "boolean"
+          },
+          "shards": {
+            "items": {
+              "$ref": "#/components/schemas/HealthShard"
+            },
+            "type": "array"
+          },
+          "silentDays": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "startedAt": {
+            "type": "string"
+          },
+          "uptimeSeconds": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "version": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "version",
+          "commit",
+          "startedAt",
+          "uptimeSeconds",
+          "databaseBytes",
+          "messageContent",
+          "shards",
+          "silentDays",
+          "channels",
+          "global",
+          "errors"
+        ],
+        "type": "object"
+      },
+      "GuildOverview": {
+        "properties": {
+          "absences": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/OverviewAbsences",
+                "description": "`presence.stats`."
+              }
+            ]
+          },
+          "journal": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/OverviewJournal",
+                "description": "`site.journal`."
+              }
+            ]
+          },
+          "lowStock": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/OverviewLowStock",
+                "description": "`coffre.voir`, module coffre utilisé."
+              }
+            ]
+          },
+          "objective": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/OverviewObjective",
+                "description": "`cotisation.ajouter`."
+              }
+            ]
+          },
+          "presence": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/OverviewPresence",
+                "description": "`presence.stats`."
+              }
+            ]
+          },
+          "recrues": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/OverviewRecrues",
+                "description": "`recrue.suivi`."
+              }
+            ]
+          },
+          "tickets": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/OverviewTickets",
+                "description": "Staff des tickets, sur le serveur principal du module ticket."
+              }
+            ]
+          },
+          "transactions": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/OverviewTransactions",
+                "description": "`transaction.utiliser`."
+              }
+            ]
+          }
+        },
+        "required": [
+          "lowStock",
+          "objective",
+          "presence",
+          "absences",
+          "recrues",
+          "transactions",
+          "tickets",
+          "journal"
         ],
         "type": "object"
       },
@@ -1117,6 +1418,125 @@
           "recruits",
           "absencesCurrent",
           "tickets"
+        ],
+        "type": "object"
+      },
+      "HealthChannel": {
+        "properties": {
+          "accessible": {
+            "description": "Le bot voit encore le salon.",
+            "type": "boolean"
+          },
+          "channelId": {
+            "type": "string"
+          },
+          "lastCatchUpAt": {
+            "description": "Dernier rattrapage depuis le démarrage (`null` : pas encore fait).",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "lastCatchUpOk": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "lastMovementAt": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "name": {
+            "description": "Nom du salon (cache du bot), `null` s'il est introuvable.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "silent": {
+            "description": "Aucun mouvement depuis `silentDays` jours (ou jamais).",
+            "type": "boolean"
+          },
+          "webhooks": {
+            "description": "Webhooks du jeu reconnus dans ce salon.",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "channelId",
+          "name",
+          "accessible",
+          "webhooks",
+          "lastMovementAt",
+          "lastCatchUpAt",
+          "lastCatchUpOk",
+          "silent"
+        ],
+        "type": "object"
+      },
+      "HealthLevel": {
+        "description": "Gravité d'un événement du journal.",
+        "enum": [
+          "WARN",
+          "ERROR"
+        ],
+        "type": "string"
+      },
+      "HealthLogEvent": {
+        "properties": {
+          "at": {
+            "type": "string"
+          },
+          "level": {
+            "$ref": "#/components/schemas/HealthLevel"
+          },
+          "message": {
+            "type": "string"
+          },
+          "target": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "at",
+          "level",
+          "target",
+          "message"
+        ],
+        "type": "object"
+      },
+      "HealthShard": {
+        "properties": {
+          "connected": {
+            "type": "boolean"
+          },
+          "id": {
+            "format": "int32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "latencyMs": {
+            "format": "int64",
+            "minimum": 0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "seenAt": {
+            "description": "Dernier événement reçu.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "connected",
+          "latencyMs",
+          "seenAt"
         ],
         "type": "object"
       },
@@ -1395,6 +1815,42 @@
         ],
         "type": "string"
       },
+      "LowStockItem": {
+        "properties": {
+          "item": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "min": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "propertyId": {
+            "type": "string"
+          },
+          "propertyName": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "quantity": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "propertyId",
+          "propertyName",
+          "item",
+          "label",
+          "quantity",
+          "min"
+        ],
+        "type": "object"
+      },
       "Me": {
         "properties": {
           "guilds": {
@@ -1474,6 +1930,52 @@
           "to",
           "motif",
           "current"
+        ],
+        "type": "object"
+      },
+      "MemberAttendance": {
+        "properties": {
+          "absent": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "expected": {
+            "description": "Présences clôturées où le membre était attendu.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "member": {
+            "$ref": "#/components/schemas/MemberRef"
+          },
+          "noAnswer": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "present": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "rate": {
+            "description": "Présents ÷ attendus, arrondi ; `null` sans présence attendue.",
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "retard": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "member",
+          "expected",
+          "present",
+          "retard",
+          "absent",
+          "noAnswer",
+          "rate"
         ],
         "type": "object"
       },
@@ -1810,6 +2312,38 @@
         ],
         "type": "string"
       },
+      "NewAbsenceInput": {
+        "description": "Déclaration d'absence : dates en jours de Paris, journées entières.",
+        "properties": {
+          "from": {
+            "description": "Premier jour (`YYYY-MM-DD`) ; absent : aujourd'hui.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "memberId": {
+            "description": "Absent : soi-même ; un autre membre demande `absence.autrui`.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "motif": {
+            "description": "200 caractères au plus.",
+            "type": "string"
+          },
+          "to": {
+            "description": "Dernier jour inclus (`YYYY-MM-DD`).",
+            "type": "string"
+          }
+        },
+        "required": [
+          "motif",
+          "to"
+        ],
+        "type": "object"
+      },
       "NewCotisation": {
         "description": "Absent : soi-même (`memberId`) et aujourd'hui (`date`, jamais dans le futur).",
         "properties": {
@@ -1846,6 +2380,114 @@
           "propre",
           "sale",
           "description"
+        ],
+        "type": "object"
+      },
+      "NewPresenceInput": {
+        "description": "Nouvelle présence : jour (aujourd'hui, ou demain si l'heure est passée) et heure de Paris.",
+        "properties": {
+          "date": {
+            "description": "`YYYY-MM-DD` ; absent : aujourd'hui, ou demain si l'heure est passée.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "description": {
+            "description": "1000 caractères au plus.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "time": {
+            "description": "`HH:MM`.",
+            "type": "string"
+          },
+          "title": {
+            "description": "Absent : « Présence ». 100 caractères au plus.",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "time"
+        ],
+        "type": "object"
+      },
+      "NewScheduleInput": {
+        "properties": {
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "leadHours": {
+            "description": "1 à 144 heures avant l'événement (24 par défaut).",
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "time": {
+            "description": "`HH:MM`, heure de Paris.",
+            "type": "string"
+          },
+          "title": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "weekday": {
+            "description": "1 = lundi … 7 = dimanche.",
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "weekday",
+          "time"
+        ],
+        "type": "object"
+      },
+      "NewTransactionInput": {
+        "properties": {
+          "groupe": {
+            "description": "Groupe concerné, 100 caractères au plus.",
+            "type": "string"
+          },
+          "items": {
+            "description": "25 objets au plus.",
+            "items": {
+              "$ref": "#/components/schemas/TransactionItemInput"
+            },
+            "type": "array"
+          },
+          "note": {
+            "description": "Note libre, 500 caractères au plus (au-delà, coupée).",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "prix": {
+            "description": "Prix total.",
+            "format": "double",
+            "type": "number"
+          },
+          "type": {
+            "$ref": "#/components/schemas/TransactionType"
+          }
+        },
+        "required": [
+          "groupe",
+          "type",
+          "prix"
         ],
         "type": "object"
       },
@@ -1922,6 +2564,222 @@
         ],
         "type": "object"
       },
+      "OverviewAbsences": {
+        "properties": {
+          "count": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "members": {
+            "description": "Absents aujourd'hui (8 au plus, fin la plus proche d'abord).",
+            "items": {
+              "$ref": "#/components/schemas/MemberRef"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "count",
+          "members"
+        ],
+        "type": "object"
+      },
+      "OverviewJournal": {
+        "properties": {
+          "last": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/OverviewJournalEntry",
+                "description": "Dernière entrée du journal, `null` s'il est vide."
+              }
+            ]
+          }
+        },
+        "required": [
+          "last"
+        ],
+        "type": "object"
+      },
+      "OverviewJournalEntry": {
+        "properties": {
+          "actor": {
+            "$ref": "#/components/schemas/MemberRef"
+          },
+          "at": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "at",
+          "actor",
+          "label"
+        ],
+        "type": "object"
+      },
+      "OverviewLowStock": {
+        "properties": {
+          "count": {
+            "description": "Nombre d'objets sous leur seuil (toutes propriétés).",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "items": {
+            "description": "Les plus en manque d'abord, 3 au plus.",
+            "items": {
+              "$ref": "#/components/schemas/LowStockItem"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "count",
+          "items"
+        ],
+        "type": "object"
+      },
+      "OverviewNextPresence": {
+        "properties": {
+          "date": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "myStatus": {
+            "$ref": "#/components/schemas/PresenceStatus"
+          },
+          "responses": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "date",
+          "myStatus",
+          "responses"
+        ],
+        "type": "object"
+      },
+      "OverviewObjective": {
+        "properties": {
+          "progress": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ObjectiveProgress",
+                "description": "Avancement de la personne cette semaine ; `null` sans objectif configuré."
+              }
+            ]
+          },
+          "reached": {
+            "description": "Membres l'ayant atteint (avec `cotisation.stats`, sinon `null`).",
+            "minimum": 0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "tracked": {
+            "description": "Membres concernés cette semaine (hors exemptés ; avec `cotisation.stats`).",
+            "minimum": 0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "progress",
+          "reached",
+          "tracked"
+        ],
+        "type": "object"
+      },
+      "OverviewPresence": {
+        "properties": {
+          "next": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/OverviewNextPresence",
+                "description": "Présence ouverte la plus proche, `null` s'il n'y en a pas."
+              }
+            ]
+          }
+        },
+        "required": [
+          "next"
+        ],
+        "type": "object"
+      },
+      "OverviewRecrues": {
+        "properties": {
+          "count": {
+            "description": "Recrues de la semaine en cours.",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "missingVotes": {
+            "description": "Avis que la personne n'a pas encore donnés (`null` : elle ne donne pas d'avis).",
+            "minimum": 0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "count",
+          "missingVotes"
+        ],
+        "type": "object"
+      },
+      "OverviewTickets": {
+        "properties": {
+          "open": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "open"
+        ],
+        "type": "object"
+      },
+      "OverviewTransactions": {
+        "properties": {
+          "amount": {
+            "description": "Montant engagé dans ces transactions.",
+            "format": "double",
+            "type": "number"
+          },
+          "count": {
+            "description": "Transactions en cours (ni livrées, ni annulées, ni clôturées).",
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "count",
+          "amount"
+        ],
+        "type": "object"
+      },
       "Perm": {
         "description": "Clé d'action soumise à permission.",
         "enum": [
@@ -1934,6 +2792,7 @@
           "transaction.utiliser",
           "transaction.supprimer",
           "transaction.historique",
+          "transaction.modeles",
           "vehicule.utiliser",
           "numero.ajouter_autrui",
           "numero.supprimer_autrui",
@@ -2080,6 +2939,34 @@
         },
         "type": "object"
       },
+      "PhoneEntry": {
+        "properties": {
+          "member": {
+            "$ref": "#/components/schemas/MemberRef"
+          },
+          "number": {
+            "description": "Format affiché : `555-1234`.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "member",
+          "number"
+        ],
+        "type": "object"
+      },
+      "PhoneInput": {
+        "properties": {
+          "number": {
+            "description": "`555` suivi de 4 à 6 chiffres (`555-1234` accepté).",
+            "type": "string"
+          }
+        },
+        "required": [
+          "number"
+        ],
+        "type": "object"
+      },
       "PlayerLink": {
         "properties": {
           "memberId": {
@@ -2088,6 +2975,219 @@
         },
         "required": [
           "memberId"
+        ],
+        "type": "object"
+      },
+      "PresenceAnswer": {
+        "description": "Réponse donnée à une présence.",
+        "enum": [
+          "PRESENT",
+          "ABSENT",
+          "RETARD"
+        ],
+        "type": "string"
+      },
+      "PresenceChange": {
+        "properties": {
+          "at": {
+            "type": "string"
+          },
+          "from": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/PresenceAnswer"
+              }
+            ]
+          },
+          "member": {
+            "$ref": "#/components/schemas/MemberRef"
+          },
+          "to": {
+            "$ref": "#/components/schemas/PresenceAnswer"
+          }
+        },
+        "required": [
+          "member",
+          "from",
+          "to",
+          "at"
+        ],
+        "type": "object"
+      },
+      "PresenceDetail": {
+        "properties": {
+          "absent": {
+            "items": {
+              "$ref": "#/components/schemas/PresenceRespondent"
+            },
+            "type": "array"
+          },
+          "changes": {
+            "description": "Changements d'avis, plus récents d'abord.",
+            "items": {
+              "$ref": "#/components/schemas/PresenceChange"
+            },
+            "type": "array"
+          },
+          "noAnswer": {
+            "items": {
+              "$ref": "#/components/schemas/MemberRef"
+            },
+            "type": "array"
+          },
+          "presence": {
+            "$ref": "#/components/schemas/PresenceSummary"
+          },
+          "present": {
+            "items": {
+              "$ref": "#/components/schemas/PresenceRespondent"
+            },
+            "type": "array"
+          },
+          "retard": {
+            "items": {
+              "$ref": "#/components/schemas/PresenceRespondent"
+            },
+            "type": "array"
+          },
+          "roster": {
+            "description": "Effectif actuel du rôle des présences.",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "presence",
+          "present",
+          "absent",
+          "retard",
+          "noAnswer",
+          "changes",
+          "roster"
+        ],
+        "type": "object"
+      },
+      "PresenceRespondent": {
+        "properties": {
+          "changed": {
+            "description": "A changé d'avis au moins une fois.",
+            "type": "boolean"
+          },
+          "member": {
+            "$ref": "#/components/schemas/MemberRef"
+          },
+          "retardMinutes": {
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "member",
+          "retardMinutes",
+          "changed"
+        ],
+        "type": "object"
+      },
+      "PresenceSchedule": {
+        "properties": {
+          "createdBy": {
+            "$ref": "#/components/schemas/MemberRef"
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "leadHours": {
+            "description": "Publication, en heures avant l'événement.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "nextEvent": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "time": {
+            "description": "`HH:MM`, heure de Paris.",
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "weekday": {
+            "description": "1 = lundi … 7 = dimanche.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "weekdayLabel": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "weekday",
+          "weekdayLabel",
+          "time",
+          "title",
+          "description",
+          "leadHours",
+          "nextEvent",
+          "createdBy"
+        ],
+        "type": "object"
+      },
+      "PresenceStats": {
+        "properties": {
+          "members": {
+            "description": "Du plus assidu au moins assidu.",
+            "items": {
+              "$ref": "#/components/schemas/MemberAttendance"
+            },
+            "type": "array"
+          },
+          "presences": {
+            "description": "Présences clôturées de la période.",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "rate": {
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "threshold": {
+            "description": "Seuil d'alerte du rapport hebdomadaire, en %.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "weekly": {
+            "description": "Semaines de la période (12 dernières pour « tout »), vides comprises.",
+            "items": {
+              "$ref": "#/components/schemas/AttendanceWeek"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "presences",
+          "rate",
+          "threshold",
+          "members",
+          "weekly"
         ],
         "type": "object"
       },
@@ -2101,6 +3201,96 @@
         ],
         "type": "string"
       },
+      "PresenceSummary": {
+        "properties": {
+          "absent": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "closedAt": {
+            "description": "`null` : ouverte.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "createdBy": {
+            "$ref": "#/components/schemas/MemberRef"
+          },
+          "date": {
+            "description": "Heure de l'événement.",
+            "type": "string"
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "noAnswer": {
+            "description": "Membres actuels du rôle sans réponse (comme le message Discord).",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "present": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "retard": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "description",
+          "date",
+          "closedAt",
+          "createdBy",
+          "present",
+          "absent",
+          "retard",
+          "noAnswer"
+        ],
+        "type": "object"
+      },
+      "PresenceSummaryPage": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/PresenceSummary"
+            },
+            "type": "array"
+          },
+          "page": {
+            "description": "1 = première page.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "pageSize": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "total": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "page",
+          "pageSize"
+        ],
+        "type": "object"
+      },
       "PropertyName": {
         "description": "Nom vide (ou `null`) : retirer le nom.",
         "properties": {
@@ -2113,6 +3303,224 @@
         },
         "required": [
           "name"
+        ],
+        "type": "object"
+      },
+      "Recrue": {
+        "properties": {
+          "blanc": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "contre": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "entryId": {
+            "description": "Identifiant du suivi de la semaine (avis et vétos).",
+            "type": "string"
+          },
+          "member": {
+            "$ref": "#/components/schemas/MemberRef"
+          },
+          "myVote": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/RecrueMyVote",
+                "description": "Avis de la personne connectée, `null` si elle n'en a pas donné."
+              }
+            ]
+          },
+          "pour": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "since": {
+            "description": "Première semaine suivie comme recrue.",
+            "type": "string"
+          },
+          "veto": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/Veto"
+              }
+            ]
+          },
+          "votes": {
+            "description": "Avis détaillés : `null` sans `recrue.suivi`.",
+            "items": {
+              "$ref": "#/components/schemas/RecrueVote"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "weeks": {
+            "description": "Semaines d'avis, celle-ci comprise.",
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "entryId",
+          "member",
+          "since",
+          "weeks",
+          "pour",
+          "contre",
+          "blanc",
+          "veto",
+          "myVote",
+          "votes"
+        ],
+        "type": "object"
+      },
+      "RecrueChoice": {
+        "description": "Avis sur une recrue.",
+        "enum": [
+          "POUR",
+          "CONTRE",
+          "BLANC"
+        ],
+        "type": "string"
+      },
+      "RecrueHistoryWeek": {
+        "properties": {
+          "blanc": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "contre": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "pour": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "veto": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/Veto"
+              }
+            ]
+          },
+          "votes": {
+            "items": {
+              "$ref": "#/components/schemas/RecrueVote"
+            },
+            "type": "array"
+          },
+          "weekStart": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "weekStart",
+          "pour",
+          "contre",
+          "blanc",
+          "veto",
+          "votes"
+        ],
+        "type": "object"
+      },
+      "RecrueMyVote": {
+        "properties": {
+          "choice": {
+            "$ref": "#/components/schemas/RecrueChoice"
+          },
+          "motif": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "choice",
+          "motif"
+        ],
+        "type": "object"
+      },
+      "RecrueVetoInput": {
+        "properties": {
+          "motif": {
+            "description": "Obligatoire, 500 caractères au plus.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "motif"
+        ],
+        "type": "object"
+      },
+      "RecrueVote": {
+        "properties": {
+          "choice": {
+            "$ref": "#/components/schemas/RecrueChoice"
+          },
+          "motif": {
+            "type": "string"
+          },
+          "voter": {
+            "$ref": "#/components/schemas/MemberRef"
+          }
+        },
+        "required": [
+          "voter",
+          "choice",
+          "motif"
+        ],
+        "type": "object"
+      },
+      "RecrueVoteInput": {
+        "properties": {
+          "choice": {
+            "$ref": "#/components/schemas/RecrueChoice"
+          },
+          "motif": {
+            "description": "Obligatoire, 500 caractères au plus.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "choice",
+          "motif"
+        ],
+        "type": "object"
+      },
+      "RecruesResponse": {
+        "properties": {
+          "configured": {
+            "description": "Module configuré (rôles recrue et gradé).",
+            "type": "boolean"
+          },
+          "recruits": {
+            "items": {
+              "$ref": "#/components/schemas/Recrue"
+            },
+            "type": "array"
+          },
+          "weekStart": {
+            "description": "Lundi de la semaine en cours (jour de Paris), `null` sans semaine ouverte.",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "configured",
+          "weekStart",
+          "recruits"
         ],
         "type": "object"
       },
@@ -2499,6 +3907,13 @@
             },
             "type": "array"
           },
+          "note": {
+            "description": "Note libre saisie à la création (Discord).",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "prix": {
             "format": "double",
             "type": "number"
@@ -2522,7 +3937,8 @@
           "statusLabel",
           "prix",
           "creator",
-          "items"
+          "items",
+          "note"
         ],
         "type": "object"
       },
@@ -2547,6 +3963,33 @@
           "nom",
           "quantite",
           "prixUnitaire"
+        ],
+        "type": "object"
+      },
+      "TransactionItemInput": {
+        "properties": {
+          "nom": {
+            "description": "100 caractères au plus.",
+            "type": "string"
+          },
+          "prixUnitaire": {
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "quantite": {
+            "description": "1 par défaut.",
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "nom"
         ],
         "type": "object"
       },
@@ -2633,6 +4076,18 @@
         ],
         "type": "object"
       },
+      "TransactionStatusInput": {
+        "properties": {
+          "status": {
+            "$ref": "#/components/schemas/TransactionStatus",
+            "description": "Tout statut sauf `ANNULEE` (annulation : route dédiée)."
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "type": "object"
+      },
       "TransactionTotals": {
         "properties": {
           "achats": {
@@ -2702,6 +4157,97 @@
         ],
         "type": "object"
       },
+      "VehicleEntry": {
+        "properties": {
+          "model": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "ownerMember": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/MemberRef",
+                "description": "Propriétaire membre (`null` si c'est un rôle)."
+              }
+            ]
+          },
+          "ownerRole": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/Role",
+                "description": "Propriétaire rôle (`null` si c'est un membre)."
+              }
+            ]
+          },
+          "plate": {
+            "description": "Plaque normalisée (majuscules, sans espace ni tiret).",
+            "type": "string"
+          }
+        },
+        "required": [
+          "plate",
+          "model",
+          "ownerMember",
+          "ownerRole"
+        ],
+        "type": "object"
+      },
+      "VehicleInput": {
+        "properties": {
+          "model": {
+            "description": "Absent : modèle demandé à l'API GLife (un échec n'empêche pas l'ajout).",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "ownerId": {
+            "description": "Identifiant Discord d'un membre (du groupe) ou d'un rôle.",
+            "type": "string"
+          },
+          "ownerIsRole": {
+            "type": "boolean"
+          },
+          "plate": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "plate",
+          "ownerId"
+        ],
+        "type": "object"
+      },
+      "VehiclesResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/VehicleEntry"
+            },
+            "type": "array"
+          },
+          "roles": {
+            "description": "Rôles du serveur, pour choisir un rôle propriétaire (le plus haut d'abord).",
+            "items": {
+              "$ref": "#/components/schemas/Role"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "items",
+          "roles"
+        ],
+        "type": "object"
+      },
       "Veto": {
         "properties": {
           "by": {
@@ -2750,6 +4296,209 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/api/guilds/{guild}/absences": {
+      "get": {
+        "operationId": "getAbsences",
+        "parameters": [
+          {
+            "description": "Identifiant du serveur",
+            "in": "path",
+            "name": "guild",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AbsencesResponse"
+                }
+              }
+            },
+            "description": "Absences"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Pas connecté"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Pas membre du groupe"
+          }
+        },
+        "summary": "Absences en cours, à venir et récentes (membres du groupe).",
+        "tags": [
+          "absences"
+        ]
+      },
+      "post": {
+        "operationId": "createAbsence",
+        "parameters": [
+          {
+            "description": "Identifiant du serveur",
+            "in": "path",
+            "name": "guild",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NewAbsenceInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeclaredAbsence"
+                }
+              }
+            },
+            "description": "Absence enregistrée"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Requête invalide"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Pas connecté"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Droit insuffisant"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Saisie refusée"
+          }
+        },
+        "summary": "Déclare une absence (soi : membre du groupe ; un autre membre : `absence.autrui`).",
+        "tags": [
+          "absences"
+        ]
+      }
+    },
+    "/api/guilds/{guild}/absences/{id}/end": {
+      "post": {
+        "operationId": "endAbsence",
+        "parameters": [
+          {
+            "description": "Identifiant du serveur",
+            "in": "path",
+            "name": "guild",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Identifiant de l'absence",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EndedAbsence"
+                }
+              }
+            },
+            "description": "Absence terminée ou annulée"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Pas connecté"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Droit insuffisant"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Introuvable"
+          }
+        },
+        "summary": "Termine une absence en cours, ou annule une absence à venir (soi, ou `absence.autrui`).",
+        "tags": [
+          "absences"
+        ]
+      }
+    },
     "/api/guilds/{guild}/coffres/alerts": {
       "get": {
         "operationId": "getCoffreAlerts",
@@ -4712,6 +6461,129 @@
         ]
       }
     },
+    "/api/guilds/{guild}/events": {
+      "get": {
+        "operationId": "getGuildEvents",
+        "parameters": [
+          {
+            "description": "Identifiant du serveur",
+            "in": "path",
+            "name": "guild",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Flux `text/event-stream` : `event: change`, `data: <sujet>`"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Pas connecté"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Pas membre du serveur"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Trop de connexions ouvertes"
+          }
+        },
+        "summary": "Changements du serveur en direct (membre du serveur).",
+        "tags": [
+          "stats"
+        ]
+      }
+    },
+    "/api/guilds/{guild}/health": {
+      "get": {
+        "operationId": "getGuildHealth",
+        "parameters": [
+          {
+            "description": "Identifiant du serveur",
+            "in": "path",
+            "name": "guild",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Jours sans mouvement avant l'alerte « webhook silencieux » (1 à 365, 7 par défaut).",
+            "in": "query",
+            "name": "jours",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GuildHealth"
+                }
+              }
+            },
+            "description": "Santé"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Pas connecté"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Réservé à « Gérer le serveur »"
+          }
+        },
+        "summary": "Santé du bot vue depuis un serveur (« Gérer le serveur »).",
+        "tags": [
+          "reglages"
+        ]
+      }
+    },
     "/api/guilds/{guild}/journal": {
       "get": {
         "operationId": "getJournal",
@@ -4917,6 +6789,275 @@
         ]
       }
     },
+    "/api/guilds/{guild}/numeros": {
+      "get": {
+        "operationId": "getPhones",
+        "parameters": [
+          {
+            "description": "Identifiant du serveur",
+            "in": "path",
+            "name": "guild",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Texte cherché (plaque, modèle, propriétaire ; nom ou numéro).",
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/PhoneEntry"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Numéros"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Pas connecté"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Pas membre du groupe"
+          }
+        },
+        "summary": "Numéros des membres (membres du groupe, comme `/numero voir`).",
+        "tags": [
+          "annuaire"
+        ]
+      }
+    },
+    "/api/guilds/{guild}/numeros/{user}": {
+      "delete": {
+        "operationId": "deletePhone",
+        "parameters": [
+          {
+            "description": "Identifiant du serveur",
+            "in": "path",
+            "name": "guild",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Identifiant Discord du membre",
+            "in": "path",
+            "name": "user",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Supprimé"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Pas connecté"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Droit insuffisant"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Aucun numéro"
+          }
+        },
+        "summary": "Supprime un numéro : le sien, celui d'un autre (`numero.supprimer_autrui`).",
+        "tags": [
+          "annuaire"
+        ]
+      },
+      "put": {
+        "operationId": "setPhone",
+        "parameters": [
+          {
+            "description": "Identifiant du serveur",
+            "in": "path",
+            "name": "guild",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Identifiant Discord du membre",
+            "in": "path",
+            "name": "user",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PhoneInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PhoneEntry"
+                }
+              }
+            },
+            "description": "Numéro enregistré"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Requête invalide"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Pas connecté"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Droit insuffisant"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Saisie refusée"
+          }
+        },
+        "summary": "Enregistre un numéro : le sien (membre du groupe), celui d'un autre (`numero.ajouter_autrui`).",
+        "tags": [
+          "annuaire"
+        ]
+      }
+    },
+    "/api/guilds/{guild}/overview": {
+      "get": {
+        "operationId": "getGuildOverview",
+        "parameters": [
+          {
+            "description": "Identifiant du serveur",
+            "in": "path",
+            "name": "guild",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GuildOverview"
+                }
+              }
+            },
+            "description": "Tuiles de l'accueil"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Pas connecté"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Pas membre du serveur"
+          }
+        },
+        "summary": "Accueil du serveur : une tuile par module ouvert à la personne.",
+        "tags": [
+          "stats"
+        ]
+      }
+    },
     "/api/guilds/{guild}/permissions": {
       "get": {
         "operationId": "getPermissions",
@@ -5046,6 +7187,1037 @@
         "summary": "Change le rôle membre et des niveaux, comme `/config permission` (« Gérer le serveur »).",
         "tags": [
           "reglages"
+        ]
+      }
+    },
+    "/api/guilds/{guild}/presences": {
+      "get": {
+        "operationId": "getPresences",
+        "parameters": [
+          {
+            "description": "Identifiant du serveur",
+            "in": "path",
+            "name": "guild",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "`a_venir` (ouvertes, pas encore passées), `ouvertes` ou `closes` ; absent : toutes.",
+            "in": "query",
+            "name": "etat",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Premier jour (`YYYY-MM-DD`, heure de Paris).",
+            "in": "query",
+            "name": "du",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Dernier jour inclus.",
+            "in": "query",
+            "name": "au",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Page (1 = première).",
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PresenceSummaryPage"
+                }
+              }
+            },
+            "description": "Présences"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Pas connecté"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Droit insuffisant"
+          }
+        },
+        "summary": "Présences du serveur, paginées (`presence.stats`).",
+        "tags": [
+          "presences"
+        ]
+      },
+      "post": {
+        "operationId": "createPresence",
+        "parameters": [
+          {
+            "description": "Identifiant du serveur",
+            "in": "path",
+            "name": "guild",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NewPresenceInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PresenceSummary"
+                }
+              }
+            },
+            "description": "Présence publiée"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Requête invalide"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Pas connecté"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Droit insuffisant"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Saisie refusée"
+          }
+        },
+        "summary": "Crée et publie une présence dans le salon des présences, avec le ping habituel (`presence.creer`).",
+        "tags": [
+          "presences"
+        ]
+      }
+    },
+    "/api/guilds/{guild}/presences/export.csv": {
+      "get": {
+        "operationId": "exportPresenceStats",
+        "parameters": [
+          {
+            "description": "Identifiant du serveur",
+            "in": "path",
+            "name": "guild",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Les N derniers jours (30 par défaut), `tout` : depuis le début.",
+            "in": "query",
+            "name": "jours",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "text/csv": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Fichier CSV"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Pas connecté"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Droit insuffisant"
+          }
+        },
+        "summary": "Export CSV de l'assiduité par membre, même période que la page.",
+        "tags": [
+          "presences"
+        ]
+      }
+    },
+    "/api/guilds/{guild}/presences/plannings": {
+      "get": {
+        "operationId": "getPresenceSchedules",
+        "parameters": [
+          {
+            "description": "Identifiant du serveur",
+            "in": "path",
+            "name": "guild",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/PresenceSchedule"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Plannings"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Pas connecté"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Droit insuffisant"
+          }
+        },
+        "summary": "Présences récurrentes (`presence.gerer`).",
+        "tags": [
+          "presences"
+        ]
+      },
+      "post": {
+        "operationId": "createPresenceSchedule",
+        "parameters": [
+          {
+            "description": "Identifiant du serveur",
+            "in": "path",
+            "name": "guild",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NewScheduleInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PresenceSchedule"
+                }
+              }
+            },
+            "description": "Planning ajouté"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Requête invalide"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Pas connecté"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Droit insuffisant"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Saisie refusée"
+          }
+        },
+        "summary": "Ajoute une présence récurrente (`presence.gerer`).",
+        "tags": [
+          "presences"
+        ]
+      }
+    },
+    "/api/guilds/{guild}/presences/plannings/{id}": {
+      "delete": {
+        "operationId": "deletePresenceSchedule",
+        "parameters": [
+          {
+            "description": "Identifiant du serveur",
+            "in": "path",
+            "name": "guild",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Identifiant du planning",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Supprimé"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Pas connecté"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Droit insuffisant"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Introuvable"
+          }
+        },
+        "summary": "Supprime une présence récurrente ; les présences déjà publiées restent (`presence.gerer`).",
+        "tags": [
+          "presences"
+        ]
+      }
+    },
+    "/api/guilds/{guild}/presences/stats": {
+      "get": {
+        "operationId": "getPresenceStats",
+        "parameters": [
+          {
+            "description": "Identifiant du serveur",
+            "in": "path",
+            "name": "guild",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Les N derniers jours (30 par défaut), `tout` : depuis le début.",
+            "in": "query",
+            "name": "jours",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PresenceStats"
+                }
+              }
+            },
+            "description": "Assiduité"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Pas connecté"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Droit insuffisant"
+          }
+        },
+        "summary": "Assiduité par membre et par semaine (`presence.stats`).",
+        "tags": [
+          "presences"
+        ]
+      }
+    },
+    "/api/guilds/{guild}/presences/{id}": {
+      "get": {
+        "operationId": "getPresence",
+        "parameters": [
+          {
+            "description": "Identifiant du serveur",
+            "in": "path",
+            "name": "guild",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Identifiant de la présence",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PresenceDetail"
+                }
+              }
+            },
+            "description": "Présence"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Pas connecté"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Droit insuffisant"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Introuvable"
+          }
+        },
+        "summary": "Détail d'une présence (`presence.stats`).",
+        "tags": [
+          "presences"
+        ]
+      }
+    },
+    "/api/guilds/{guild}/presences/{id}/close": {
+      "post": {
+        "operationId": "closePresence",
+        "parameters": [
+          {
+            "description": "Identifiant du serveur",
+            "in": "path",
+            "name": "guild",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Identifiant de la présence",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PresenceDetail"
+                }
+              }
+            },
+            "description": "Présence clôturée"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Pas connecté"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Droit insuffisant"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Introuvable"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Déjà clôturée"
+          }
+        },
+        "summary": "Clôture une présence ouverte (`presence.creer`, comme `/presence close`).",
+        "tags": [
+          "presences"
+        ]
+      }
+    },
+    "/api/guilds/{guild}/recrues": {
+      "get": {
+        "operationId": "getRecrues",
+        "parameters": [
+          {
+            "description": "Identifiant du serveur",
+            "in": "path",
+            "name": "guild",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecruesResponse"
+                }
+              }
+            },
+            "description": "Recrues de la semaine"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Pas connecté"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Droit insuffisant"
+          }
+        },
+        "summary": "Recrues de la semaine (`recrue.suivi`, `recrue.avis` ou `recrue.veto`).",
+        "tags": [
+          "recrues"
+        ]
+      }
+    },
+    "/api/guilds/{guild}/recrues/{id}/history": {
+      "get": {
+        "operationId": "getRecrueHistory",
+        "parameters": [
+          {
+            "description": "Identifiant du serveur",
+            "in": "path",
+            "name": "guild",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Identifiant Discord du membre",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/RecrueHistoryWeek"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Historique"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Pas connecté"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Droit insuffisant"
+          }
+        },
+        "summary": "Semaines d'avis d'un membre, de la plus récente à la plus ancienne (`recrue.suivi`).",
+        "tags": [
+          "recrues"
+        ]
+      }
+    },
+    "/api/guilds/{guild}/recrues/{id}/veto": {
+      "delete": {
+        "operationId": "clearRecrueVeto",
+        "parameters": [
+          {
+            "description": "Identifiant du serveur",
+            "in": "path",
+            "name": "guild",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Identifiant du suivi de la semaine",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Véto levé"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Pas connecté"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Droit insuffisant"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Introuvable"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Aucun véto"
+          }
+        },
+        "summary": "Lève le véto d'une recrue de la semaine (`recrue.veto`, stricte).",
+        "tags": [
+          "recrues"
+        ]
+      },
+      "put": {
+        "operationId": "setRecrueVeto",
+        "parameters": [
+          {
+            "description": "Identifiant du serveur",
+            "in": "path",
+            "name": "guild",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Identifiant du suivi de la semaine",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecrueVetoInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Veto"
+                }
+              }
+            },
+            "description": "Véto posé"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Requête invalide"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Pas connecté"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Droit insuffisant"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Introuvable"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Saisie refusée"
+          }
+        },
+        "summary": "Pose un véto sur une recrue de la semaine (`recrue.veto`, stricte).",
+        "tags": [
+          "recrues"
+        ]
+      }
+    },
+    "/api/guilds/{guild}/recrues/{id}/vote": {
+      "put": {
+        "operationId": "voteRecrue",
+        "parameters": [
+          {
+            "description": "Identifiant du serveur",
+            "in": "path",
+            "name": "guild",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Identifiant du suivi de la semaine",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecrueVoteInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecrueMyVote"
+                }
+              }
+            },
+            "description": "Avis enregistré"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Requête invalide"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Pas connecté"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Droit insuffisant"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Introuvable"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Saisie refusée"
+          }
+        },
+        "summary": "Donne (ou remplace) son avis sur une recrue de la semaine (`recrue.avis`, stricte).",
+        "tags": [
+          "recrues"
         ]
       }
     },
@@ -5205,6 +8377,86 @@
         "tags": [
           "transactions"
         ]
+      },
+      "post": {
+        "operationId": "createTransaction",
+        "parameters": [
+          {
+            "description": "Identifiant du serveur",
+            "in": "path",
+            "name": "guild",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NewTransactionInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Transaction"
+                }
+              }
+            },
+            "description": "Transaction créée"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Requête invalide"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Pas connecté"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Droit insuffisant"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Saisie refusée"
+          }
+        },
+        "summary": "Crée une transaction et publie sa fiche dans le salon du tableau de bord (`transaction.utiliser`).",
+        "tags": [
+          "transactions"
+        ]
       }
     },
     "/api/guilds/{guild}/transactions/export.csv": {
@@ -5310,6 +8562,494 @@
         "summary": "Export CSV, mêmes filtres que la liste.",
         "tags": [
           "transactions"
+        ]
+      }
+    },
+    "/api/guilds/{guild}/transactions/{id}/cancel": {
+      "post": {
+        "operationId": "cancelTransaction",
+        "parameters": [
+          {
+            "description": "Identifiant du serveur",
+            "in": "path",
+            "name": "guild",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Identifiant de la transaction",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Transaction"
+                }
+              }
+            },
+            "description": "Transaction annulée"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Pas connecté"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Droit insuffisant"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Introuvable"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Transaction clôturée"
+          }
+        },
+        "summary": "Annule une transaction non clôturée (`transaction.utiliser`).",
+        "tags": [
+          "transactions"
+        ]
+      }
+    },
+    "/api/guilds/{guild}/transactions/{id}/items": {
+      "post": {
+        "operationId": "addTransactionItem",
+        "parameters": [
+          {
+            "description": "Identifiant du serveur",
+            "in": "path",
+            "name": "guild",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Identifiant de la transaction",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TransactionItemInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Transaction"
+                }
+              }
+            },
+            "description": "Objet ajouté"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Requête invalide"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Pas connecté"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Droit insuffisant"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Introuvable"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Saisie refusée ou transaction clôturée"
+          }
+        },
+        "summary": "Ajoute un objet à une transaction non clôturée (`transaction.utiliser`).",
+        "tags": [
+          "transactions"
+        ]
+      }
+    },
+    "/api/guilds/{guild}/transactions/{id}/status": {
+      "put": {
+        "operationId": "setTransactionStatus",
+        "parameters": [
+          {
+            "description": "Identifiant du serveur",
+            "in": "path",
+            "name": "guild",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Identifiant de la transaction",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TransactionStatusInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Transaction"
+                }
+              }
+            },
+            "description": "Statut changé"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Requête invalide"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Pas connecté"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Droit insuffisant"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Introuvable"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Saisie refusée ou transaction clôturée"
+          }
+        },
+        "summary": "Change le statut d'une transaction non clôturée (`transaction.utiliser`).",
+        "tags": [
+          "transactions"
+        ]
+      }
+    },
+    "/api/guilds/{guild}/vehicules": {
+      "get": {
+        "operationId": "getVehicles",
+        "parameters": [
+          {
+            "description": "Identifiant du serveur",
+            "in": "path",
+            "name": "guild",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Texte cherché (plaque, modèle, propriétaire ; nom ou numéro).",
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VehiclesResponse"
+                }
+              }
+            },
+            "description": "Véhicules"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Pas connecté"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Droit insuffisant"
+          }
+        },
+        "summary": "Véhicules enregistrés (`vehicule.utiliser`).",
+        "tags": [
+          "annuaire"
+        ]
+      },
+      "post": {
+        "operationId": "createVehicle",
+        "parameters": [
+          {
+            "description": "Identifiant du serveur",
+            "in": "path",
+            "name": "guild",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VehicleInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VehicleEntry"
+                }
+              }
+            },
+            "description": "Véhicule enregistré"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Requête invalide"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Pas connecté"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Droit insuffisant"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Saisie refusée"
+          }
+        },
+        "summary": "Enregistre un véhicule (`vehicule.utiliser`).",
+        "tags": [
+          "annuaire"
+        ]
+      }
+    },
+    "/api/guilds/{guild}/vehicules/{plate}": {
+      "delete": {
+        "operationId": "deleteVehicle",
+        "parameters": [
+          {
+            "description": "Identifiant du serveur",
+            "in": "path",
+            "name": "guild",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Plaque",
+            "in": "path",
+            "name": "plate",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Retiré"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Pas connecté"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Droit insuffisant"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Introuvable"
+          }
+        },
+        "summary": "Retire un véhicule du registre (`vehicule.utiliser`).",
+        "tags": [
+          "annuaire"
         ]
       }
     },
@@ -5577,6 +9317,22 @@
     {
       "description": "Tickets (module ticket)",
       "name": "tickets"
+    },
+    {
+      "description": "Présences, assiduité et plannings",
+      "name": "presences"
+    },
+    {
+      "description": "Absences déclarées",
+      "name": "absences"
+    },
+    {
+      "description": "Avis et vétos sur les recrues",
+      "name": "recrues"
+    },
+    {
+      "description": "Véhicules et numéros",
+      "name": "annuaire"
     }
   ]
 }
