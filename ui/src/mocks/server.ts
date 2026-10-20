@@ -42,6 +42,7 @@ import type {
   TransactionsResponse,
   WeeklyAmount,
 } from '@/api/types'
+import type { GuildHealth, GuildOverview } from '@/api/types-site'
 import {
   fallbackItemLabel,
   isPropertyId,
@@ -1039,6 +1040,134 @@ route('GET', '/api/logs/:id', (m): TicketLog => {
     },
     rawUrl: `/logs/${at(m, 1)}?raw=1`,
     entries,
+  }
+})
+
+// Accueil et santé.
+route('GET', `${G}/overview`, (m): GuildOverview => {
+  const guild = requireGuild(at(m, 1))
+  const can = (perm: Perm) => guild.perms.includes(perm) && guild.id !== GUILD_B_ID
+  const low = coffreStock(new URLSearchParams()).properties.flatMap((property) =>
+    property.items
+      .filter((item) => item.low)
+      .map((item) => {
+        const rule = coffreAlerts.value.thresholds.find((threshold) => threshold.item === item.item)
+        return {
+          propertyId: property.id,
+          propertyName: property.name,
+          item: item.item,
+          label: item.label,
+          quantity: item.quantity,
+          min: rule?.min ?? 0,
+        }
+      }),
+  )
+  const week = objectiveProgress()
+  const mine = objectiveProgress(ME.id)[0] ?? null
+  const open = TRANSACTIONS.filter((item) => !['LIVRE_PAYE', 'ANNULEE', 'CLOTUREE'].includes(item.status))
+  const concerned = week.filter((row) => !row.exempt)
+  const [last] = JOURNAL
+  return {
+    lowStock: can('coffre.voir') ? { count: low.length, items: low.slice(0, 3) } : null,
+    objective: can('cotisation.ajouter')
+      ? {
+          progress: mine,
+          reached: can('cotisation.stats') && mine ? concerned.filter((row) => row.reached).length : null,
+          tracked: can('cotisation.stats') && mine ? concerned.length : null,
+        }
+      : null,
+    presence: can('presence.stats')
+      ? {
+          next: {
+            id: 'presence-prochaine',
+            title: PRESENCE_TITLES[0] ?? 'Présence',
+            date: new Date(NOW + 26 * 3_600_000).toISOString(),
+            myStatus: 'NON_REPONDU',
+            responses: 9,
+          },
+        }
+      : null,
+    absences: can('presence.stats')
+      ? {
+          count: stats().absencesCurrent.length,
+          members: stats().absencesCurrent.map((absence) => absence.member),
+        }
+      : null,
+    recrues: can('recrue.suivi')
+      ? { count: stats().recruits.length, missingVotes: can('recrue.avis') ? 1 : null }
+      : null,
+    transactions: can('transaction.utiliser')
+      ? { count: open.length, amount: open.reduce((sum, item) => sum + item.prix, 0) }
+      : null,
+    tickets:
+      scenario() === 'admin' && guild.id !== GUILD_B_ID
+        ? { open: TICKETS.filter((t) => t.status === 'OPEN').length }
+        : null,
+    journal: can('site.journal') ? { last: last ? { at: last.at, actor: last.actor, label: last.label } : null } : null,
+  }
+})
+const daysBefore = (days: number) => new Date(NOW - days * 86_400_000).toISOString()
+
+route('GET', `${G}/health`, (m, p): GuildHealth => {
+  requireGuild(at(m, 1), 'admin')
+  const silentDays = Number(p.get('jours') ?? 7) || 7
+  const last = daysBefore
+  return {
+    version: '2.0.0',
+    commit: '82a4b2b0c1d2',
+    startedAt: last(3.2),
+    uptimeSeconds: Math.round(3.2 * 86_400),
+    databaseBytes: 18_874_368,
+    messageContent: true,
+    shards: [{ id: 0, connected: true, latencyMs: 74, seenAt: last(0.0003) }],
+    silentDays,
+    channels: [
+      {
+        channelId: '1290000000000000010',
+        name: 'coffre-planque',
+        accessible: true,
+        webhooks: 2,
+        lastMovementAt: last(0.2),
+        lastCatchUpAt: last(3.2),
+        lastCatchUpOk: true,
+        silent: false,
+      },
+      {
+        channelId: '1290000000000000012',
+        name: 'coffre-garage',
+        accessible: true,
+        webhooks: 1,
+        lastMovementAt: last(9),
+        lastCatchUpAt: last(3.2),
+        lastCatchUpOk: true,
+        silent: silentDays < 9,
+      },
+      {
+        channelId: '1290000000000000014',
+        name: null,
+        accessible: false,
+        webhooks: 0,
+        lastMovementAt: null,
+        lastCatchUpAt: last(3.2),
+        lastCatchUpOk: false,
+        silent: true,
+      },
+    ],
+    global: true,
+    errors: [
+      {
+        at: last(0.05),
+        level: 'WARN',
+        target: 'bot_discord::modules::coffres::ingest',
+        message: 'coffres : rattrapage impossible : Response error: status code 403',
+      },
+      {
+        at: last(1.4),
+        level: 'ERROR',
+        target: 'bot_discord::web::api',
+        message: "erreur de l'API : database is locked",
+      },
+    ],
   }
 })
 

@@ -5,6 +5,7 @@
 
 import type * as G from './generated/types.gen'
 import type * as T from './types'
+import type * as S from './types-site'
 
 /** Erreur de compilation si `Server` ne convient pas à `Client`. */
 type Fits<Server extends Client, Client> = [Server, Client]
@@ -36,4 +37,7 @@ export type ContractChecks = [
   Fits<G.GetTicketsResponse, T.TicketsResponse>,
   Fits<G.GetTicketStaffResponse, T.TicketStats>,
   Fits<G.GetTicketLogResponse, T.TicketLog>,
+  // Accueil et santé.
+  Fits<G.GetGuildOverviewResponse, S.GuildOverview>,
+  Fits<G.GetGuildHealthResponse, S.GuildHealth>,
 ]

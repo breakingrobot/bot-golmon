@@ -27,7 +27,7 @@ export const GuildPageLink = ({
   const common = {
     className,
     activeProps,
-    activeOptions: { exact: page.key === 'stats' || page.key === 'membres' },
+    activeOptions: { exact: page.key === 'accueil' || page.key === 'membres' },
     onClick: onNavigate,
   }
   if (page.to === null) {

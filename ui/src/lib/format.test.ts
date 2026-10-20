@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  formatBytes,
   formatCompactMoney,
   formatDay,
+  formatDuration,
   formatMoney,
   formatMonth,
   formatNumber,
@@ -90,5 +92,19 @@ describe('dates', () => {
     expect(formatRelative('2026-10-19T11:00:00Z', now)).toBe('il y a 1 heure')
     expect(formatRelative('2026-10-18T12:00:00Z', now)).toBe('hier')
     expect(formatRelative('2026-10-19T12:00:30Z', now)).toBe('dans 30 secondes')
+  })
+})
+
+describe('durées et tailles', () => {
+  it('comme le bot', () => {
+    expect(formatDuration(12 * 60)).toBe('12 min')
+    expect(formatDuration(3 * 3600 + 5 * 60)).toBe('3 h 05')
+    expect(formatDuration(2 * 86_400 + 4 * 3600)).toBe('2 j 4 h')
+  })
+
+  it('tailles en ko et Mo', () => {
+    expect(formatBytes(512 * 1024)).toBe('512 ko')
+    expect(formatBytes(18 * 1024 * 1024)).toBe('18 Mo')
+    expect(formatBytes(2.5 * 1024 * 1024)).toBe('2,5 Mo')
   })
 })

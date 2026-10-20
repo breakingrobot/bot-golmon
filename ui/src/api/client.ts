@@ -85,12 +85,14 @@ export const toQueryString = (query: Query | undefined): string => {
 export const api = async <T>(
   method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE',
   path: string,
-  options: { query?: Query; body?: unknown; signal?: AbortSignal } = {},
+  options: { query?: Query; body?: unknown; signal?: AbortSignal; keepalive?: boolean } = {},
 ): Promise<T> => {
   const doFetch = await getFetcher()
   const headers: Record<string, string> = { Accept: 'application/json' }
   const init: RequestInit = { method, headers, credentials: 'same-origin' }
   if (options.signal) init.signal = options.signal
+  // Requête envoyée pendant la fermeture de l'onglet (« Annuler » expiré au départ de la page).
+  if (options.keepalive) init.keepalive = true
   if (method !== 'GET') {
     headers['X-Requested-With'] = 'fetch'
     headers['Content-Type'] = 'application/json'

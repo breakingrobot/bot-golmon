@@ -489,3 +489,4 @@ export type LogEntry = {
   /** Identifiants techniques (vue « détails techniques »). */
   technical: string | null
 }
+
