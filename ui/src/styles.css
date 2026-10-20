@@ -144,9 +144,22 @@
   }
   body {
     @apply bg-background font-sans text-foreground antialiased;
+    /* Jamais de défilement horizontal de la page : les tableaux larges défilent dans leur cadre. */
+    overflow-x: clip;
   }
   ::selection {
     @apply bg-brand-soft;
+  }
+  /* Écrans tactiles : cibles d'au moins 44 px (boutons, onglets, cases, listes déroulantes). */
+  @media (pointer: coarse) {
+    [data-slot='button'],
+    [data-slot='select-trigger'],
+    [data-slot='toggle-group-item'] {
+      min-height: 2.75rem;
+    }
+    [data-slot='button']:is([class*='size-8'], [class*='size-9']) {
+      min-width: 2.75rem;
+    }
   }
 }
 

@@ -6,6 +6,8 @@ import {
   BarChart3,
   BookUser,
   Coins,
+  HeartPulse,
+  LayoutDashboard,
   ScrollText,
   Settings2,
   ShieldCheck,
@@ -17,6 +19,7 @@ import {
 import type { GuildAccess, Me, Perm } from '@/api/types'
 
 export type GuildPageKey =
+  | 'accueil'
   | 'stats'
   | 'transactions'
   | 'cotisations'
@@ -27,10 +30,12 @@ export type GuildPageKey =
   | 'fiche'
   | 'permissions'
   | 'configuration'
+  | 'sante'
 
 /** Routes d'un serveur sans autre paramètre que `guildId` (la fiche est traitée à part). */
 export type GuildPagePath =
   | '/serveurs/$guildId'
+  | '/serveurs/$guildId/stats'
   | '/serveurs/$guildId/transactions'
   | '/serveurs/$guildId/cotisations'
   | '/serveurs/$guildId/coffres'
@@ -39,6 +44,7 @@ export type GuildPagePath =
   | '/serveurs/$guildId/membres'
   | '/serveurs/$guildId/permissions'
   | '/serveurs/$guildId/configuration'
+  | '/serveurs/$guildId/sante'
 
 export type GuildPage = {
   key: GuildPageKey
@@ -50,7 +56,8 @@ export type GuildPage = {
 }
 
 export const GUILD_PAGES: GuildPage[] = [
-  { key: 'stats', label: 'Statistiques', to: '/serveurs/$guildId', icon: BarChart3, section: 'serveur' },
+  { key: 'accueil', label: 'Accueil', to: '/serveurs/$guildId', icon: LayoutDashboard, section: 'serveur' },
+  { key: 'stats', label: 'Statistiques', to: '/serveurs/$guildId/stats', icon: BarChart3, section: 'serveur' },
   {
     key: 'transactions',
     label: 'Transactions',
@@ -78,12 +85,17 @@ export const GUILD_PAGES: GuildPage[] = [
     icon: Settings2,
     section: 'reglages',
   },
+  { key: 'sante', label: 'Santé', to: '/serveurs/$guildId/sante', icon: HeartPulse, section: 'reglages' },
 ]
 
 export const hasPerm = (guild: GuildAccess | undefined, perm: Perm): boolean => guild?.perms.includes(perm) ?? false
 
 export const canSeePage = (guild: GuildAccess, key: GuildPageKey): boolean => {
   switch (key) {
+    case 'accueil': {
+      // Chaque tuile de l'accueil suit son propre droit.
+      return true
+    }
     case 'stats': {
       return hasPerm(guild, 'site.stats')
     }
@@ -110,7 +122,8 @@ export const canSeePage = (guild: GuildAccess, key: GuildPageKey): boolean => {
       return true
     }
     case 'permissions':
-    case 'configuration': {
+    case 'configuration':
+    case 'sante': {
       return guild.isAdmin
     }
   }

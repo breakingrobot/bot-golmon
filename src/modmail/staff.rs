@@ -90,6 +90,15 @@ pub fn humanize_minutes(minutes: f64) -> String {
 }
 
 impl Modmail {
+    /// Tickets ouverts (accueil du site).
+    pub async fn open_tickets(&self) -> Result<i64> {
+        let (open,): (i64,) = sqlx::query_as("SELECT COUNT(*) FROM `threads` WHERE `status` = ?")
+            .bind(thread_status::OPEN)
+            .fetch_one(&self.db)
+            .await?;
+        Ok(open)
+    }
+
     pub async fn ticket_stats(&self, ctx: &Ctx) -> Result<TicketStats> {
         let since = "datetime('now', '-30 days')";
         let (open,): (i64,) = sqlx::query_as("SELECT COUNT(*) FROM `threads` WHERE `status` = ?")

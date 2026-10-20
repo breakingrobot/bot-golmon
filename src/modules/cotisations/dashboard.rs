@@ -226,6 +226,7 @@ pub async fn sync_dashboard(ctx: &Ctx, guild_id: Id<GuildMarker>) -> Result<()> 
 
 /// Met à jour le tableau sans faire échouer l'action qui l'a déclenchée.
 pub async fn refresh(ctx: &Ctx, guild_id: Id<GuildMarker>) {
+    ctx.events.publish(guild_id, crate::events::Topic::Cotisations);
     if let Err(error) = sync_dashboard(ctx, guild_id).await {
         tracing::warn!(%guild_id, ?error, "mise à jour du tableau des cotisations impossible");
     }

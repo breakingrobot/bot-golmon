@@ -40,6 +40,9 @@ export type AddCotisationDialogProps = {
   /** Membre imposé (fiche d'un membre). */
   fixedMember?: MemberRef | null
   triggerLabel?: string
+  /** Ouverture pilotée de l'extérieur (palette de commandes) : sans bouton déclencheur. */
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
 }
 
 export const AddCotisationDialog = ({
@@ -47,8 +50,16 @@ export const AddCotisationDialog = ({
   canManage,
   fixedMember,
   triggerLabel = 'Ajouter une cotisation',
+  open: controlledOpen,
+  onOpenChange,
 }: AddCotisationDialogProps) => {
-  const [open, setOpen] = useState(false)
+  const [localOpen, setLocalOpen] = useState(false)
+  const controlled = controlledOpen !== undefined
+  const open = controlled ? controlledOpen : localOpen
+  const setOpen = (next: boolean) => {
+    if (!controlled) setLocalOpen(next)
+    onOpenChange?.(next)
+  }
   const [forOther, setForOther] = useState(Boolean(fixedMember))
   const [target, setTarget] = useState<MemberRef | null>(fixedMember ?? null)
   const [propre, setPropre] = useState('')
@@ -108,11 +119,13 @@ export const AddCotisationDialog = ({
         if (!next) reset()
       }}
     >
-      <DialogTrigger asChild>
-        <Button size="sm">
-          <Plus aria-hidden /> {triggerLabel}
-        </Button>
-      </DialogTrigger>
+      {!controlled && (
+        <DialogTrigger asChild>
+          <Button size="sm">
+            <Plus aria-hidden /> {triggerLabel}
+          </Button>
+        </DialogTrigger>
+      )}
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Ajouter une cotisation</DialogTitle>

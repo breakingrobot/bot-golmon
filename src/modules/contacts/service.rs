@@ -298,6 +298,7 @@ pub fn build_directory(contacts: &[Contact]) -> Vec<Component> {
 /// Met à jour (ou publie) l'annuaire s'il est configuré. Une erreur Discord est
 /// tracée sans faire échouer l'action qui l'a déclenchée.
 pub async fn sync_directory(ctx: &Ctx, guild_id: &str) -> Result<()> {
+    ctx.events.publish(guild_id, crate::events::Topic::Contacts);
     let config = get_config(&ctx.db, guild_id).await?;
     let Some(channel_id) = config.channel_id.as_deref().and_then(parse_id) else {
         return Ok(());

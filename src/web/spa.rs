@@ -12,7 +12,8 @@ use std::path::{Component, Path, PathBuf};
 
 /// Fichiers dont le nom contient une empreinte (`/assets/index-DU_ummdE.js`) : immuables.
 const IMMUTABLE: &str = "public, max-age=31536000, immutable";
-/// `index.html` et fichiers sans empreinte : toujours revalidés.
+/// `index.html` et fichiers sans empreinte (dont `sw.js` et `manifest.webmanifest`,
+/// qu'un cache long empêcherait de mettre à jour) : toujours revalidés.
 const REVALIDATE: &str = "no-cache";
 
 fn content_type(path: &Path) -> &'static str {

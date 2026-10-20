@@ -21,6 +21,10 @@ RUN mkdir src && echo "fn main() {}" > src/main.rs \
 
 COPY migrations ./migrations
 COPY src ./src
+# Commit affiché sur la page « Santé » du site (facultatif) :
+# docker build --build-arg GIT_COMMIT=$(git rev-parse HEAD) .
+ARG GIT_COMMIT=""
+ENV GIT_COMMIT=$GIT_COMMIT
 RUN cargo build --release --locked
 
 # --- 3. Image d'exécution ----------------------------------------------------

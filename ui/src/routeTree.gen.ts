@@ -21,12 +21,17 @@ import { Route as StatsIndexRouteImport } from './routes/stats.index'
 import { Route as TicketsIndexRouteImport } from './routes/tickets.index'
 import { Route as TicketsStaffRouteImport } from './routes/tickets.staff'
 import { Route as ServeursGuildIdIndexRouteImport } from './routes/serveurs.$guildId.index'
+import { Route as ServeursGuildIdAbsencesRouteImport } from './routes/serveurs.$guildId.absences'
 import { Route as ServeursGuildIdCoffresRouteImport } from './routes/serveurs.$guildId.coffres'
 import { Route as ServeursGuildIdConfigurationRouteImport } from './routes/serveurs.$guildId.configuration'
 import { Route as ServeursGuildIdContactsRouteImport } from './routes/serveurs.$guildId.contacts'
 import { Route as ServeursGuildIdCotisationsRouteImport } from './routes/serveurs.$guildId.cotisations'
 import { Route as ServeursGuildIdJournalRouteImport } from './routes/serveurs.$guildId.journal'
 import { Route as ServeursGuildIdPermissionsRouteImport } from './routes/serveurs.$guildId.permissions'
+import { Route as ServeursGuildIdPresencesRouteImport } from './routes/serveurs.$guildId.presences'
+import { Route as ServeursGuildIdRecruesRouteImport } from './routes/serveurs.$guildId.recrues'
+import { Route as ServeursGuildIdSanteRouteImport } from './routes/serveurs.$guildId.sante'
+import { Route as ServeursGuildIdStatsRouteImport } from './routes/serveurs.$guildId.stats'
 import { Route as ServeursGuildIdTransactionsRouteImport } from './routes/serveurs.$guildId.transactions'
 import { Route as StatsGuildIdIndexRouteImport } from './routes/stats.$guildId.index'
 import { Route as StatsGuildIdPageRouteImport } from './routes/stats.$guildId.$page'
@@ -93,6 +98,11 @@ const ServeursGuildIdIndexRoute = ServeursGuildIdIndexRouteImport.update({
   path: '/',
   getParentRoute: () => ServeursGuildIdRoute,
 } as any)
+const ServeursGuildIdAbsencesRoute = ServeursGuildIdAbsencesRouteImport.update({
+  id: '/absences',
+  path: '/absences',
+  getParentRoute: () => ServeursGuildIdRoute,
+} as any)
 const ServeursGuildIdCoffresRoute = ServeursGuildIdCoffresRouteImport.update({
   id: '/coffres',
   path: '/coffres',
@@ -126,6 +136,27 @@ const ServeursGuildIdPermissionsRoute =
     path: '/permissions',
     getParentRoute: () => ServeursGuildIdRoute,
   } as any)
+const ServeursGuildIdPresencesRoute =
+  ServeursGuildIdPresencesRouteImport.update({
+    id: '/presences',
+    path: '/presences',
+    getParentRoute: () => ServeursGuildIdRoute,
+  } as any)
+const ServeursGuildIdRecruesRoute = ServeursGuildIdRecruesRouteImport.update({
+  id: '/recrues',
+  path: '/recrues',
+  getParentRoute: () => ServeursGuildIdRoute,
+} as any)
+const ServeursGuildIdSanteRoute = ServeursGuildIdSanteRouteImport.update({
+  id: '/sante',
+  path: '/sante',
+  getParentRoute: () => ServeursGuildIdRoute,
+} as any)
+const ServeursGuildIdStatsRoute = ServeursGuildIdStatsRouteImport.update({
+  id: '/stats',
+  path: '/stats',
+  getParentRoute: () => ServeursGuildIdRoute,
+} as any)
 const ServeursGuildIdTransactionsRoute =
   ServeursGuildIdTransactionsRouteImport.update({
     id: '/transactions',
@@ -167,12 +198,17 @@ export interface FileRoutesByFullPath {
   '/logs/': typeof LogsIndexRoute
   '/stats/': typeof StatsIndexRoute
   '/tickets/': typeof TicketsIndexRoute
+  '/serveurs/$guildId/absences': typeof ServeursGuildIdAbsencesRoute
   '/serveurs/$guildId/coffres': typeof ServeursGuildIdCoffresRoute
   '/serveurs/$guildId/configuration': typeof ServeursGuildIdConfigurationRoute
   '/serveurs/$guildId/contacts': typeof ServeursGuildIdContactsRoute
   '/serveurs/$guildId/cotisations': typeof ServeursGuildIdCotisationsRoute
   '/serveurs/$guildId/journal': typeof ServeursGuildIdJournalRoute
   '/serveurs/$guildId/permissions': typeof ServeursGuildIdPermissionsRoute
+  '/serveurs/$guildId/presences': typeof ServeursGuildIdPresencesRoute
+  '/serveurs/$guildId/recrues': typeof ServeursGuildIdRecruesRoute
+  '/serveurs/$guildId/sante': typeof ServeursGuildIdSanteRoute
+  '/serveurs/$guildId/stats': typeof ServeursGuildIdStatsRoute
   '/serveurs/$guildId/transactions': typeof ServeursGuildIdTransactionsRoute
   '/stats/$guildId/$page': typeof StatsGuildIdPageRoute
   '/serveurs/$guildId/': typeof ServeursGuildIdIndexRoute
@@ -191,12 +227,17 @@ export interface FileRoutesByTo {
   '/logs': typeof LogsIndexRoute
   '/stats': typeof StatsIndexRoute
   '/tickets': typeof TicketsIndexRoute
+  '/serveurs/$guildId/absences': typeof ServeursGuildIdAbsencesRoute
   '/serveurs/$guildId/coffres': typeof ServeursGuildIdCoffresRoute
   '/serveurs/$guildId/configuration': typeof ServeursGuildIdConfigurationRoute
   '/serveurs/$guildId/contacts': typeof ServeursGuildIdContactsRoute
   '/serveurs/$guildId/cotisations': typeof ServeursGuildIdCotisationsRoute
   '/serveurs/$guildId/journal': typeof ServeursGuildIdJournalRoute
   '/serveurs/$guildId/permissions': typeof ServeursGuildIdPermissionsRoute
+  '/serveurs/$guildId/presences': typeof ServeursGuildIdPresencesRoute
+  '/serveurs/$guildId/recrues': typeof ServeursGuildIdRecruesRoute
+  '/serveurs/$guildId/sante': typeof ServeursGuildIdSanteRoute
+  '/serveurs/$guildId/stats': typeof ServeursGuildIdStatsRoute
   '/serveurs/$guildId/transactions': typeof ServeursGuildIdTransactionsRoute
   '/stats/$guildId/$page': typeof StatsGuildIdPageRoute
   '/serveurs/$guildId': typeof ServeursGuildIdIndexRoute
@@ -217,12 +258,17 @@ export interface FileRoutesById {
   '/logs/': typeof LogsIndexRoute
   '/stats/': typeof StatsIndexRoute
   '/tickets/': typeof TicketsIndexRoute
+  '/serveurs/$guildId/absences': typeof ServeursGuildIdAbsencesRoute
   '/serveurs/$guildId/coffres': typeof ServeursGuildIdCoffresRoute
   '/serveurs/$guildId/configuration': typeof ServeursGuildIdConfigurationRoute
   '/serveurs/$guildId/contacts': typeof ServeursGuildIdContactsRoute
   '/serveurs/$guildId/cotisations': typeof ServeursGuildIdCotisationsRoute
   '/serveurs/$guildId/journal': typeof ServeursGuildIdJournalRoute
   '/serveurs/$guildId/permissions': typeof ServeursGuildIdPermissionsRoute
+  '/serveurs/$guildId/presences': typeof ServeursGuildIdPresencesRoute
+  '/serveurs/$guildId/recrues': typeof ServeursGuildIdRecruesRoute
+  '/serveurs/$guildId/sante': typeof ServeursGuildIdSanteRoute
+  '/serveurs/$guildId/stats': typeof ServeursGuildIdStatsRoute
   '/serveurs/$guildId/transactions': typeof ServeursGuildIdTransactionsRoute
   '/stats/$guildId/$page': typeof StatsGuildIdPageRoute
   '/serveurs/$guildId/': typeof ServeursGuildIdIndexRoute
@@ -244,12 +290,17 @@ export interface FileRouteTypes {
     | '/logs/'
     | '/stats/'
     | '/tickets/'
+    | '/serveurs/$guildId/absences'
     | '/serveurs/$guildId/coffres'
     | '/serveurs/$guildId/configuration'
     | '/serveurs/$guildId/contacts'
     | '/serveurs/$guildId/cotisations'
     | '/serveurs/$guildId/journal'
     | '/serveurs/$guildId/permissions'
+    | '/serveurs/$guildId/presences'
+    | '/serveurs/$guildId/recrues'
+    | '/serveurs/$guildId/sante'
+    | '/serveurs/$guildId/stats'
     | '/serveurs/$guildId/transactions'
     | '/stats/$guildId/$page'
     | '/serveurs/$guildId/'
@@ -268,12 +319,17 @@ export interface FileRouteTypes {
     | '/logs'
     | '/stats'
     | '/tickets'
+    | '/serveurs/$guildId/absences'
     | '/serveurs/$guildId/coffres'
     | '/serveurs/$guildId/configuration'
     | '/serveurs/$guildId/contacts'
     | '/serveurs/$guildId/cotisations'
     | '/serveurs/$guildId/journal'
     | '/serveurs/$guildId/permissions'
+    | '/serveurs/$guildId/presences'
+    | '/serveurs/$guildId/recrues'
+    | '/serveurs/$guildId/sante'
+    | '/serveurs/$guildId/stats'
     | '/serveurs/$guildId/transactions'
     | '/stats/$guildId/$page'
     | '/serveurs/$guildId'
@@ -293,12 +349,17 @@ export interface FileRouteTypes {
     | '/logs/'
     | '/stats/'
     | '/tickets/'
+    | '/serveurs/$guildId/absences'
     | '/serveurs/$guildId/coffres'
     | '/serveurs/$guildId/configuration'
     | '/serveurs/$guildId/contacts'
     | '/serveurs/$guildId/cotisations'
     | '/serveurs/$guildId/journal'
     | '/serveurs/$guildId/permissions'
+    | '/serveurs/$guildId/presences'
+    | '/serveurs/$guildId/recrues'
+    | '/serveurs/$guildId/sante'
+    | '/serveurs/$guildId/stats'
     | '/serveurs/$guildId/transactions'
     | '/stats/$guildId/$page'
     | '/serveurs/$guildId/'
@@ -409,6 +470,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ServeursGuildIdIndexRouteImport
       parentRoute: typeof ServeursGuildIdRoute
     }
+    '/serveurs/$guildId/absences': {
+      id: '/serveurs/$guildId/absences'
+      path: '/absences'
+      fullPath: '/serveurs/$guildId/absences'
+      preLoaderRoute: typeof ServeursGuildIdAbsencesRouteImport
+      parentRoute: typeof ServeursGuildIdRoute
+    }
     '/serveurs/$guildId/coffres': {
       id: '/serveurs/$guildId/coffres'
       path: '/coffres'
@@ -451,6 +519,34 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ServeursGuildIdPermissionsRouteImport
       parentRoute: typeof ServeursGuildIdRoute
     }
+    '/serveurs/$guildId/presences': {
+      id: '/serveurs/$guildId/presences'
+      path: '/presences'
+      fullPath: '/serveurs/$guildId/presences'
+      preLoaderRoute: typeof ServeursGuildIdPresencesRouteImport
+      parentRoute: typeof ServeursGuildIdRoute
+    }
+    '/serveurs/$guildId/recrues': {
+      id: '/serveurs/$guildId/recrues'
+      path: '/recrues'
+      fullPath: '/serveurs/$guildId/recrues'
+      preLoaderRoute: typeof ServeursGuildIdRecruesRouteImport
+      parentRoute: typeof ServeursGuildIdRoute
+    }
+    '/serveurs/$guildId/sante': {
+      id: '/serveurs/$guildId/sante'
+      path: '/sante'
+      fullPath: '/serveurs/$guildId/sante'
+      preLoaderRoute: typeof ServeursGuildIdSanteRouteImport
+      parentRoute: typeof ServeursGuildIdRoute
+    }
+    '/serveurs/$guildId/stats': {
+      id: '/serveurs/$guildId/stats'
+      path: '/stats'
+      fullPath: '/serveurs/$guildId/stats'
+      preLoaderRoute: typeof ServeursGuildIdStatsRouteImport
+      parentRoute: typeof ServeursGuildIdRoute
+    }
     '/serveurs/$guildId/transactions': {
       id: '/serveurs/$guildId/transactions'
       path: '/transactions'
@@ -490,12 +586,17 @@ declare module '@tanstack/react-router' {
 }
 
 interface ServeursGuildIdRouteChildren {
+  ServeursGuildIdAbsencesRoute: typeof ServeursGuildIdAbsencesRoute
   ServeursGuildIdCoffresRoute: typeof ServeursGuildIdCoffresRoute
   ServeursGuildIdConfigurationRoute: typeof ServeursGuildIdConfigurationRoute
   ServeursGuildIdContactsRoute: typeof ServeursGuildIdContactsRoute
   ServeursGuildIdCotisationsRoute: typeof ServeursGuildIdCotisationsRoute
   ServeursGuildIdJournalRoute: typeof ServeursGuildIdJournalRoute
   ServeursGuildIdPermissionsRoute: typeof ServeursGuildIdPermissionsRoute
+  ServeursGuildIdPresencesRoute: typeof ServeursGuildIdPresencesRoute
+  ServeursGuildIdRecruesRoute: typeof ServeursGuildIdRecruesRoute
+  ServeursGuildIdSanteRoute: typeof ServeursGuildIdSanteRoute
+  ServeursGuildIdStatsRoute: typeof ServeursGuildIdStatsRoute
   ServeursGuildIdTransactionsRoute: typeof ServeursGuildIdTransactionsRoute
   ServeursGuildIdIndexRoute: typeof ServeursGuildIdIndexRoute
   ServeursGuildIdMembresUserIdRoute: typeof ServeursGuildIdMembresUserIdRoute
@@ -503,12 +604,17 @@ interface ServeursGuildIdRouteChildren {
 }
 
 const ServeursGuildIdRouteChildren: ServeursGuildIdRouteChildren = {
+  ServeursGuildIdAbsencesRoute: ServeursGuildIdAbsencesRoute,
   ServeursGuildIdCoffresRoute: ServeursGuildIdCoffresRoute,
   ServeursGuildIdConfigurationRoute: ServeursGuildIdConfigurationRoute,
   ServeursGuildIdContactsRoute: ServeursGuildIdContactsRoute,
   ServeursGuildIdCotisationsRoute: ServeursGuildIdCotisationsRoute,
   ServeursGuildIdJournalRoute: ServeursGuildIdJournalRoute,
   ServeursGuildIdPermissionsRoute: ServeursGuildIdPermissionsRoute,
+  ServeursGuildIdPresencesRoute: ServeursGuildIdPresencesRoute,
+  ServeursGuildIdRecruesRoute: ServeursGuildIdRecruesRoute,
+  ServeursGuildIdSanteRoute: ServeursGuildIdSanteRoute,
+  ServeursGuildIdStatsRoute: ServeursGuildIdStatsRoute,
   ServeursGuildIdTransactionsRoute: ServeursGuildIdTransactionsRoute,
   ServeursGuildIdIndexRoute: ServeursGuildIdIndexRoute,
   ServeursGuildIdMembresUserIdRoute: ServeursGuildIdMembresUserIdRoute,

@@ -182,6 +182,7 @@ pub fn delay_after(last: Option<Instant>, now: Instant) -> Duration {
 /// Demande une mise à jour du tableau : immédiate si la dernière date d'au
 /// moins une minute, sinon groupée avec les suivantes à la fin de la minute.
 pub fn request_refresh(ctx: &Context, guild_id: &str) {
+    ctx.events.publish(guild_id, crate::events::Topic::Coffres);
     let delay = {
         let mut slots = SLOTS.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
         let slot = slots.entry(guild_id.to_owned()).or_default();

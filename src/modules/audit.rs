@@ -213,6 +213,11 @@ async fn record_for(
     actor_name: &str,
     entry: Entry,
 ) -> Result<()> {
+    // Site en direct : le journal, et la configuration pour un réglage modifié.
+    ctx.events.publish(guild_id, crate::events::Topic::Journal);
+    if entry.action == Action::Config {
+        ctx.events.publish(guild_id, crate::events::Topic::Config);
+    }
     let details = truncate(&entry.details, 1000);
     sqlx::query(
         r#"INSERT INTO "AuditLog" ("guildId", "actorId", "actorName", "action", "targetId", "details", "createdAt")

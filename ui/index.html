@@ -2,10 +2,16 @@
 <html lang="fr">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="robots" content="noindex, nofollow" />
     <meta name="color-scheme" content="light dark" />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <!-- Application installable (téléphone, ordinateur) : manifeste, icônes, couleur de la barre. -->
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta name="apple-mobile-web-app-title" content="Bot du groupe" />
+    <meta name="theme-color" content="#4f46e5" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#16181f" media="(prefers-color-scheme: dark)" />
     <title>Bot Discord</title>
     <!-- Applique le thème avant le premier rendu (fichier externe : la CSP refuse les scripts en ligne). -->
     <script src="/theme-init.js"></script>

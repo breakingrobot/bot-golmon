@@ -1,19 +1,10 @@
-import { Unlink } from 'lucide-react'
-import { useState } from 'react'
+// Délier un personnage : effet immédiat, « Annuler » proposé 6 s avant l'envoi (useUndoableAction).
+// L'historique des mouvements est conservé.
 
-import { useUnlinkPlayer } from '@/api/queries'
+import { Unlink } from 'lucide-react'
+
+import { useUndoableUnlinkPlayer } from '@/api/queries-site'
 import type { MemberRef } from '@/api/types'
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from '@/atoms/AlertDialog'
 import { Button } from '@/atoms/Button'
 
 export type UnlinkCharacterButtonProps = {
@@ -24,35 +15,15 @@ export type UnlinkCharacterButtonProps = {
 }
 
 export const UnlinkCharacterButton = ({ guildId, gameId, name, member }: UnlinkCharacterButtonProps) => {
-  const [open, setOpen] = useState(false)
-  const mutation = useUnlinkPlayer(guildId)
+  const unlink = useUndoableUnlinkPlayer(guildId)
   return (
-    <AlertDialog open={open} onOpenChange={setOpen}>
-      <AlertDialogTrigger asChild>
-        <Button variant="ghost" size="icon-sm" aria-label={`Délier ${name} de ${member.name}`}>
-          <Unlink aria-hidden />
-        </Button>
-      </AlertDialogTrigger>
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle>Délier ce personnage ?</AlertDialogTitle>
-          <AlertDialogDescription>
-            {name} ne sera plus relié à {member.name}. L'historique des mouvements est conservé.
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-        <AlertDialogFooter>
-          <AlertDialogCancel>Annuler</AlertDialogCancel>
-          <AlertDialogAction
-            disabled={mutation.isPending}
-            onClick={(event) => {
-              event.preventDefault()
-              mutation.mutate(gameId, { onSuccess: () => setOpen(false) })
-            }}
-          >
-            Délier
-          </AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
+    <Button
+      variant="ghost"
+      size="icon-sm"
+      aria-label={`Délier ${name} de ${member.name}`}
+      onClick={() => unlink({ gameId, name })}
+    >
+      <Unlink aria-hidden />
+    </Button>
   )
 }

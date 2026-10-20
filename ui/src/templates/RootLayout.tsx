@@ -1,5 +1,6 @@
 import { Outlet } from '@tanstack/react-router'
 
+import { CommandPalette } from '@/organisms/CommandPalette'
 import { SiteHeader } from '@/organisms/SiteHeader'
 
 export const RootLayout = () => (
@@ -12,5 +13,6 @@ export const RootLayout = () => (
     </a>
     <SiteHeader />
     <Outlet />
+    <CommandPalette />
   </div>
 )

@@ -72,6 +72,7 @@ pub async fn run_shard(ctx: Context, mut shard: Shard, mut shutdown: watch::Rece
             _ = shutdown.changed() => shard.close(CloseFrame::NORMAL),
             item = shard.next_event(wanted) => {
                 let Some(item) = item else { break };
+                ctx.health.observe_shard(&shard);
                 let event = match item {
                     Ok(event) => event,
                     Err(error) => {
