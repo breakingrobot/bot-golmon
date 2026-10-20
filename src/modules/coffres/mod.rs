@@ -7,4 +7,5 @@ pub mod commands;
 pub mod dashboard;
 pub mod ingest;
 pub mod parser;
+pub mod pending;
 pub mod service;

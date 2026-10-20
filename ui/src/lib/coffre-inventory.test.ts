@@ -65,6 +65,37 @@ describe('parseInventoryList', () => {
     })
   })
 
+  it('lit les inventaires collés depuis le jeu, comme le bot', () => {
+    const pasted =
+      '- repair_kit x42\n• 2790x acetone\n* 650 × red_powder\r\nlockpick\t12\nmedikit×3\n\n— 5 bandage\n· weapon_pistol x 1 200'
+    expect(parseInventoryList(pasted)).toStrictEqual({
+      ok: true,
+      entries: [
+        { item: 'repair_kit', quantity: 42 },
+        { item: 'acetone', quantity: 2790 },
+        { item: 'red_powder', quantity: 650 },
+        { item: 'lockpick', quantity: 12 },
+        { item: 'medikit', quantity: 3 },
+        { item: 'bandage', quantity: 5 },
+        { item: 'weapon_pistol', quantity: 1200 },
+      ],
+    })
+  })
+
+  it('ne prend pas un nom finissant par x pour un multiplicateur', () => {
+    expect(parseInventoryList('box 4')).toStrictEqual({ ok: true, entries: [{ item: 'box', quantity: 4 }] })
+    expect(parseInventoryList('42 X Repair Kit')).toStrictEqual({
+      ok: true,
+      entries: [{ item: 'repair_kit', quantity: 42 }],
+    })
+    expect(parseInventoryList('4x4_kit 3')).toStrictEqual({ ok: true, entries: [{ item: '4x4_kit', quantity: 3 }] })
+    expect(parseInventoryList('-1 x kit').ok).toBe(false)
+    expect(parseInventoryList('repair_kit x beaucoup')).toStrictEqual({
+      ok: false,
+      error: '« repair_kit x beaucoup » : quantité illisible.',
+    })
+  })
+
   it('garde la dernière quantité d’un objet répété', () => {
     expect(parseInventoryList('lockpick:3, lockpick:5')).toStrictEqual({
       ok: true,

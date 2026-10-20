@@ -137,6 +137,9 @@ async fn route(ix: &Ix) -> Result<()> {
                 "presence" => presences::interactions::button(ix, &custom_id).await,
                 "transaction" => transactions::interactions::button(ix, &custom_id).await,
                 "numero" => phones::interactions::button(ix, &custom_id).await,
+                crate::modules::coffres::commands::NAMESPACE => {
+                    crate::modules::coffres::commands::button_pressed(ix, &custom_id).await
+                }
                 presences::absence_panel::NAMESPACE => presences::absence_panel::button(ix, &custom_id).await,
                 // « prospect » : messages publiés avant le renommage du module.
                 "recrue" | "prospect" => recrues::interactions::select(ix, &custom_id, &component.values).await,
@@ -157,6 +160,9 @@ async fn route(ix: &Ix) -> Result<()> {
                     recrues::interactions::modal(ix, custom_id.action, custom_id.id, modal).await
                 }
                 ("numero", "add-modal") => phones::interactions::add_modal(ix, modal).await,
+                (crate::modules::coffres::commands::NAMESPACE, "inventaire-modal") => {
+                    crate::modules::coffres::commands::inventory_modal(ix, custom_id.id, modal).await
+                }
                 (presences::absence_panel::NAMESPACE, "declare-modal") => {
                     presences::absence_panel::modal(ix, modal).await
                 }

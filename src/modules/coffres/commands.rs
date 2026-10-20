@@ -2,10 +2,13 @@ use super::{
     alerts::{self, MAX_QUANTITY},
     dashboard, ingest,
     parser::{Kind, item_label},
-    service::{self, Filter, StockLine},
+    pending::{self, Pending, Taken},
+    service::{self, Correction, Filter, StockLine},
 };
 use crate::{
     discord::{
+        commands::modal_text,
+        components::{ButtonExt as _, button, label, row, text_input},
         embed::{EmbedBuilder, footer},
         interaction::{GUILD_ONLY, Ix, MANAGE_GUILD_ONLY, Reply, choice},
         messages::{self, parse_id},
@@ -19,6 +22,7 @@ use crate::{
     },
     util::{
         format::{DESCRIPTION_LIMIT, truncate},
+        ids::{CustomId, encode_custom_id},
         time::{DbTime, format_date_label},
     },
 };
@@ -26,8 +30,17 @@ use anyhow::Result;
 use chrono::Duration;
 use std::collections::{BTreeMap, HashMap};
 use twilight_model::{
-    application::command::{Command, CommandType},
-    channel::ChannelType,
+    application::{
+        command::{Command, CommandType},
+        interaction::modal::ModalInteractionData,
+    },
+    channel::{
+        ChannelType,
+        message::{
+            Component,
+            component::{ButtonStyle, TextInputStyle},
+        },
+    },
     guild::Permissions,
     id::{
         Id,
@@ -84,7 +97,7 @@ pub fn definition() -> Command {
         .option(
             SubCommandBuilder::new(
                 "inventaire",
-                "Saisit la quantité réelle (comptée en jeu) : l'écart devient une correction",
+                "Quantité réelle comptée en jeu (sans objet ni liste : coller l'inventaire, avec aperçu)",
             )
             .option(property_option(true))
             .option(StringBuilder::new("objet", "Un objet, ex : repair_kit").autocomplete(true))
@@ -325,15 +338,25 @@ pub async fn handle(ix: &Ix, options: &Options) -> Result<()> {
     }
 }
 
+/// Espace de noms des composants des coffres (inventaire collé).
+pub const NAMESPACE: &str = "coffre";
+const INVALID_PROPERTY: &str = "Propriété invalide : son numéro, ex : `8740`.";
+
+fn valid_property(property: &str) -> bool {
+    !property.is_empty() && property.len() <= 30 && property.bytes().all(|b| b.is_ascii_digit())
+}
+
 /// Inventaire : quantités réellement comptées en jeu ; les écarts deviennent
-/// des corrections signées, journalisées.
+/// des corrections signées, journalisées. Sans objet ni liste : formulaire
+/// pour coller l'inventaire du jeu, avec aperçu avant validation.
 async fn inventory(ix: &Ix, options: &Options, guild_id: Id<GuildMarker>) -> Result<()> {
     let guild = guild_id.to_string();
     let property = options.string("propriete").unwrap_or_default().trim().to_owned();
-    if property.is_empty() || !property.bytes().all(|b| b.is_ascii_digit()) {
-        return ix.reply(Reply::ephemeral("Propriété invalide : son numéro, ex : `8740`.")).await;
+    if !valid_property(&property) {
+        return ix.reply(Reply::ephemeral(INVALID_PROPERTY)).await;
     }
     let counted = match (options.string("objet"), options.integer("quantite"), options.string("liste")) {
+        (None, None, None) => return paste_modal(ix, &guild, &property).await,
         (Some(item), Some(quantity), None) => match service::normalize_item(&item) {
             Some(item) => vec![(item, quantity)],
             None => return ix.reply(Reply::ephemeral("Nom d'objet invalide, ex : `repair_kit`.")).await,
@@ -351,26 +374,169 @@ async fn inventory(ix: &Ix, options: &Options, guild_id: Id<GuildMarker>) -> Res
         }
     };
     ix.defer(true).await?;
+    let text = apply_inventory(ix, guild_id, &property, &counted).await?;
+    ix.edit_text(text).await
+}
+
+/// Enregistre un inventaire (écarts recalculés sur le stock du moment),
+/// journalise, rafraîchit le tableau ; renvoie le compte rendu.
+async fn apply_inventory(
+    ix: &Ix,
+    guild_id: Id<GuildMarker>,
+    property: &str,
+    counted: &[(String, i64)],
+) -> Result<String> {
+    let guild = guild_id.to_string();
     let author = crate::discord::members::display_name(&ix.ctx, guild_id, ix.user_id())
         .unwrap_or_else(|| ix.user_id().to_string());
     let corrections =
-        service::set_inventory(&ix.ctx.db, &guild, &property, &counted, &ix.user_id().to_string(), &author).await?;
+        service::set_inventory(&ix.ctx.db, &guild, property, counted, &ix.user_id().to_string(), &author).await?;
     let names = property_names(ix, &guild).await?;
-    let label = property_label(&names, &property);
+    let label = property_label(&names, property);
     if corrections.is_empty() {
-        return ix.edit_text(format!("{label} : le stock connu correspondait déjà, rien à corriger.")).await;
+        return Ok(format!("{label} : le stock connu correspondait déjà, rien à corriger."));
     }
-    let lines: Vec<String> = corrections
-        .iter()
-        .map(|c| format!("**{}** : {} → {} ({:+})", item_label(&c.item), c.before, c.after, c.delta()))
-        .collect();
+    let lines: Vec<String> = corrections.iter().map(correction_line).collect();
     audit::record(ix, Entry::new(Action::CoffreInventory, None, format!("**{label}** — {}", lines.join(", ")))).await;
     super::dashboard::request_refresh(&ix.ctx, &guild);
-    ix.edit_text(truncate(
+    Ok(truncate(
         &format!("🧮 Inventaire de {label} : {} correction(s).\n{}", corrections.len(), lines.join("\n")),
         2000,
     ))
+}
+
+fn correction_line(c: &Correction) -> String {
+    format!("**{}** : {} → {} ({:+})", item_label(&c.item), c.before, c.after, c.delta())
+}
+
+/// Écarts entre le stock connu (par objet) et les quantités comptées :
+/// corrections à enregistrer, et nombre d'objets déjà justes.
+pub fn inventory_diff(known: &HashMap<String, i64>, counted: &[(String, i64)]) -> (Vec<Correction>, usize) {
+    let mut unchanged = 0;
+    let mut corrections = Vec::new();
+    for (item, after) in counted {
+        let before = known.get(item).copied().unwrap_or(0);
+        if before == *after {
+            unchanged += 1;
+        } else {
+            corrections.push(Correction { item: item.clone(), before, after: *after });
+        }
+    }
+    (corrections, unchanged)
+}
+
+/// Aperçu d'un inventaire collé, avant « Valider ».
+pub fn preview_text(label: &str, corrections: &[Correction], unchanged: usize) -> String {
+    let mut text = format!("🧮 **Inventaire de {label}** — aperçu\n");
+    if corrections.is_empty() {
+        text.push_str(&format!("Le stock connu correspond déjà ({unchanged} objet(s)) : rien à corriger."));
+        return text;
+    }
+    let lines: Vec<String> = corrections.iter().map(correction_line).collect();
+    text.push_str(&crate::util::format::bounded_lines(&lines, 1500, |hidden| {
+        format!("… et {hidden} autre(s) écart(s)")
+    }));
+    text.push_str(&format!("\n{} correction(s)", corrections.len()));
+    if unchanged > 0 {
+        text.push_str(&format!(" · {unchanged} objet(s) inchangé(s)"));
+    }
+    text.push_str(".\n-# Rien n'est enregistré avant « Valider ». Le stock sera recompté au moment de valider.");
+    text
+}
+
+/// Formulaire pour coller l'inventaire du jeu.
+async fn paste_modal(ix: &Ix, guild: &str, property: &str) -> Result<()> {
+    let names = property_names(ix, guild).await?;
+    let mut input = text_input("liste", TextInputStyle::Paragraph);
+    input.max_length = Some(4000);
+    input.placeholder = Some("repair_kit x42\nacetone: 2790\n650x red_powder".to_owned());
+    ix.modal(
+        encode_custom_id(NAMESPACE, "inventaire-modal", property, None),
+        format!("Inventaire — {}", property_label(&names, property)),
+        vec![label(
+            "Colle l'inventaire du jeu (une ligne par objet)",
+            Some("objet:42, objet x42, 42x objet… Les objets absents de la liste ne changent pas."),
+            Component::TextInput(input),
+        )],
+    )
     .await
+}
+
+/// Inventaire collé : aperçu des écarts et boutons « Valider » / « Annuler ».
+pub async fn inventory_modal(ix: &Ix, property: &str, modal: &ModalInteractionData) -> Result<()> {
+    let Some(guild_id) = ix.guild_id() else {
+        return ix.reply(Reply::ephemeral(GUILD_ONLY)).await;
+    };
+    if !permissions::require(ix, Perm::CoffreGerer).await? {
+        return Ok(());
+    }
+    if !valid_property(property) {
+        return ix.reply(Reply::ephemeral(INVALID_PROPERTY)).await;
+    }
+    let counted = match service::parse_inventory(&modal_text(modal, "liste")) {
+        Ok(counted) if counted.len() > service::MAX_INVENTORY_ITEMS => {
+            let message = format!("{} objets au plus par inventaire.", service::MAX_INVENTORY_ITEMS);
+            return ix.reply(Reply::ephemeral(message)).await;
+        }
+        Ok(counted) => counted,
+        Err(message) => return ix.reply(Reply::ephemeral(message)).await,
+    };
+    let guild = guild_id.to_string();
+    let known: HashMap<String, i64> = service::stock(&ix.ctx.db, &guild, Some(property))
+        .await?
+        .into_iter()
+        .map(|l| (l.item.clone(), l.quantity()))
+        .collect();
+    let (corrections, unchanged) = inventory_diff(&known, &counted);
+    let names = property_names(ix, &guild).await?;
+    let text = preview_text(&property_label(&names, property), &corrections, unchanged);
+    if corrections.is_empty() {
+        return ix.reply(Reply::ephemeral(text)).await;
+    }
+    let key = pending::put(Pending {
+        guild_id: guild,
+        user_id: ix.user_id().to_string(),
+        property_id: property.to_owned(),
+        counted,
+    });
+    let buttons = row(vec![
+        Component::Button(
+            button(encode_custom_id(NAMESPACE, "inv-ok", &key, None), "Valider", ButtonStyle::Success).with_emoji("✅"),
+        ),
+        Component::Button(button(encode_custom_id(NAMESPACE, "inv-no", &key, None), "Annuler", ButtonStyle::Secondary)),
+    ]);
+    ix.reply(Reply::ephemeral(text).with_components(vec![buttons])).await
+}
+
+/// Boutons de l'aperçu : « Valider » enregistre, « Annuler » oublie la saisie.
+pub async fn button_pressed(ix: &Ix, custom_id: &CustomId<'_>) -> Result<()> {
+    let Some(guild_id) = ix.guild_id() else {
+        return ix.reply(Reply::ephemeral(GUILD_ONLY)).await;
+    };
+    if !matches!(custom_id.action, "inv-ok" | "inv-no") {
+        return Ok(());
+    }
+    let pending = match pending::take(custom_id.id, &ix.user_id().to_string()) {
+        Taken::Found(pending) if pending.guild_id == guild_id.to_string() => pending,
+        Taken::NotYours => return ix.reply(Reply::ephemeral("Cette saisie appartient à quelqu'un d'autre.")).await,
+        _ => {
+            return ix
+                .update(Reply::text(
+                    "Cette saisie a expiré (15 minutes) ou a déjà été traitée : relance `/coffre inventaire propriete:…`.",
+                ))
+                .await;
+        }
+    };
+    if custom_id.action == "inv-no" {
+        return ix.update(Reply::text("Inventaire annulé : rien n'a été enregistré.")).await;
+    }
+    // Le niveau a pu changer depuis l'aperçu.
+    if !permissions::require(ix, Perm::CoffreGerer).await? {
+        return Ok(());
+    }
+    ix.defer_update().await?;
+    let text = apply_inventory(ix, guild_id, &pending.property_id, &pending.counted).await?;
+    ix.edit(Reply::text(text)).await
 }
 
 /// `/config coffre oublier_webhook` : webhooks reconnus (« Gérer le serveur »).
@@ -660,4 +826,44 @@ pub async fn autocomplete(ix: &Ix, options: &Options) -> Result<()> {
             .collect()
     };
     ix.autocomplete(choices).await
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn previews_only_the_differences() {
+        let known: HashMap<String, i64> = [("repair_kit".to_owned(), 8), ("lockpick".to_owned(), 3)].into();
+        let counted = service::parse_inventory("repair_kit x42\nlockpick: 3\n2790x acetone").unwrap();
+        let (corrections, unchanged) = inventory_diff(&known, &counted);
+        assert_eq!(unchanged, 1);
+        assert_eq!(
+            corrections,
+            [
+                Correction { item: "repair_kit".into(), before: 8, after: 42 },
+                Correction { item: "acetone".into(), before: 0, after: 2790 },
+            ]
+        );
+        let text = preview_text("Planque du port", &corrections, unchanged);
+        assert!(text.starts_with("🧮 **Inventaire de Planque du port** — aperçu\n**Repair kit** : 8 → 42 (+34)"));
+        assert!(text.contains("**Acetone** : 0 → 2790 (+2790)\n2 correction(s) · 1 objet(s) inchangé(s)."));
+        assert!(text.contains("Rien n'est enregistré avant « Valider »"));
+        assert!(preview_text("P", &[], 4).contains("correspond déjà (4 objet(s))"));
+    }
+
+    #[test]
+    fn long_previews_stay_in_a_message() {
+        let corrections: Vec<Correction> =
+            (0..300).map(|i| Correction { item: format!("objet_{i}"), before: 0, after: i }).collect();
+        let text = preview_text("Propriété 8740", &corrections, 0);
+        assert!(text.chars().count() <= 2000, "{} caractères", text.chars().count());
+        assert!(text.contains("autre(s) écart(s)"));
+    }
+
+    #[test]
+    fn validates_property_numbers() {
+        assert!(valid_property("8740"));
+        assert!(!valid_property("87a0") && !valid_property("") && !valid_property(&"1".repeat(31)));
+    }
 }

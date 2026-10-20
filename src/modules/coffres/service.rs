@@ -3,7 +3,9 @@
 use super::parser::{Kind, Movement};
 use crate::util::time::DbTime;
 use anyhow::Result;
+use regex::Regex;
 use sqlx::{FromRow, SqlitePool};
+use std::sync::LazyLock;
 
 /// Mouvement à enregistrer : identifiant « message:rang », contenu, date.
 pub struct NewMovement {
@@ -263,6 +265,8 @@ pub async fn by_player(
 
 /// Quantité maximale saisie lors d'un inventaire (comme pour un mouvement du jeu).
 pub const MAX_INVENTORY: i64 = super::parser::MAX_AMOUNT;
+/// Objets au plus par inventaire (comme sur le site).
+pub const MAX_INVENTORY_ITEMS: usize = 300;
 
 /// Écart enregistré par un inventaire.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -339,23 +343,66 @@ pub async fn set_inventory(
     Ok(corrections)
 }
 
-/// Lit une liste « objet:quantité » (`repair_kit:42, acetone 2790`) ; renvoie
-/// un message clair à la première entrée illisible.
+/// Puce ou tiret en début de ligne (`- `, `* `, `• `), ignoré.
+static BULLET: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^(?:[•·▪‣◦]\s*|[-*–—]\s+)").unwrap());
+/// `42x repair_kit`, `42 x repair_kit`, `42×repair_kit`.
+static QUANTITY_FIRST: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"^([0-9][0-9\s_]*?)\s*(?:[xX]\s+|×\s*)(\S.*)$").unwrap());
+/// `repair_kit x42`, `repair_kit x 42`, `repair_kit×42`.
+static QUANTITY_LAST: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"^(.*?\S)(?:\s+[xX]|\s*×)\s*([0-9][0-9\s_]*)$").unwrap());
+
+/// Quantité saisie : entier, espaces (de milliers) et `_` ignorés.
+fn read_integer(raw: &str) -> Option<i64> {
+    let digits: String = raw.chars().filter(|c| !c.is_whitespace() && *c != '_').collect();
+    let unsigned = digits.strip_prefix(['+', '-']).unwrap_or(&digits);
+    (!unsigned.is_empty() && unsigned.len() <= 16 && unsigned.bytes().all(|b| b.is_ascii_digit()))
+        .then(|| digits.parse().ok())
+        .flatten()
+}
+
+/// Sépare une entrée en (objet, quantité). Formats, dans l'ordre : `objet:quantité`
+/// ou `objet=quantité` ; `42x objet` ; `objet x42` ; à défaut le dernier espace ou
+/// la dernière tabulation (`acetone 2790`), ou le premier si la quantité est en tête
+/// (`42 acetone`). Même règle que l'interface (`ui/src/lib/coffre-inventory.ts`).
+fn split_entry(part: &str) -> Option<(&str, &str)> {
+    if let Some(at) = part.find([':', '=']) {
+        return Some((&part[..at], &part[at + 1..]));
+    }
+    if let Some(captures) = QUANTITY_FIRST.captures(part) {
+        let (quantity, item) = (captures.get(1)?, captures.get(2)?);
+        return Some((item.as_str(), quantity.as_str()));
+    }
+    if let Some(captures) = QUANTITY_LAST.captures(part) {
+        let (item, quantity) = (captures.get(1)?, captures.get(2)?);
+        return Some((item.as_str(), quantity.as_str()));
+    }
+    let (item, quantity) = part.rsplit_once(char::is_whitespace)?;
+    if read_integer(quantity).is_none()
+        && let Some((first, rest)) = part.split_once(char::is_whitespace)
+        && read_integer(first).is_some()
+    {
+        return Some((rest, first));
+    }
+    Some((item, quantity))
+}
+
+/// Lit une liste d'inventaire, telle que tapée ou collée depuis le jeu : entrées
+/// séparées par `,`, `;` ou des retours à la ligne, puces ignorées (formats :
+/// [`split_entry`]). Un objet répété garde sa dernière quantité. Renvoie un
+/// message clair à la première entrée illisible.
 pub fn parse_inventory(raw: &str) -> Result<Vec<(String, i64)>, String> {
     let mut entries: Vec<(String, i64)> = Vec::new();
-    for part in raw.split([',', ';', '\n']).map(str::trim).filter(|p| !p.is_empty()) {
-        // `objet:quantité` ou `objet=quantité` ; à défaut, le dernier espace sépare (`acetone 2790`).
-        let split = match part.find([':', '=']) {
-            Some(at) => Some((&part[..at], &part[at + 1..])),
-            None => part.rsplit_once(' '),
-        };
-        let (item, quantity) = split
+    for line in raw.split([',', ';', '\n']).map(str::trim).filter(|p| !p.is_empty()) {
+        let part = BULLET.replace(line, "");
+        let part = part.trim();
+        if part.is_empty() {
+            continue;
+        }
+        let (item, quantity) = split_entry(part)
             .map(|(i, q)| (i.trim(), q.trim()))
             .ok_or_else(|| format!("« {part} » : écris `objet:quantité`, par exemple `repair_kit:42`."))?;
-        let quantity: i64 = quantity
-            .replace([' ', '\u{202f}', '\u{a0}', '_'], "")
-            .parse()
-            .map_err(|_| format!("« {part} » : quantité illisible."))?;
+        let quantity = read_integer(quantity).ok_or_else(|| format!("« {part} » : quantité illisible."))?;
         let item = normalize_item(item).ok_or_else(|| format!("« {part} » : nom d'objet invalide."))?;
         if !(0..=MAX_INVENTORY).contains(&quantity) {
             return Err(format!("« {part} » : quantité entre 0 et {MAX_INVENTORY}."));
@@ -740,6 +787,33 @@ mod tests {
         assert!(parse_inventory("repair_kit:-1").is_err());
         assert!(parse_inventory("drop table:1").is_ok(), "espaces → _");
         assert!(parse_inventory("kit;--:1").is_err());
+    }
+
+    #[test]
+    fn parses_pasted_inventories() {
+        let pasted = "- repair_kit x42\n• 2790x acetone\n* 650 × red_powder\r\nlockpick\t12\nmedikit×3\n\n— 5 bandage\n· weapon_pistol x 1 200";
+        assert_eq!(
+            parse_inventory(pasted).unwrap(),
+            [
+                ("repair_kit".to_owned(), 42),
+                ("acetone".to_owned(), 2790),
+                ("red_powder".to_owned(), 650),
+                ("lockpick".to_owned(), 12),
+                ("medikit".to_owned(), 3),
+                ("bandage".to_owned(), 5),
+                ("weapon_pistol".to_owned(), 1200),
+            ]
+        );
+        // Un nom qui finit par « x » n'est pas pris pour un multiplicateur.
+        assert_eq!(parse_inventory("box 4").unwrap(), [("box".to_owned(), 4)]);
+        assert_eq!(parse_inventory("42 X Repair Kit").unwrap(), [("repair_kit".to_owned(), 42)]);
+        assert_eq!(parse_inventory("4x4_kit 3").unwrap(), [("4x4_kit".to_owned(), 3)]);
+        assert_eq!(parse_inventory("x=1").unwrap(), [("x".to_owned(), 1)]);
+        assert!(parse_inventory("-1 x kit").is_err(), "le tiret sans espace n'est pas une puce");
+        assert_eq!(
+            parse_inventory("repair_kit x beaucoup").unwrap_err(),
+            "« repair_kit x beaucoup » : quantité illisible."
+        );
     }
 
     #[test]
