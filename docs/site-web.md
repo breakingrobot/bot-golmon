@@ -92,7 +92,8 @@ s'affiche sur le serveur principal du module ticket.
   en heure de Paris, bornes incluses).
 - **Totaux** : nombre, achats, ventes, solde, en cours. Les transactions **annulées** comptent dans le nombre, pas
   dans les montants.
-- **Graphique par mois** (achats et ventes), détail paginé avec les objets de chaque transaction.
+- **Graphique par mois** (achats et ventes), détail paginé avec les objets de chaque transaction (et sa note,
+  saisie sur Discord : champ `note` de l'API).
 - **Export CSV** (10 000 lignes au plus) : séparateur `;`, UTF-8 reconnu par Excel, dates `JJ/MM/AAAA HH:MM`. Une
   cellule qui commence par `=`, `+`, `-` ou `@` est préfixée d'une apostrophe (pas de formule exécutée).
 
@@ -119,8 +120,8 @@ des mouvements, export CSV. Avec `coffre.gerer` : nommer une propriété, relier
 des objets entrés sans message du jeu, on compte en jeu et on saisit la quantité réelle, depuis le bouton de la
 carte d'une propriété ou le bouton **Inventaire** de la page (propriété connue ou nouveau numéro). Chaque objet
 connu montre son stock actuel ; une ligne laissée vide ne change rien. **Ajouter un objet** propose les objets
-connus ou accepte un identifiant du jeu (`repair_kit`), et **Coller une liste** lit la même syntaxe que la commande
-(`repair_kit:42, acetone 2790; x=1`). L'**aperçu des corrections** affiche avant l'envoi chaque écart (stock connu →
+connus ou accepte un identifiant du jeu (`repair_kit`), et **Coller une liste** lit les mêmes formats que la commande
+(`repair_kit:42, acetone 2790; x=1`, `repair_kit x42`, `42x repair_kit`, tabulations, puces). L'**aperçu des corrections** affiche avant l'envoi chaque écart (stock connu →
 quantité comptée, +/−) ; seuls ces écarts partent et deviennent des mouvements **Correction** signés, avec leur
 auteur. Les corrections apparaissent dans les mouvements (filtre « Corrections »), dans le stock (icône « dont +34
 de corrections ») et dans l'évolution d'un objet (barres « Corrigé », courbe du stock comprise) ; elles ne comptent
