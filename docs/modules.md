@@ -354,11 +354,21 @@ avec les objets sous leur seuil signalés (⚠️) et listés en premier. Il est
 mouvements, **au plus une fois par minute** (le jeu publie parfois des dizaines de mouvements d'affilée).
 Changer de salon supprime l'ancien message ; `sans_tableau:true` le retire.
 
-**Messages pris en compte** : seulement ceux du webhook du jeu. Le bot retient le webhook qui publie les
-encadrés « Coffre » dans le salon (le plus fréquent au premier import) et ignore tous les autres webhooks et
-applications, pour qu'un membre ne puisse pas imiter un encadré. Si le jeu change de webhook :
-`/config coffre salon:#… retirer:true` puis `/config coffre salon:#…`. Une quantité supérieure à 1 000 000 est
-ignorée.
+**Messages pris en compte** : ceux des **webhooks** qui publient des encadrés « Coffre », y compris plusieurs dans le
+même salon (une propriété par webhook, par exemple « Stock gradé » et « Stock vide poche »). Chaque nouveau webhook
+est reconnu au premier encadré et **signalé au journal du staff**, avec son nom et son identifiant. Sont ignorés :
+les messages des membres et des bots, et les réponses aux commandes d'autres applications (Carl-bot `/embed`…),
+pour qu'un membre ne puisse pas imiter un encadré. Créer un webhook dans le salon demande « Gérer les webhooks ».
+Une quantité supérieure à 1 000 000 est ignorée.
+
+```
+/config coffre                                   ← salons suivis et webhooks reconnus
+/config coffre oublier_webhook:123456789012345   ← ne plus lire ce webhook (les mouvements déjà lus restent)
+/config coffre salon:#logs-coffre relire:true    ← relit l'historique : ajoute ce qui manque, ne retire rien
+```
+
+`relire` sert après un oubli (bot arrêté longtemps, webhook ignoré) : un message déjà compté n'est jamais recompté,
+et un message supprimé du salon ne retire rien de ce qui a déjà été lu.
 
 Sur le site : `/stats/<serveur>/coffres`, voir [Site web](site-web.md#coffres).
 

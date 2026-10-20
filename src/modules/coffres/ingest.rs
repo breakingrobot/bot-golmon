@@ -8,7 +8,6 @@
 use super::{alerts, dashboard, parser, service};
 use crate::{context::Context, util::time::DbTime};
 use anyhow::Result;
-use std::collections::HashMap;
 use twilight_model::{
     channel::Message,
     id::{
@@ -20,9 +19,17 @@ use twilight_model::{
 /// Au plus 50 pages de 100 messages par salon et par rattrapage.
 const CATCH_UP_PAGES: usize = 50;
 
+/// Message publié par un webhook, et non une réponse à une commande
+/// d'application : les applications « embed » (Carl-bot `/embed`…) répondent par
+/// interaction et sont écartées. Créer un webhook dans le salon demande
+/// « Gérer les webhooks » : réservé au staff.
+fn from_webhook(message: &Message) -> bool {
+    message.webhook_id.is_some() && message.interaction_metadata.is_none()
+}
+
 /// Mouvements lus dans un message (vide s'il ne vient pas d'un webhook).
 fn movements_of(message: &Message) -> Vec<service::NewMovement> {
-    if message.webhook_id.is_none() {
+    if !from_webhook(message) {
         return Vec::new();
     }
     let fallback = DbTime(chrono::DateTime::from_timestamp_micros(message.timestamp.as_micros()).unwrap_or_default());
@@ -38,39 +45,56 @@ fn movements_of(message: &Message) -> Vec<service::NewMovement> {
         .collect()
 }
 
-/// Webhook le plus fréquent parmi les messages qui portent des mouvements.
-fn likely_webhook(messages: &[Message]) -> Option<String> {
-    let mut counts: HashMap<String, usize> = HashMap::new();
-    for message in messages.iter().filter(|m| !movements_of(m).is_empty()) {
-        if let Some(id) = message.webhook_id {
-            *counts.entry(id.to_string()).or_default() += 1;
-        }
-    }
-    counts.into_iter().max_by_key(|(_, n)| *n).map(|(id, _)| id)
-}
-
 /// Enregistre une page de messages d'un salon en une transaction ; renvoie les
-/// nouveaux mouvements. Seul le webhook du jeu compte : le premier vu (le plus
-/// fréquent de la page) est retenu, les messages des autres webhooks ou
-/// applications sont ignorés, pour qu'un membre ne puisse pas imiter un encadré
-/// « Coffre ».
+/// nouveaux mouvements. Plusieurs webhooks du jeu peuvent publier dans le même
+/// salon (une propriété chacun) : tout webhook qui publie un encadré « Coffre »
+/// est reconnu, et chaque nouveau est signalé au journal du staff pour qu'une
+/// source inattendue se voie (`/config coffre oublier_webhook` l'écarte).
 async fn record(ctx: &Context, channel: &mut service::Channel, messages: &[Message]) -> Result<Vec<service::Recorded>> {
-    if channel.webhook_id.is_none()
-        && let Some(webhook) = likely_webhook(messages)
-    {
-        service::set_webhook(&ctx.db, &channel.channel_id, &webhook).await?;
-        channel.webhook_id = Some(webhook);
-    }
-    let Some(webhook) = channel.webhook_id.as_deref() else {
-        return Ok(Vec::new());
-    };
-    let movements: Vec<_> = messages
-        .iter()
-        .filter(|m| m.webhook_id.is_some_and(|id| id.to_string() == webhook))
-        .flat_map(movements_of)
+    let mut known: Vec<String> = service::webhooks(&ctx.db, &channel.guild_id, Some(&channel.channel_id))
+        .await?
+        .into_iter()
+        .map(|w| w.webhook_id)
         .collect();
+    let mut movements = Vec::new();
+    for message in messages {
+        let found = movements_of(message);
+        let Some(webhook) = message.webhook_id.filter(|_| !found.is_empty()) else {
+            continue;
+        };
+        let webhook = webhook.to_string();
+        if !known.contains(&webhook) {
+            let name = message.author.name.clone();
+            if service::add_webhook(&ctx.db, &channel.guild_id, &channel.channel_id, &webhook, Some(&name)).await? {
+                announce_webhook(ctx, channel, &webhook, &name).await;
+            }
+            channel.webhook_id.get_or_insert_with(|| webhook.clone());
+            known.push(webhook);
+        }
+        movements.extend(found);
+    }
     let last = messages.iter().map(|m| m.id.get()).max();
     service::insert_all(&ctx.db, &channel.guild_id, &channel.channel_id, &movements, last).await
+}
+
+/// Nouveau webhook reconnu : inscrit au journal du staff.
+async fn announce_webhook(ctx: &Context, channel: &service::Channel, webhook: &str, name: &str) {
+    tracing::info!(channel = %channel.channel_id, webhook, name, "coffres : nouveau webhook reconnu");
+    let Some(guild_id) = channel.guild_id.parse().ok().and_then(Id::new_checked) else {
+        return;
+    };
+    let details = format!(
+        "**coffre** — webhook « {name} » (`{webhook}`) reconnu dans <#{}>. Si ce n'est pas le jeu : `/config coffre oublier_webhook:{webhook}`.",
+        channel.channel_id
+    );
+    crate::modules::audit::record_web(
+        ctx,
+        guild_id,
+        ctx.bot_user_id,
+        &ctx.bot_username,
+        crate::modules::audit::Entry::new(crate::modules::audit::Action::Config, None, details),
+    )
+    .await;
 }
 
 /// Suites d'un lot de nouveaux mouvements : alertes (si demandé) et tableau du stock.
@@ -86,7 +110,7 @@ async fn after_new(ctx: &Context, guild_id: &str, recorded: &[service::Recorded]
 
 /// Message reçu en direct : seulement ceux des webhooks, dans un salon suivi.
 pub async fn on_message(ctx: &Context, message: &Message) {
-    if message.embeds.is_empty() || message.webhook_id.is_none() {
+    if message.embeds.is_empty() || !from_webhook(message) {
         return;
     }
     let result = async {

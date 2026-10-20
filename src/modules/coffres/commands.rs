@@ -100,6 +100,14 @@ pub fn config_subcommand() -> SubCommandBuilder {
                 .channel_types([ChannelType::GuildText]),
         )
         .option(BooleanBuilder::new("retirer", "Ne plus suivre ce salon"))
+        .option(BooleanBuilder::new(
+            "relire",
+            "Relit l'historique du salon (5 000 messages) : ajoute seulement ce qui manque, ne retire rien",
+        ))
+        .option(StringBuilder::new(
+            "oublier_webhook",
+            "Identifiant d'un webhook à ne plus lire (voir `/config coffre`)",
+        ))
         .option(
             ChannelBuilder::new("alertes_salon", "Salon des alertes (stock bas, gros retraits…)")
                 .channel_types([ChannelType::GuildText]),
@@ -122,21 +130,26 @@ pub fn config_subcommand() -> SubCommandBuilder {
 /// Réglages actuels, pour `/config coffre` sans option.
 async fn config_summary(ix: &Ix, guild: &str) -> Result<String> {
     let channels = service::channels(&ix.ctx.db, guild).await?;
+    let webhooks = service::webhooks(&ix.ctx.db, guild, None).await?;
     let mut text = if channels.is_empty() {
         "Aucun salon suivi. Ajoute celui du webhook avec `/config coffre salon:#…`.".to_owned()
     } else {
-        format!(
-            "Salons suivis : {}.",
-            channels
-                .iter()
-                .map(|c| format!(
-                    "<#{}>{}",
-                    c.channel_id,
-                    if c.webhook_id.is_some() { "" } else { " (webhook du jeu pas encore vu)" }
-                ))
-                .collect::<Vec<_>>()
-                .join(", ")
-        )
+        let lines: Vec<String> = channels
+            .iter()
+            .map(|c| {
+                let known: Vec<String> = webhooks
+                    .iter()
+                    .filter(|w| w.channel_id == c.channel_id)
+                    .map(|w| format!("« {} » (`{}`)", w.name.as_deref().unwrap_or("webhook"), w.webhook_id))
+                    .collect();
+                if known.is_empty() {
+                    format!("• <#{}> : aucun webhook du jeu encore vu", c.channel_id)
+                } else {
+                    format!("• <#{}> : {}", c.channel_id, known.join(", "))
+                }
+            })
+            .collect();
+        format!("Salons suivis et webhooks reconnus :\n{}", lines.join("\n"))
     };
     let alerts = alerts::get_alerts(&ix.ctx.db, guild).await?;
     text.push_str(&match &alerts.channel_id {
@@ -229,6 +242,16 @@ pub async fn config(ix: &Ix, options: &Options, guild: &str) -> Result<()> {
     if let Some(channel_id) = options.channel("salon") {
         lines.push(config_channel(ix, options, guild, channel_id).await?);
     }
+    if let Some(webhook) = options.string("oublier_webhook").map(|w| w.trim().to_owned()).filter(|w| !w.is_empty()) {
+        lines.push(if service::remove_webhook(&ix.ctx.db, guild, &webhook).await? {
+            format!(
+                "Webhook `{webhook}` oublié : ses prochains messages sont ignorés (les mouvements déjà lus restent). \
+                 Il sera reconnu de nouveau s'il publie encore un encadré « Coffre »."
+            )
+        } else {
+            format!("Aucun webhook `{webhook}` reconnu sur ce serveur (voir `/config coffre`).")
+        });
+    }
     lines.extend(config_alerts(ix, options, guild).await?);
     lines.extend(config_dashboard(ix, options, guild).await?);
     if lines.is_empty() {
@@ -253,10 +276,17 @@ async fn config_channel(ix: &Ix, options: &Options, guild: &str, channel_id: Id<
             .to_owned());
     }
     service::add_channel(&ix.ctx.db, guild, &channel_id.to_string()).await?;
-    // Première lecture : l'historique récent du salon (jusqu'à 5 000 messages) ;
-    // salon déjà suivi : les messages publiés depuis la dernière lecture.
+    // Première lecture (ou `relire`) : l'historique récent du salon, jusqu'à
+    // 5 000 messages, en ajout seulement (un message déjà lu n'est jamais
+    // recompté, rien n'est retiré) ; sinon les messages publiés depuis la
+    // dernière lecture.
     let added = match service::channel(&ix.ctx.db, &channel_id.to_string()).await? {
-        Some(mut channel) => ingest::catch_up(&ix.ctx, &mut channel).await?,
+        Some(mut channel) => {
+            if options.boolean("relire") == Some(true) {
+                channel.last_message_id = None;
+            }
+            ingest::catch_up(&ix.ctx, &mut channel).await?
+        }
         None => 0,
     };
     Ok(format!(
