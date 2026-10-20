@@ -207,7 +207,7 @@ pub async fn handle(ix: &Ix, options: &Options) -> Result<()> {
 async fn objective_view(ix: &Ix, guild_id: Id<GuildMarker>) -> Result<()> {
     let guild = guild_id.to_string();
     let Some(objective) = objective::get_objective(&ix.ctx.db, &guild).await? else {
-        return ix.reply(Reply::ephemeral("Aucun objectif hebdomadaire n'est fixé.")).await;
+        return ix.reply(Reply::ephemeral("Aucun objectif hebdomadaire n'est fixé (`/config cotisation objectif:…`, « Gérer le serveur »).")).await;
     };
     let week = week_start(Utc::now());
     let me = objective::member_progress(&ix.ctx.db, &guild, &ix.user_id().to_string(), week, &objective).await?;

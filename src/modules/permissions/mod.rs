@@ -12,7 +12,10 @@
 pub mod commands;
 pub mod service;
 
-use crate::discord::interaction::{Ix, Reply};
+use crate::discord::{
+    interaction::{Ix, Reply},
+    site,
+};
 use anyhow::Result;
 use twilight_model::{
     guild::Permissions,
@@ -51,6 +54,16 @@ impl Level {
             Self::Membre => "Membres du groupe",
             Self::Grade => "Gradés",
             Self::Lead => "Leads",
+            Self::Admin => "« Gérer le serveur »",
+        }
+    }
+
+    /// Niveau d'une personne, pour les messages de refus (« Ton niveau : gradé »).
+    pub fn singular(self) -> &'static str {
+        match self {
+            Self::Membre => "membre du groupe",
+            Self::Grade => "gradé",
+            Self::Lead => "lead",
             Self::Admin => "« Gérer le serveur »",
         }
     }
@@ -213,6 +226,56 @@ impl Grants {
     pub fn can(&self, perm: Perm) -> bool {
         self.roles.allows(&self.holder, self.level(perm), perm.strict())
     }
+
+    /// Ce qu'il faut savoir pour expliquer un refus.
+    pub fn refusal(&self, perm: Perm) -> Refusal {
+        Refusal {
+            perm,
+            required: self.level(perm),
+            held: self.roles.level_of(&self.holder, perm.strict()),
+            member_role_set: self.roles.member.is_some(),
+            manage_guild: self.holder.manage_guild,
+        }
+    }
+}
+
+/// Refus d'une action : niveau requis, niveau de la personne et réglages du serveur.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Refusal {
+    pub perm: Perm,
+    pub required: Level,
+    /// `None` : hors du groupe.
+    pub held: Option<Level>,
+    pub member_role_set: bool,
+    /// La personne a « Gérer le serveur » : elle peut changer le niveau elle-même.
+    pub manage_guild: bool,
+}
+
+impl Refusal {
+    /// Message de refus qui donne la solution : niveau requis, niveau actuel,
+    /// rôle membre à régler, commande pour changer le niveau.
+    pub fn message(&self) -> String {
+        let mut lines = vec![denied(self.perm, self.required)];
+        match self.held {
+            None if !self.member_role_set && self.manage_guild => lines.push(
+                "Le rôle membre du groupe n'est pas configuré : règle-le avec `/config permission role_membre:@…`."
+                    .to_owned(),
+            ),
+            None if !self.member_role_set => lines.push(
+                "Le rôle membre du groupe n'est pas configuré sur ce serveur : un admin doit le régler avec \
+                 `/config permission role_membre:@…`."
+                    .to_owned(),
+            ),
+            None if self.perm.strict() && self.manage_guild => lines
+                .push("Action stricte : seuls les rôles comptent, « Gérer le serveur » n'y donne pas accès.".to_owned()),
+            None => lines.push("Tu n'as pas le rôle membre du groupe.".to_owned()),
+            Some(held) => lines.push(format!("Ton niveau : {}.", held.singular())),
+        }
+        if self.manage_guild {
+            lines.push(format!("Pour changer ce niveau : `/config permission action:{} niveau:…`.", self.perm.key()));
+        }
+        lines.join("\n")
+    }
 }
 
 /// Permissions du serveur, pas celles du salon de la commande : « Gérer les
@@ -252,7 +315,13 @@ pub async fn require(ix: &Ix, perm: Perm) -> Result<bool> {
     if grants.can(perm) {
         return Ok(true);
     }
-    ix.reply(Reply::ephemeral(denied(perm, grants.level(perm)))).await?;
+    let refusal = grants.refusal(perm);
+    let mut reply = Reply::ephemeral(refusal.message());
+    // La page Permissions du site est réservée à « Gérer le serveur ».
+    if refusal.manage_guild {
+        reply = reply.with_components(site::row_for(&ix.ctx, guild_id, site::Page::Permissions));
+    }
+    ix.reply(reply).await?;
     Ok(false)
 }
 
@@ -355,6 +424,44 @@ mod tests {
         let r = Roles { member: None, ..roles() };
         assert!(!r.allows(&with(&["1"]), Level::Membre, false));
         assert!(r.allows(&with(&["2"]), Level::Membre, false));
+    }
+
+    #[test]
+    fn refusals_explain_the_way_out() {
+        let refusal = Refusal {
+            perm: Perm::CoffreVoir,
+            required: Level::Grade,
+            held: Some(Level::Membre),
+            member_role_set: true,
+            manage_guild: false,
+        };
+        assert_eq!(
+            refusal.message(),
+            "« Stock et historique (Discord et site) » est réservé aux gradés et leads.\nTon niveau : membre du groupe."
+        );
+        let outsider = Refusal { held: None, ..refusal };
+        assert!(outsider.message().ends_with("Tu n'as pas le rôle membre du groupe."));
+        let unset = Refusal { member_role_set: false, ..outsider };
+        assert!(unset.message().contains("un admin doit le régler avec `/config permission role_membre:@…`"));
+        // Une personne avec « Gérer le serveur » ne bute que sur les actions strictes.
+        let admin = Refusal {
+            perm: Perm::RecrueVeto,
+            required: Level::Lead,
+            held: None,
+            member_role_set: true,
+            manage_guild: true,
+        };
+        let message = admin.message();
+        assert!(message.contains("Action stricte"));
+        assert!(message.ends_with("`/config permission action:recrue.veto niveau:…`."));
+    }
+
+    #[test]
+    fn grants_describe_the_refusal() {
+        let levels = std::collections::HashMap::from([("coffre.voir".to_owned(), Level::Lead)]);
+        let grants = Grants::from_parts(roles(), levels, with(&["2"]));
+        let refusal = grants.refusal(Perm::CoffreVoir);
+        assert_eq!((refusal.required, refusal.held, refusal.member_role_set), (Level::Lead, Some(Level::Grade), true));
     }
 
     #[test]

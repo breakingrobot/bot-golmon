@@ -54,12 +54,26 @@ pub async fn dispatch(ctx: Context, interaction: Interaction) {
     let is_autocomplete = interaction.kind == InteractionType::ApplicationCommandAutocomplete;
     let ix = Ix::new(ctx, interaction);
     if let Err(error) = route(&ix).await {
-        tracing::error!(error = ?error, "erreur lors du traitement d'une interaction");
+        let reference = error_reference();
+        tracing::error!(%reference, error = ?error, "erreur lors du traitement d'une interaction");
         if !is_autocomplete {
             // L'interaction a pu expirer ou déjà recevoir une réponse : rien à faire.
-            let _ = ix.notify("Une erreur est survenue.").await;
+            let _ = ix.notify(error_message(&reference)).await;
         }
     }
+}
+
+/// Courte référence d'erreur, écrite dans le journal du bot et montrée à la
+/// personne : un admin y retrouve l'erreur exacte. Sans 0/O ni 1/I.
+pub fn error_reference() -> String {
+    use rand::Rng as _;
+    const ALPHABET: &[u8] = b"ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+    let mut rng = rand::rng();
+    (0..6).map(|_| ALPHABET[rng.random_range(0..ALPHABET.len())] as char).collect()
+}
+
+pub fn error_message(reference: &str) -> String {
+    format!("Une erreur est survenue. Réessaie ; si ça continue, donne la référence `{reference}` à un admin.")
 }
 
 async fn route(ix: &Ix) -> Result<()> {
@@ -184,7 +198,16 @@ pub fn modal_select(modal: &ModalInteractionData, custom_id: &str) -> Vec<String
 
 #[cfg(test)]
 mod tests {
-    use super::definitions;
+    use super::{definitions, error_message, error_reference};
+
+    #[test]
+    fn error_references_are_short_and_readable() {
+        let reference = error_reference();
+        assert_eq!(reference.len(), 6);
+        assert!(reference.bytes().all(|b| b.is_ascii_uppercase() || b.is_ascii_digit()));
+        assert!(!reference.contains(['0', 'O', '1', 'I']));
+        assert!(error_message("AB23CD").contains("donne la référence `AB23CD` à un admin"));
+    }
     use twilight_validate::command::command;
 
     /// Discord refuse tout le lot si une seule commande dépasse ses limites.
