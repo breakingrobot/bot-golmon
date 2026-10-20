@@ -23,16 +23,6 @@ use twilight_model::oauth::ApplicationFlags;
 /// quel que soit le nombre de cœurs de la machine hôte (chaque thread coûte sa
 /// pile et, avec la glibc, une arène mémoire). `TOKIO_WORKER_THREADS` ajuste.
 fn main() -> Result<()> {
-    let workers = std::env::var("TOKIO_WORKER_THREADS").ok().and_then(|v| v.parse().ok()).unwrap_or(2);
-    tokio::runtime::Builder::new_multi_thread()
-        .worker_threads(workers)
-        .max_blocking_threads(8)
-        .enable_all()
-        .build()?
-        .block_on(run())
-}
-
-async fn run() -> Result<()> {
     let _ = dotenvy::dotenv();
     tracing_subscriber::fmt()
         .with_env_filter(
@@ -40,6 +30,22 @@ async fn run() -> Result<()> {
                 .unwrap_or_else(|_| "info,twilight_gateway=warn,twilight_http_ratelimiting=warn,sqlx=warn".into()),
         )
         .init();
+    let workers = std::env::var("TOKIO_WORKER_THREADS").ok().and_then(|v| v.parse().ok()).unwrap_or(2);
+    let result = tokio::runtime::Builder::new_multi_thread()
+        .worker_threads(workers)
+        .max_blocking_threads(8)
+        .enable_all()
+        .build()?
+        .block_on(run());
+    // Une erreur fatale part aussi dans le journal (sortie standard) : certaines
+    // plateformes n'affichent pas la sortie d'erreur à côté des journaux.
+    if let Err(error) = &result {
+        tracing::error!("arrêt sur erreur : {error:#}");
+    }
+    result
+}
+
+async fn run() -> Result<()> {
     rustls::crypto::ring::default_provider().install_default().ok();
 
     let deploy_only = std::env::args().nth(1).as_deref() == Some("deploy-commands");
@@ -51,9 +57,16 @@ async fn run() -> Result<()> {
     let modmail = modmail::Modmail::load().await?;
 
     let http = HttpClient::new(config.token.clone());
-    let application =
-        http.current_user_application().await?.model().await.context("lecture de l'application Discord")?;
-    let bot_user = http.current_user().await?.model().await?;
+    const DISCORD_UNREACHABLE: &str =
+        "connexion à l'API Discord impossible : token DISCORD_TOKEN refusé, ou Discord injoignable";
+    let application = http
+        .current_user_application()
+        .await
+        .context(DISCORD_UNREACHABLE)?
+        .model()
+        .await
+        .context("lecture de l'application Discord")?;
+    let bot_user = http.current_user().await.context(DISCORD_UNREACHABLE)?.model().await?;
 
     // Cache minimal : guildes, salons, rôles et membres (rôles des présences,
     // recrues, permissions modmail). Ni messages, ni présences, ni emojis.
