@@ -200,7 +200,44 @@ pub async fn catch_up_guild(ctx: &Context, guild_id: &str) {
                 tracing::info!(channel_id = %channel.channel_id, added, "coffres : messages manqués rattrapés")
             }
             Ok(_) => {}
+            Err(error) if is_unknown_channel(&error) => forget_deleted_channel(ctx, &channel).await,
             Err(error) => tracing::warn!(channel_id = %channel.channel_id, ?error, "coffres : rattrapage impossible"),
         }
     }
+}
+
+/// Code d'erreur Discord « Unknown Channel » : le salon a été supprimé.
+const UNKNOWN_CHANNEL: u64 = 10003;
+
+/// L'erreur dit-elle que le salon n'existe plus ? (Pas un simple manque d'accès,
+/// qui se répare en rendant le salon visible au bot.)
+fn is_unknown_channel(error: &anyhow::Error) -> bool {
+    use twilight_http::{api_error::ApiError, error::ErrorType};
+    error.chain().filter_map(|cause| cause.downcast_ref::<twilight_http::Error>()).any(|http| {
+        matches!(http.kind(), ErrorType::Response { error: ApiError::General(api), .. } if api.code == UNKNOWN_CHANNEL)
+    })
+}
+
+/// Salon suivi supprimé de Discord : il n'est plus suivi (les mouvements déjà
+/// lus restent), et le journal du staff le signale.
+async fn forget_deleted_channel(ctx: &Context, channel: &service::Channel) {
+    tracing::info!(channel_id = %channel.channel_id, "coffres : salon supprimé, il n'est plus suivi");
+    if let Err(error) = service::remove_channel(&ctx.db, &channel.guild_id, &channel.channel_id).await {
+        return tracing::error!(?error, "coffres : retrait du salon supprimé");
+    }
+    let Some(guild_id) = channel.guild_id.parse().ok().and_then(Id::new_checked) else {
+        return;
+    };
+    let details = format!(
+        "**coffre** — le salon `{}` a été supprimé de Discord : il n'est plus suivi (les mouvements déjà lus sont conservés).",
+        channel.channel_id
+    );
+    crate::modules::audit::record_web(
+        ctx,
+        guild_id,
+        ctx.bot_user_id,
+        &ctx.bot_username,
+        crate::modules::audit::Entry::new(crate::modules::audit::Action::Config, None, details),
+    )
+    .await;
 }

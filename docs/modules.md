@@ -367,6 +367,9 @@ Une quantité supérieure à 1 000 000 est ignorée.
 /config coffre salon:#logs-coffre relire:true    ← relit l'historique : ajoute ce qui manque, ne retire rien
 ```
 
+Un salon suivi **supprimé de Discord** n'est plus suivi automatiquement au démarrage suivant, avec une
+entrée au journal du staff (les mouvements déjà lus restent).
+
 `relire` sert après un oubli (bot arrêté longtemps, webhook ignoré) : un message déjà compté n'est jamais recompté,
 et un message supprimé du salon ne retire rien de ce qui a déjà été lu.
 
