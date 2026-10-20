@@ -2420,6 +2420,15 @@
         ],
         "type": "object"
       },
+      "PresenceAnswer": {
+        "description": "Réponse donnée à une présence.",
+        "enum": [
+          "PRESENT",
+          "ABSENT",
+          "RETARD"
+        ],
+        "type": "string"
+      },
       "PresenceChange": {
         "properties": {
           "at": {
@@ -2431,7 +2440,7 @@
                 "type": "null"
               },
               {
-                "$ref": "#/components/schemas/PresenceStatus"
+                "$ref": "#/components/schemas/PresenceAnswer"
               }
             ]
           },
@@ -2439,7 +2448,7 @@
             "$ref": "#/components/schemas/MemberRef"
           },
           "to": {
-            "$ref": "#/components/schemas/PresenceStatus"
+            "$ref": "#/components/schemas/PresenceAnswer"
           }
         },
         "required": [

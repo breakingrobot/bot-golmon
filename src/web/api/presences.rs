@@ -88,9 +88,9 @@ pub struct Respondent {
 #[schema(as = PresenceChange)]
 pub struct Change {
     pub member: MemberRef,
-    #[schema(value_type = Option<super::openapi::PresenceStatus>, required = true)]
+    #[schema(value_type = Option<super::openapi::PresenceAnswer>, required = true)]
     pub from: Option<String>,
-    #[schema(value_type = super::openapi::PresenceStatus)]
+    #[schema(value_type = super::openapi::PresenceAnswer)]
     pub to: String,
     pub at: String,
 }

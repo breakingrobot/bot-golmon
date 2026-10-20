@@ -92,6 +92,7 @@ string_enum!(LogKind, "Type d'un message de log.", ["user", "staff", "internal",
 string_enum!(ObjectiveCounts, "Ce qui compte pour l'objectif.", ["total", "propre", "sale"]);
 string_enum!(ModuleStatus, "État d'un module.", ["ok", "incomplete", "off"]);
 string_enum!(RecrueChoice, "Avis sur une recrue.", ["POUR", "CONTRE", "BLANC"]);
+string_enum!(PresenceAnswer, "Réponse donnée à une présence.", ["PRESENT", "ABSENT", "RETARD"]);
 
 /// Schéma d'une page (`Page<T>` du contrat) : un type nommé par liste, pour que
 /// les éléments restent des références (`Transaction`…) dans le client généré.

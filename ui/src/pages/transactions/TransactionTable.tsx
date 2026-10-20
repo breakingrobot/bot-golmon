@@ -8,6 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { formatDateTime, formatMoney, formatNumber } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { MemberName } from '@/molecules/MemberName'
+import { TransactionActions } from '@/pages/transactions/TransactionActions'
 
 export const STATUS_VARIANT: Record<TransactionStatus, BadgeVariant> = {
   PREPARATION: 'neutral',
@@ -18,9 +19,14 @@ export const STATUS_VARIANT: Record<TransactionStatus, BadgeVariant> = {
   CLOTUREE: 'neutral',
 }
 
-export type TransactionTableProps = { items: Transaction[]; guildId: string }
+export type TransactionTableProps = {
+  items: Transaction[]
+  guildId: string
+  /** Avec `transaction.utiliser` : statuts proposés (sans « Annulée »), actions sous les objets. */
+  statuses?: { value: TransactionStatus; label: string }[]
+}
 
-export const TransactionTable = ({ items, guildId }: TransactionTableProps) => {
+export const TransactionTable = ({ items, guildId, statuses }: TransactionTableProps) => {
   const [open, setOpen] = useState<string | null>(null)
   return (
     <Table>
@@ -107,6 +113,12 @@ export const TransactionTable = ({ items, guildId }: TransactionTableProps) => {
                         ))}
                       </ul>
                     )}
+                    {statuses &&
+                      (item.status === 'CLOTUREE' ? (
+                        <p className="mt-3 text-xs text-ink-subtle">Clôturée : plus modifiable.</p>
+                      ) : (
+                        <TransactionActions guildId={guildId} transaction={item} statuses={statuses} />
+                      ))}
                   </TableCell>
                 </TableRow>
               )}

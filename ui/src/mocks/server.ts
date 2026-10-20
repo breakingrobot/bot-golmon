@@ -89,6 +89,7 @@ import {
   TRANSACTIONS,
   VEHICLES,
 } from './fixtures'
+import { registerGroupeRoutes } from './groupe'
 
 class HttpError extends Error {
   readonly status: number
@@ -1040,6 +1041,16 @@ route('GET', '/api/logs/:id', (m): TicketLog => {
     rawUrl: `/logs/${at(m, 1)}?raw=1`,
     entries,
   }
+})
+
+// Présences, absences, recrues, annuaire, écritures des transactions : groupe.ts.
+registerGroupeRoutes({
+  route,
+  requireGuild,
+  fail: (status, message) => new HttpError(status, message),
+  memberById,
+  requireMemberRole,
+  paginate,
 })
 
 const delay = (ms: number) =>

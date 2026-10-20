@@ -94,7 +94,9 @@ src/
   routes/       déclarations de routes seulement (TanStack Router, routes par fichiers)
   state/        atomes Jotai, un fichier par sujet
   api/          types.ts (contrat), client.ts (fetch, erreurs, 401), queries.ts (options TanStack Query et
-                mutations, seul point d'accès à l'API), hey-api.ts, contract-check.ts (spécification ↔ types)
+                mutations, seul point d'accès à l'API), hey-api.ts, contract-check.ts (spécification ↔ types) ;
+                types-groupe.ts / queries-groupe.ts : suite pour présences, absences, recrues, annuaire et
+                écritures des transactions (limite de 300 lignes par fichier)
   lib/          fonctions sans React : format (Intl, « 12 500 $ »), droits par page, paramètres d'adresse,
                 constantes partagées (graphiques, contacts, niveaux de permission, tons)
   hooks/        hooks réutilisables (use-debounced)
@@ -182,6 +184,10 @@ alias) : on teste le code tel qu'il est livré. Fichiers `*.test.ts(x)` à côt�
 - molécules et organismes : `StatCard`, validation et envoi du formulaire de contact, niveaux de permission (seules
   les lignes modifiées partent, retour au défaut = `null`), inventaire des coffres (seules les lignes qui changent
   partent, liste collée, erreur 422 affichée dans le dialogue) ;
+- `lib/absence-timeline.ts` (frise des absences : fenêtre de cinq semaines, barres découpées, navigation au clavier),
+  `lib/presence.ts`, `lib/recrue.ts` ;
+- pages Présences, Absences, Recrues, Annuaire (`src/test/app.tsx` : application complète sur la maquette) et
+  dialogue « Nouvelle transaction » ;
 - une page complète (`JournalPage.test.tsx`) : routeur en mémoire, maquette de l'API (`vi.stubEnv('VITE_MOCK',
 '1')`), filtre écrit dans l'adresse.
 
@@ -240,6 +246,10 @@ au client générés par Hey API ne touche que `src/api/`.
 | `/serveurs/:id/cotisations`                                    | Cotisations, objectif, ajout (`cotisation.stats`, `cotisation.ajouter`, `cotisation.gerer`) |
 | `/serveurs/:id/coffres`                                        | Stock, évolution d'un objet, joueurs, mouvements (`coffre.voir`, `coffre.gerer`)            |
 | `/serveurs/:id/contacts`                                       | Répertoire, fiche et notes, création / modification (`contact.*`)                           |
+| `/serveurs/:id/presences`                                      | Présences, assiduité, plannings (`presence.stats`, `presence.creer`, `presence.gerer`)      |
+| `/serveurs/:id/absences`                                       | Frise et liste des absences, déclaration (membres du groupe, `absence.autrui`)              |
+| `/serveurs/:id/recrues`                                        | Avis, vétos, historique des recrues (`recrue.avis`, `recrue.veto`, `recrue.suivi`)          |
+| `/serveurs/:id/annuaire`                                       | Véhicules et numéros (`vehicule.utiliser`, membres du groupe)                               |
 | `/serveurs/:id/journal`                                        | Journal du staff (`site.journal`)                                                           |
 | `/serveurs/:id/membres`, `/serveurs/:id/membres/:user`         | Recherche et fiche d'un membre (`membre.fiche` ; sa propre fiche pour tous)                 |
 | `/serveurs/:id/permissions`, `/serveurs/:id/configuration`     | Réglages (« Gérer le serveur »)                                                             |
