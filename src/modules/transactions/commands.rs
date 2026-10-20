@@ -383,7 +383,7 @@ async fn view(ix: &Ix, options: &Options, guild: &str) -> Result<()> {
 }
 
 /// Note saisie : vide → aucune, bornée à 500 caractères.
-fn clean_note(raw: Option<String>) -> Option<String> {
+pub fn clean_note(raw: Option<String>) -> Option<String> {
     raw.map(|n| truncate(n.trim(), NOTE_LIMIT)).filter(|n| !n.is_empty())
 }
 

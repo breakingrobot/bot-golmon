@@ -59,10 +59,15 @@ pub enum Action {
     ContactUpdate,
     ContactDelete,
     ContactNote,
+    // Écritures du site sans équivalent journalisé sur Discord.
+    TransactionCreate,
+    TransactionStatus,
+    TransactionItem,
+    TransactionCancel,
 }
 
 impl Action {
-    pub const ALL: [Self; 29] = [
+    pub const ALL: [Self; 33] = [
         Self::Config,
         Self::PresenceForceVote,
         Self::PresenceCancel,
@@ -92,6 +97,10 @@ impl Action {
         Self::ContactUpdate,
         Self::ContactDelete,
         Self::ContactNote,
+        Self::TransactionCreate,
+        Self::TransactionStatus,
+        Self::TransactionItem,
+        Self::TransactionCancel,
     ];
 
     pub fn code(self) -> &'static str {
@@ -125,6 +134,10 @@ impl Action {
             Self::ContactUpdate => "contact.update",
             Self::ContactDelete => "contact.delete",
             Self::ContactNote => "contact.note",
+            Self::TransactionCreate => "transaction.create",
+            Self::TransactionStatus => "transaction.status",
+            Self::TransactionItem => "transaction.item",
+            Self::TransactionCancel => "transaction.cancel",
         }
     }
 
@@ -163,6 +176,10 @@ impl Action {
             Self::ContactUpdate => "📇 Contact modifié",
             Self::ContactDelete => "📇 Contact supprimé",
             Self::ContactNote => "📝 Note ajoutée sur un contact",
+            Self::TransactionCreate => "🧾 Transaction créée",
+            Self::TransactionStatus => "🧾 Statut d'une transaction changé",
+            Self::TransactionItem => "🧾 Objet ajouté à une transaction",
+            Self::TransactionCancel => "🧾 Transaction annulée",
         }
     }
 }

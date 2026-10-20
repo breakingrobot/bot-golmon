@@ -559,7 +559,7 @@ pub async fn pending_guilds(db: &SqlitePool, week_start: DbTime) -> Result<Vec<S
 }
 
 /// Membres actuels du rôle des présences, hors bots et blocklist (cache).
-fn tracked_members(
+pub fn tracked_members(
     ctx: &Ctx,
     guild_id: Id<GuildMarker>,
     role_id: &str,

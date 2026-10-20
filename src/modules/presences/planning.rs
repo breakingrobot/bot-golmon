@@ -22,7 +22,7 @@ use chrono::{DateTime, Datelike, Duration, Utc};
 use sqlx::{FromRow, SqlitePool};
 use twilight_util::builder::command::{IntegerBuilder, StringBuilder, SubCommandBuilder};
 
-const WEEKDAYS: [&str; 7] = ["lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi", "dimanche"];
+pub const WEEKDAYS: [&str; 7] = ["lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi", "dimanche"];
 
 #[derive(Clone, Debug, FromRow)]
 #[sqlx(rename_all = "camelCase")]
@@ -40,17 +40,17 @@ pub struct Schedule {
 }
 
 impl Schedule {
-    fn weekday_label(&self) -> &'static str {
+    pub fn weekday_label(&self) -> &'static str {
         WEEKDAYS.get((self.weekday - 1).clamp(0, 6) as usize).copied().unwrap_or("?")
     }
 
-    fn summary(&self) -> String {
+    pub fn summary(&self) -> String {
         format!("{} à {} — **{}** (publiée {} h avant)", self.weekday_label(), self.time, self.titre, self.lead_hours)
     }
 }
 
 /// Prochain événement du planning strictement après `now`.
-fn next_event(weekday: i64, time: &str, now: DateTime<Utc>) -> Option<DbTime> {
+pub fn next_event(weekday: i64, time: &str, now: DateTime<Utc>) -> Option<DbTime> {
     let today = now.with_timezone(&TIMEZONE).date_naive();
     (0..8).find_map(|offset| {
         let day = today + Duration::days(offset);
@@ -92,11 +92,52 @@ pub fn admin_subcommands() -> Vec<SubCommandBuilder> {
     ]
 }
 
-async fn list(db: &SqlitePool, guild_id: &str) -> Result<Vec<Schedule>> {
+/// Publication par défaut, en heures avant l'événement, et bornes acceptées.
+pub const DEFAULT_LEAD_HOURS: i64 = 24;
+pub const LEAD_HOURS: std::ops::RangeInclusive<i64> = 1..=144;
+
+pub async fn list(db: &SqlitePool, guild_id: &str) -> Result<Vec<Schedule>> {
     Ok(sqlx::query_as(r#"SELECT * FROM "PresenceSchedule" WHERE "guildId" = ? ORDER BY "weekday", "time""#)
         .bind(guild_id)
         .fetch_all(db)
         .await?)
+}
+
+/// Heure validée et normalisée (« 21h » → « 21:00 ») via un événement de test.
+pub fn normalize_time(heure: &str) -> Option<String> {
+    (1..=7)
+        .find_map(|day| next_event(day, heure, Utc::now()))
+        .map(|date| date.0.with_timezone(&TIMEZONE).format("%H:%M").to_string())
+}
+
+pub async fn insert(db: &SqlitePool, schedule: &Schedule) -> Result<()> {
+    sqlx::query(
+        r#"INSERT INTO "PresenceSchedule" ("id", "guildId", "weekday", "time", "titre", "description", "leadHours", "createdById", "createdAt")
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"#,
+    )
+    .bind(&schedule.id)
+    .bind(&schedule.guild_id)
+    .bind(schedule.weekday)
+    .bind(&schedule.time)
+    .bind(&schedule.titre)
+    .bind(&schedule.description)
+    .bind(schedule.lead_hours)
+    .bind(&schedule.created_by_id)
+    .bind(DbTime::now())
+    .execute(db)
+    .await?;
+    Ok(())
+}
+
+/// `false` : planning introuvable sur ce serveur.
+pub async fn delete(db: &SqlitePool, guild_id: &str, id: &str) -> Result<bool> {
+    let deleted = sqlx::query(r#"DELETE FROM "PresenceSchedule" WHERE "id" = ? AND "guildId" = ?"#)
+        .bind(id)
+        .bind(guild_id)
+        .execute(db)
+        .await?
+        .rows_affected();
+    Ok(deleted > 0)
 }
 
 pub async fn handle_admin(ix: &Ix, options: &Options) -> Result<()> {
@@ -107,11 +148,7 @@ pub async fn handle_admin(ix: &Ix, options: &Options) -> Result<()> {
     match options.sub() {
         "planifier" => {
             let weekday = options.string("jour").and_then(|d| d.parse::<i64>().ok()).filter(|d| (1..=7).contains(d));
-            let heure = options.string("heure").unwrap_or_default();
-            // Heure validée et normalisée (« 21h » → « 21:00 ») via un événement de test.
-            let time = (1..=7)
-                .find_map(|day| next_event(day, &heure, Utc::now()))
-                .map(|date| date.0.with_timezone(&TIMEZONE).format("%H:%M").to_string());
+            let time = normalize_time(&options.string("heure").unwrap_or_default());
             let (Some(weekday), Some(time)) = (weekday, time) else {
                 return ix.reply(Reply::ephemeral("Heure invalide. Format attendu : `HH:MM`.")).await;
             };
@@ -122,25 +159,11 @@ pub async fn handle_admin(ix: &Ix, options: &Options) -> Result<()> {
                 time,
                 titre: options.string("titre").unwrap_or_else(|| "Présence".to_owned()),
                 description: options.string("description"),
-                lead_hours: options.integer("publication").unwrap_or(24),
+                lead_hours: options.integer("publication").unwrap_or(DEFAULT_LEAD_HOURS),
                 last_event_date: None,
                 created_by_id: ix.user_id().to_string(),
             };
-            sqlx::query(
-                r#"INSERT INTO "PresenceSchedule" ("id", "guildId", "weekday", "time", "titre", "description", "leadHours", "createdById", "createdAt")
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"#,
-            )
-            .bind(&schedule.id)
-            .bind(&schedule.guild_id)
-            .bind(schedule.weekday)
-            .bind(&schedule.time)
-            .bind(&schedule.titre)
-            .bind(&schedule.description)
-            .bind(schedule.lead_hours)
-            .bind(&schedule.created_by_id)
-            .bind(DbTime::now())
-            .execute(&ix.ctx.db)
-            .await?;
+            insert(&ix.ctx.db, &schedule).await?;
             let next = next_event(schedule.weekday, &schedule.time, Utc::now())
                 .map(|d| {
                     format!(
@@ -169,16 +192,11 @@ pub async fn handle_admin(ix: &Ix, options: &Options) -> Result<()> {
         }
         "deplanifier" => {
             let id = options.string("planning").unwrap_or_default();
-            let deleted = sqlx::query(r#"DELETE FROM "PresenceSchedule" WHERE "id" = ? AND "guildId" = ?"#)
-                .bind(&id)
-                .bind(&guild)
-                .execute(&ix.ctx.db)
-                .await?
-                .rows_affected();
-            if deleted > 0 {
+            let deleted = delete(&ix.ctx.db, &guild, &id).await?;
+            if deleted {
                 audit::record(ix, Entry::new(Action::PresenceUnschedule, None, String::new())).await;
             }
-            ix.reply(Reply::ephemeral(if deleted > 0 {
+            ix.reply(Reply::ephemeral(if deleted {
                 "Présence planifiée supprimée. Les présences déjà publiées restent en place."
             } else {
                 "Présence planifiée introuvable."

@@ -178,6 +178,7 @@ export const GUILDS: GuildAccess[] = [
     name: 'Les Corbeaux du Port',
     iconUrl: null,
     isAdmin: true,
+    inGroup: true,
     perms: ALL_PERMS,
   },
   {
@@ -185,6 +186,7 @@ export const GUILDS: GuildAccess[] = [
     name: 'Brasserie du Vieux Port',
     iconUrl: null,
     isAdmin: false,
+    inGroup: true,
     perms: ['presence.creer', 'cotisation.ajouter', 'contact.voir', 'contact.ajouter', 'vehicule.utiliser'],
   },
 ]

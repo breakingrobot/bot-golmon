@@ -746,36 +746,10 @@ pub(super) async fn declare_absence(ix: &Ix, form: AbsenceForm) -> Result<()> {
     )
     .await?;
 
-    let mut embed = EmbedBuilder::new()
-        .title("🌙 Absence déclarée")
-        .color(0xe67e22)
-        .field(field("Membre", format!("<@{target}>"), true))
-        .field(field("Du", format!("<t:{}:d>", starts_at.unix()), true))
-        .field(field("Au", format!("<t:{}:d>", ends_at.unix()), true))
-        .field(field("Motif", truncate_field(&motif), false))
-        .maybe_thumbnail(form.avatar);
-    if for_someone_else {
-        embed = embed.footer(footer(format!("Déclarée par {}", ix.username())));
-    }
-    let embed = embed.build();
-
-    // L'annonce est un bonus : un salon inaccessible ne fait pas échouer la déclaration.
-    // Elle est supprimée automatiquement quand l'absence se termine ou est annulée.
-    let config = service::get_config(&ix.ctx.db, &guild_id.to_string()).await?;
-    if let Some(channel_id) = config.and_then(|c| c.absence_channel_id).as_deref().and_then(parse_id) {
-        match messages::send(&ix.ctx, channel_id, &Outgoing::embeds(vec![embed.clone()])).await {
-            Ok(message) => {
-                absences::remember_announcement(
-                    &ix.ctx.db,
-                    &declared.id,
-                    &channel_id.to_string(),
-                    &message.id.to_string(),
-                )
-                .await?;
-            }
-            Err(error) => tracing::warn!(?error, "annonce d'absence impossible"),
-        }
-    }
+    let declared_by = for_someone_else.then(|| ix.username());
+    let embed =
+        absences::announcement(&target.to_string(), starts_at, ends_at, &motif, form.avatar, declared_by.as_deref());
+    absences::announce(&ix.ctx, guild_id, &declared.id, &embed).await?;
 
     let presence_note = if declared.affected > 0 {
         format!("\n{} présence(s) ouverte(s) mise(s) à jour en absent.", declared.affected)

@@ -1,7 +1,11 @@
-// Provisoire : remplacée par la page des recrues à l'intégration.
-
 import { createFileRoute } from '@tanstack/react-router'
 
-import { SoonPage } from '@/pages/soon/SoonPage'
+import { compact, searchString } from '@/lib/search'
+import type { RecruesSearch } from '@/pages/recrues/recrues-search'
+import { RecruesPage } from '@/pages/recrues/RecruesPage'
 
-export const Route = createFileRoute('/serveurs/$guildId/recrues')({ component: SoonPage })
+export const Route = createFileRoute('/serveurs/$guildId/recrues')({
+  validateSearch: (search: Record<string, unknown>): RecruesSearch =>
+    compact({ recrue: searchString(search['recrue']) }),
+  component: RecruesPage,
+})

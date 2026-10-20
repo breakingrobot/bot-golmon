@@ -9,6 +9,7 @@ import { formatDateTime, formatMoney, formatNumber } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { MemberName } from '@/molecules/MemberName'
 import { MobileCard, MobileCards } from '@/molecules/MobileCards'
+import { TransactionActions } from '@/pages/transactions/TransactionActions'
 
 export const STATUS_VARIANT: Record<TransactionStatus, BadgeVariant> = {
   PREPARATION: 'neutral',
@@ -19,9 +20,14 @@ export const STATUS_VARIANT: Record<TransactionStatus, BadgeVariant> = {
   CLOTUREE: 'neutral',
 }
 
-export type TransactionTableProps = { items: Transaction[]; guildId: string }
+export type TransactionTableProps = {
+  items: Transaction[]
+  guildId: string
+  /** Avec `transaction.utiliser` : statuts proposés (sans « Annulée »), actions sous les objets. */
+  statuses?: { value: TransactionStatus; label: string }[]
+}
 
-export const TransactionTable = ({ items, guildId }: TransactionTableProps) => {
+export const TransactionTable = ({ items, guildId, statuses }: TransactionTableProps) => {
   const [open, setOpen] = useState<string | null>(null)
   return (
     <>
@@ -54,6 +60,7 @@ export const TransactionTable = ({ items, guildId }: TransactionTableProps) => {
               { label: 'Créée par', value: item.creator.name },
             ]}
           >
+            {item.note && <p className="mt-2 text-sm whitespace-pre-line text-ink-muted">{item.note}</p>}
             {item.items.length > 0 && (
               <details className="mt-2">
                 <summary className="min-h-11 cursor-pointer content-center text-ink-muted">
@@ -73,6 +80,9 @@ export const TransactionTable = ({ items, guildId }: TransactionTableProps) => {
                   ))}
                 </ul>
               </details>
+            )}
+            {statuses && item.status !== 'CLOTUREE' && (
+              <TransactionActions guildId={guildId} transaction={item} statuses={statuses} />
             )}
           </MobileCard>
         ))}
@@ -145,6 +155,7 @@ export const TransactionTable = ({ items, guildId }: TransactionTableProps) => {
                     <TableRow id={`objets-${item.id}`} className="bg-muted/30 hover:bg-muted/30">
                       <TableCell />
                       <TableCell colSpan={6} className="py-3">
+                        {item.note && <p className="mb-2 text-sm whitespace-pre-line text-ink-muted">{item.note}</p>}
                         {item.items.length === 0 ? (
                           <p className="text-sm text-ink-muted">Aucun objet saisi.</p>
                         ) : (
@@ -165,6 +176,12 @@ export const TransactionTable = ({ items, guildId }: TransactionTableProps) => {
                             ))}
                           </ul>
                         )}
+                        {statuses &&
+                          (item.status === 'CLOTUREE' ? (
+                            <p className="mt-3 text-xs text-ink-subtle">Clôturée : plus modifiable.</p>
+                          ) : (
+                            <TransactionActions guildId={guildId} transaction={item} statuses={statuses} />
+                          ))}
                       </TableCell>
                     </TableRow>
                   )}

@@ -12,6 +12,7 @@ export const TEST_GUILD: GuildAccess = {
   name: 'Les Corbeaux du Port',
   iconUrl: null,
   isAdmin: true,
+  inGroup: true,
   perms: ['site.stats', 'contact.voir', 'contact.ajouter', 'contact.modifier'],
 }
 

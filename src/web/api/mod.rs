@@ -8,6 +8,8 @@
 //! - CSRF : toute écriture exige `Content-Type: application/json` et
 //!   `X-Requested-With: fetch` (en plus du cookie `SameSite=Lax`).
 
+mod absences;
+mod annuaire;
 mod coffres;
 mod contacts;
 mod cotisations;
@@ -18,11 +20,14 @@ mod members;
 pub mod openapi;
 mod overview;
 mod permissions;
+mod presences;
+mod recrues;
 mod reglages;
 mod sante;
 mod series;
 mod stats;
 pub(crate) mod tickets;
+mod transaction_edits;
 mod transactions;
 
 #[cfg(test)]
@@ -84,6 +89,28 @@ pub fn router() -> Router<Context> {
         .route("/guilds/{guild}/overview", get(overview::overview))
         .route("/guilds/{guild}/events", get(live::events))
         .route("/guilds/{guild}/health", get(sante::health))
+        // Présences, absences, recrues, annuaire, écritures des transactions.
+        .route("/guilds/{guild}/presences", get(presences::list).post(presences::create))
+        .route("/guilds/{guild}/presences/stats", get(presences::stats))
+        .route("/guilds/{guild}/presences/export.csv", get(presences::export))
+        .route("/guilds/{guild}/presences/plannings", get(presences::schedules).post(presences::create_schedule))
+        .route("/guilds/{guild}/presences/plannings/{id}", axum::routing::delete(presences::delete_schedule))
+        .route("/guilds/{guild}/presences/{id}", get(presences::detail))
+        .route("/guilds/{guild}/presences/{id}/close", axum::routing::post(presences::close))
+        .route("/guilds/{guild}/absences", get(absences::list).post(absences::create))
+        .route("/guilds/{guild}/absences/{id}/end", axum::routing::post(absences::end))
+        .route("/guilds/{guild}/recrues", get(recrues::list))
+        .route("/guilds/{guild}/recrues/{id}/history", get(recrues::history))
+        .route("/guilds/{guild}/recrues/{id}/vote", put(recrues::vote))
+        .route("/guilds/{guild}/recrues/{id}/veto", put(recrues::set_veto).delete(recrues::clear_veto))
+        .route("/guilds/{guild}/vehicules", get(annuaire::vehicles).post(annuaire::create_vehicle))
+        .route("/guilds/{guild}/vehicules/{plate}", axum::routing::delete(annuaire::delete_vehicle))
+        .route("/guilds/{guild}/numeros", get(annuaire::phones))
+        .route("/guilds/{guild}/numeros/{user}", put(annuaire::set_phone).delete(annuaire::delete_phone))
+        .route("/guilds/{guild}/transactions", axum::routing::post(transaction_edits::create))
+        .route("/guilds/{guild}/transactions/{id}/status", put(transaction_edits::set_status))
+        .route("/guilds/{guild}/transactions/{id}/items", axum::routing::post(transaction_edits::add_item))
+        .route("/guilds/{guild}/transactions/{id}/cancel", axum::routing::post(transaction_edits::cancel))
         .route("/tickets", get(tickets::list))
         .route("/tickets/staff", get(tickets::staff))
         .route("/logs/{thread}", get(tickets::log))

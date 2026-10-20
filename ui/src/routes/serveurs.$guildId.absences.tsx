@@ -1,7 +1,17 @@
-// Provisoire : remplacée par la page des absences à l'intégration.
-
 import { createFileRoute } from '@tanstack/react-router'
 
-import { SoonPage } from '@/pages/soon/SoonPage'
+import { compact, searchOneOf } from '@/lib/search'
+import { VIEWS } from '@/pages/absences/absences-search'
+import type { AbsencesSearch } from '@/pages/absences/absences-search'
+import { AbsencesPage } from '@/pages/absences/AbsencesPage'
 
-export const Route = createFileRoute('/serveurs/$guildId/absences')({ component: SoonPage })
+export const Route = createFileRoute('/serveurs/$guildId/absences')({
+  validateSearch: (search: Record<string, unknown>): AbsencesSearch =>
+    compact({
+      vue: searchOneOf(
+        search['vue'],
+        VIEWS.map((view) => view.value),
+      ),
+    }),
+  component: AbsencesPage,
+})

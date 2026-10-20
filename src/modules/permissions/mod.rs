@@ -228,6 +228,11 @@ impl Grants {
         self.roles.allows(&self.holder, self.level(perm), perm.strict())
     }
 
+    /// Fait partie du groupe (rôle membre, gradé ou lead), sans compter « Gérer le serveur ».
+    pub fn in_group(&self) -> bool {
+        self.roles.in_group(&self.holder.roles)
+    }
+
     /// Ce qu'il faut savoir pour expliquer un refus.
     pub fn refusal(&self, perm: Perm) -> Refusal {
         Refusal {

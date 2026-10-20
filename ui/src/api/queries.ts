@@ -39,7 +39,7 @@ import type {
   TransactionsResponse,
 } from './types'
 
-const g = (guildId: string) => `/guilds/${encodeURIComponent(guildId)}`
+export const g = (guildId: string) => `/guilds/${encodeURIComponent(guildId)}`
 
 export const meQuery = queryOptions({
   queryKey: ['me'],
@@ -194,7 +194,7 @@ export const ticketLogQuery = (threadId: string) =>
 // Écritures
 
 /** Mutation commune : message de succès en toast, erreurs du serveur en toast, invalidation du serveur. */
-const useGuildMutation = <TVars, TResult>(
+export const useGuildMutation = <TVars, TResult>(
   guildId: string,
   run: (vars: TVars) => Promise<TResult>,
   success: string | ((result: TResult, vars: TVars) => string),

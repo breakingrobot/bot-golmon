@@ -71,6 +71,8 @@ export type GuildAccess = {
   iconUrl: string | null
   /** « Gérer le serveur » : réglages (permissions, objectifs, alertes, état). */
   isAdmin: boolean
+  /** Membre du groupe (rôle membre, gradé ou lead) : absences, numéros, saisies à son nom. */
+  inGroup: boolean
   /** Actions autorisées sur ce serveur. */
   perms: Perm[]
 }
@@ -492,3 +494,5 @@ export type LogEntry = {
   technical: string | null
 }
 
+// Présences, absences, recrues, annuaire et écritures des transactions : types-groupe.ts.
+export type * from './types-groupe'

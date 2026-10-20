@@ -22,6 +22,7 @@ import { Route as TicketsIndexRouteImport } from './routes/tickets.index'
 import { Route as TicketsStaffRouteImport } from './routes/tickets.staff'
 import { Route as ServeursGuildIdIndexRouteImport } from './routes/serveurs.$guildId.index'
 import { Route as ServeursGuildIdAbsencesRouteImport } from './routes/serveurs.$guildId.absences'
+import { Route as ServeursGuildIdAnnuaireRouteImport } from './routes/serveurs.$guildId.annuaire'
 import { Route as ServeursGuildIdCoffresRouteImport } from './routes/serveurs.$guildId.coffres'
 import { Route as ServeursGuildIdConfigurationRouteImport } from './routes/serveurs.$guildId.configuration'
 import { Route as ServeursGuildIdContactsRouteImport } from './routes/serveurs.$guildId.contacts'
@@ -101,6 +102,11 @@ const ServeursGuildIdIndexRoute = ServeursGuildIdIndexRouteImport.update({
 const ServeursGuildIdAbsencesRoute = ServeursGuildIdAbsencesRouteImport.update({
   id: '/absences',
   path: '/absences',
+  getParentRoute: () => ServeursGuildIdRoute,
+} as any)
+const ServeursGuildIdAnnuaireRoute = ServeursGuildIdAnnuaireRouteImport.update({
+  id: '/annuaire',
+  path: '/annuaire',
   getParentRoute: () => ServeursGuildIdRoute,
 } as any)
 const ServeursGuildIdCoffresRoute = ServeursGuildIdCoffresRouteImport.update({
@@ -199,6 +205,7 @@ export interface FileRoutesByFullPath {
   '/stats/': typeof StatsIndexRoute
   '/tickets/': typeof TicketsIndexRoute
   '/serveurs/$guildId/absences': typeof ServeursGuildIdAbsencesRoute
+  '/serveurs/$guildId/annuaire': typeof ServeursGuildIdAnnuaireRoute
   '/serveurs/$guildId/coffres': typeof ServeursGuildIdCoffresRoute
   '/serveurs/$guildId/configuration': typeof ServeursGuildIdConfigurationRoute
   '/serveurs/$guildId/contacts': typeof ServeursGuildIdContactsRoute
@@ -228,6 +235,7 @@ export interface FileRoutesByTo {
   '/stats': typeof StatsIndexRoute
   '/tickets': typeof TicketsIndexRoute
   '/serveurs/$guildId/absences': typeof ServeursGuildIdAbsencesRoute
+  '/serveurs/$guildId/annuaire': typeof ServeursGuildIdAnnuaireRoute
   '/serveurs/$guildId/coffres': typeof ServeursGuildIdCoffresRoute
   '/serveurs/$guildId/configuration': typeof ServeursGuildIdConfigurationRoute
   '/serveurs/$guildId/contacts': typeof ServeursGuildIdContactsRoute
@@ -259,6 +267,7 @@ export interface FileRoutesById {
   '/stats/': typeof StatsIndexRoute
   '/tickets/': typeof TicketsIndexRoute
   '/serveurs/$guildId/absences': typeof ServeursGuildIdAbsencesRoute
+  '/serveurs/$guildId/annuaire': typeof ServeursGuildIdAnnuaireRoute
   '/serveurs/$guildId/coffres': typeof ServeursGuildIdCoffresRoute
   '/serveurs/$guildId/configuration': typeof ServeursGuildIdConfigurationRoute
   '/serveurs/$guildId/contacts': typeof ServeursGuildIdContactsRoute
@@ -291,6 +300,7 @@ export interface FileRouteTypes {
     | '/stats/'
     | '/tickets/'
     | '/serveurs/$guildId/absences'
+    | '/serveurs/$guildId/annuaire'
     | '/serveurs/$guildId/coffres'
     | '/serveurs/$guildId/configuration'
     | '/serveurs/$guildId/contacts'
@@ -320,6 +330,7 @@ export interface FileRouteTypes {
     | '/stats'
     | '/tickets'
     | '/serveurs/$guildId/absences'
+    | '/serveurs/$guildId/annuaire'
     | '/serveurs/$guildId/coffres'
     | '/serveurs/$guildId/configuration'
     | '/serveurs/$guildId/contacts'
@@ -350,6 +361,7 @@ export interface FileRouteTypes {
     | '/stats/'
     | '/tickets/'
     | '/serveurs/$guildId/absences'
+    | '/serveurs/$guildId/annuaire'
     | '/serveurs/$guildId/coffres'
     | '/serveurs/$guildId/configuration'
     | '/serveurs/$guildId/contacts'
@@ -477,6 +489,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ServeursGuildIdAbsencesRouteImport
       parentRoute: typeof ServeursGuildIdRoute
     }
+    '/serveurs/$guildId/annuaire': {
+      id: '/serveurs/$guildId/annuaire'
+      path: '/annuaire'
+      fullPath: '/serveurs/$guildId/annuaire'
+      preLoaderRoute: typeof ServeursGuildIdAnnuaireRouteImport
+      parentRoute: typeof ServeursGuildIdRoute
+    }
     '/serveurs/$guildId/coffres': {
       id: '/serveurs/$guildId/coffres'
       path: '/coffres'
@@ -587,6 +606,7 @@ declare module '@tanstack/react-router' {
 
 interface ServeursGuildIdRouteChildren {
   ServeursGuildIdAbsencesRoute: typeof ServeursGuildIdAbsencesRoute
+  ServeursGuildIdAnnuaireRoute: typeof ServeursGuildIdAnnuaireRoute
   ServeursGuildIdCoffresRoute: typeof ServeursGuildIdCoffresRoute
   ServeursGuildIdConfigurationRoute: typeof ServeursGuildIdConfigurationRoute
   ServeursGuildIdContactsRoute: typeof ServeursGuildIdContactsRoute
@@ -605,6 +625,7 @@ interface ServeursGuildIdRouteChildren {
 
 const ServeursGuildIdRouteChildren: ServeursGuildIdRouteChildren = {
   ServeursGuildIdAbsencesRoute: ServeursGuildIdAbsencesRoute,
+  ServeursGuildIdAnnuaireRoute: ServeursGuildIdAnnuaireRoute,
   ServeursGuildIdCoffresRoute: ServeursGuildIdCoffresRoute,
   ServeursGuildIdConfigurationRoute: ServeursGuildIdConfigurationRoute,
   ServeursGuildIdContactsRoute: ServeursGuildIdContactsRoute,

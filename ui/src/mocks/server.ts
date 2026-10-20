@@ -90,6 +90,7 @@ import {
   TRANSACTIONS,
   VEHICLES,
 } from './fixtures'
+import { registerGroupeRoutes } from './groupe'
 
 class HttpError extends Error {
   readonly status: number
@@ -1169,6 +1170,16 @@ route('GET', `${G}/health`, (m, p): GuildHealth => {
       },
     ],
   }
+})
+
+// Présences, absences, recrues, annuaire, écritures des transactions : groupe.ts.
+registerGroupeRoutes({
+  route,
+  requireGuild,
+  fail: (status, message) => new HttpError(status, message),
+  memberById,
+  requireMemberRole,
+  paginate,
 })
 
 const delay = (ms: number) =>
