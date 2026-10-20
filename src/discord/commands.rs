@@ -26,6 +26,7 @@ pub fn definitions(with_tickets: bool) -> Vec<Command> {
         crate::modules::cotisations::commands::definition(),
         crate::modules::coffres::commands::definition(),
         crate::modules::contacts::commands::definition(),
+        crate::modules::fiche::definition(),
         super::admin::config_definition(),
         super::admin::gestion_definition(),
     ];
@@ -99,6 +100,7 @@ async fn route(ix: &Ix) -> Result<()> {
                 "cotisation" => crate::modules::cotisations::commands::handle(ix, &options).await,
                 "coffre" => crate::modules::coffres::commands::handle(ix, &options).await,
                 "contact" => crate::modules::contacts::commands::handle(ix, &options).await,
+                "fiche" => crate::modules::fiche::handle(ix, &options).await,
                 "config" => super::admin::handle_config(ix, &options).await,
                 "gestion" => super::admin::handle_gestion(ix, &options).await,
                 _ => Ok(()),
