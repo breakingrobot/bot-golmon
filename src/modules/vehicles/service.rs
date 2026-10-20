@@ -2,7 +2,10 @@ use super::{api::normalize_plate, embed::build_dashboard};
 use crate::{
     context::Ctx,
     db::is_unique_violation,
-    discord::messages::{self, Outgoing, parse_id},
+    discord::{
+        messages::{self, Outgoing, parse_id},
+        site::{self, Page},
+    },
     modules::like_contains,
     util::{ids::new_id, time::DbTime},
 };
@@ -139,7 +142,9 @@ pub async fn sync_dashboard(ctx: &Ctx, guild_id: &str) -> Result<()> {
     let Some(channel_id) = config.dashboard_channel_id.as_deref().and_then(parse_id) else {
         return Ok(());
     };
-    let message = Outgoing::components_v2(build_dashboard(&list(&ctx.db, guild_id).await?));
+    let mut components = build_dashboard(&list(&ctx.db, guild_id).await?);
+    site::attach_page(ctx, guild_id, Page::Annuaire, &mut components);
+    let message = Outgoing::components_v2(components);
     let known = config.dashboard_message_id.as_deref().and_then(parse_id);
     match messages::upsert(ctx, channel_id, known, &message).await {
         Ok(Some(new_id)) => {

@@ -10,6 +10,7 @@ use crate::{
         interaction::{GUILD_ONLY, Ix, MANAGE_GUILD_ONLY, Reply, choice},
         messages::{self, parse_id},
         options::Options,
+        site::{self, Page},
     },
     modules::{
         audit::{self, Action, Entry},
@@ -425,7 +426,8 @@ async fn stock(ix: &Ix, options: &Options, guild_id: Id<GuildMarker>) -> Result<
         .description(description)
         .footer(footer("Calculé à partir des dépôts et retraits lus depuis le début du suivi"))
         .build();
-    ix.reply(Reply::embed(embed).hidden()).await
+    let link = site::row_for(&ix.ctx, guild_id, Page::Coffres { propriete: property.as_deref(), objet: None });
+    ix.reply(Reply::embed(embed).hidden().with_components(link)).await
 }
 
 async fn history(ix: &Ix, options: &Options, guild_id: Id<GuildMarker>) -> Result<()> {
@@ -476,17 +478,14 @@ async fn history(ix: &Ix, options: &Options, guild_id: Id<GuildMarker>) -> Resul
             DESCRIPTION_LIMIT,
         )
     };
-    let mut footer_text = format!("{} mouvement(s) au total", total);
-    if let Some(url) = crate::web::auth::public_url(&ix.ctx) {
-        footer_text.push_str(&format!(" · détail : {url}/stats/{guild}/coffres"));
-    }
     let embed = EmbedBuilder::new()
         .title("📦 Mouvements des coffres")
         .color(COLOR)
         .description(description)
-        .footer(footer(footer_text))
+        .footer(footer(format!("{total} mouvement(s) au total")))
         .build();
-    ix.reply(Reply::embed(embed).hidden()).await
+    let page = Page::Coffres { propriete: filter.property_id.as_deref(), objet: filter.item.as_deref() };
+    ix.reply(Reply::embed(embed).hidden().with_components(site::row_for(&ix.ctx, guild_id, page))).await
 }
 
 async fn link(ix: &Ix, options: &Options, guild_id: Id<GuildMarker>) -> Result<()> {

@@ -21,7 +21,9 @@ use twilight_model::{
 
 pub const LABEL: &str = "Ouvrir sur le site";
 
-/// Page du site d'un serveur, avec ses filtres éventuels.
+/// Page du site d'un serveur, avec ses filtres éventuels. Toutes les pages sont
+/// listées, même celles qu'aucun bouton n'ouvre encore.
+#[allow(dead_code)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Page<'a> {
     Accueil,
@@ -118,6 +120,27 @@ pub fn row_for(ctx: &Ctx, guild_id: Id<GuildMarker>, page: Page) -> Vec<Componen
     button(ctx, guild_id, page).map(|b| row(vec![b])).into_iter().collect()
 }
 
+/// Ajoute un bouton en bas d'un message Components V2, dans son encadré (ou
+/// à la suite s'il n'en a pas). Rien sans bouton.
+pub fn attach(components: &mut Vec<Component>, button: Option<Component>) {
+    let Some(button) = button else {
+        return;
+    };
+    let link = row(vec![button]);
+    match components.last_mut() {
+        Some(Component::Container(container)) => container.components.push(link),
+        _ => components.push(link),
+    }
+}
+
+/// Tableau de bord permanent : ajoute « Ouvrir sur le site » si le site est configuré.
+pub fn attach_page(ctx: &Ctx, guild_id: &str, page: Page, components: &mut Vec<Component>) {
+    let Some(guild_id) = crate::discord::messages::parse_id(guild_id) else {
+        return;
+    };
+    attach(components, button(ctx, guild_id, page));
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -145,6 +168,19 @@ mod tests {
     #[test]
     fn encodes_non_ascii() {
         assert_eq!(encode("Benny's é"), "Benny%27s%20%C3%A9");
+    }
+
+    #[test]
+    fn attaches_inside_the_container() {
+        use crate::discord::components::{container, text_display};
+        let mut components = vec![container(None, vec![text_display("x")])];
+        attach(&mut components, None);
+        attach(&mut components, Some(link_button("https://bot.example".into(), LABEL)));
+        let Component::Container(inner) = &components[0] else { panic!("encadré attendu") };
+        assert!(matches!(inner.components.as_slice(), [Component::TextDisplay(_), Component::ActionRow(_)]));
+        let mut bare = Vec::new();
+        attach(&mut bare, Some(link_button("https://bot.example".into(), LABEL)));
+        assert!(matches!(bare.as_slice(), [Component::ActionRow(_)]));
     }
 
     #[test]

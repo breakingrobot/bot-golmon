@@ -14,6 +14,7 @@ use crate::{
         interaction::{GUILD_ONLY, Ix, MANAGE_GUILD_ONLY, Reply, choice},
         members::avatar_url,
         messages::{self, Mentions, Outgoing, parse_id},
+        site::{self, Page},
         options::Options,
     },
     util::{
@@ -367,7 +368,8 @@ pub async fn member_stats(ix: &Ix, options: &Options, target: Id<UserMarker>) ->
         .field(field("Derniers changements d'avis", truncate_field(&changes), false))
         .maybe_thumbnail(options.resolved_user(target).map(|u| avatar_url(&u)))
         .build();
-    ix.reply(Reply::embed(embed).hidden()).await
+    let link = site::row_for(&ix.ctx, guild_id, Page::Membre(target));
+    ix.reply(Reply::embed(embed).hidden().with_components(link)).await
 }
 
 async fn stats(ix: &Ix, options: &Options) -> Result<()> {
@@ -405,7 +407,8 @@ async fn stats(ix: &Ix, options: &Options) -> Result<()> {
         .color(0x5865f2)
         .description(truncate(&lines, DESCRIPTION_LIMIT))
         .build();
-    ix.reply(Reply::embed(embed).hidden()).await
+    let link = site::row_for(&ix.ctx, guild_id, Page::Presences);
+    ix.reply(Reply::embed(embed).hidden().with_components(link)).await
 }
 
 async fn ping(ix: &Ix, options: &Options) -> Result<()> {

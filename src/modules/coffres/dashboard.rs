@@ -14,6 +14,7 @@ use crate::{
     discord::{
         components::{container, separator, text_display, text_displays},
         messages::{self, Outgoing, parse_id},
+        site::{self, Page},
     },
     util::{
         format::{ListBlock, V2_TEXT_LIMIT, pack_blocks, plural},
@@ -148,7 +149,9 @@ pub async fn sync_dashboard(ctx: &Ctx, guild_id: &str) -> Result<()> {
         .collect();
     let lines = service::stock(&ctx.db, guild_id, None).await?;
     let thresholds = alerts::thresholds(&ctx.db, guild_id).await?;
-    let message = Outgoing::components_v2(build(&lines, &names, &thresholds));
+    let mut components = build(&lines, &names, &thresholds);
+    site::attach_page(ctx, guild_id, Page::Coffres { propriete: None, objet: None }, &mut components);
+    let message = Outgoing::components_v2(components);
     match messages::upsert(ctx, channel_id, known.as_deref().and_then(parse_id), &message).await {
         Ok(Some(new_id)) => {
             sqlx::query(r#"UPDATE "CoffreAlertConfig" SET "dashboardMessageId" = ? WHERE "guildId" = ?"#)

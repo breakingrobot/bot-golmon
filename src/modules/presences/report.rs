@@ -29,6 +29,7 @@ use crate::{
         components::{container, separator, text_displays},
         members::role_member_ids,
         messages::{self, Outgoing, parse_id},
+        site,
     },
     util::{
         format::{V2_TEXT_LIMIT, and_others, bounded_lines, mention, plural, truncate},
@@ -595,8 +596,10 @@ pub async fn send_report(ctx: &Ctx, guild_id: Id<GuildMarker>, now: DateTime<Utc
         return Ok(());
     };
 
+    let mut components = report_components(&report);
+    site::attach(&mut components, site::button(ctx, guild_id, site::Page::Presences));
     // Mentions vides par défaut : les membres cités ne sont pas pingés.
-    messages::send(ctx, channel_id, &Outgoing::components_v2(report_components(&report))).await?;
+    messages::send(ctx, channel_id, &Outgoing::components_v2(components)).await?;
     tracing::info!(%guild_id, presences = report.presences.len(), "rapport d'assiduité envoyé");
     Ok(())
 }

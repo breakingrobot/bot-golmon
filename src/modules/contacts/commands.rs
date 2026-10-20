@@ -9,6 +9,7 @@ use crate::{
         interaction::{GUILD_ONLY, Ix, MANAGE_GUILD_ONLY, Reply, choice},
         messages::{self, parse_id},
         options::Options,
+        site::{self, Page},
     },
     modules::audit::{self, Action, Entry},
     modules::permissions::{self, Perm},
@@ -205,7 +206,8 @@ async fn show(ix: &Ix, options: &Options, guild_id: Id<GuildMarker>) -> Result<(
         .field(field("Téléphone", optional(&contact.phone), true))
         .footer(footer(format!("Mis à jour le {}", format_day_label(contact.updated_at))))
         .build();
-    ix.reply(Reply::embed(embed).hidden()).await
+    let link = site::row_for(&ix.ctx, guild_id, Page::Contacts { contact: Some(&contact.id) });
+    ix.reply(Reply::embed(embed).hidden().with_components(link)).await
 }
 
 async fn list(ix: &Ix, options: &Options, guild_id: Id<GuildMarker>) -> Result<()> {
@@ -241,18 +243,14 @@ async fn list(ix: &Ix, options: &Options, guild_id: Id<GuildMarker>) -> Result<(
     if let Some(kind) = filter.kind {
         footer_text.push_str(&format!(" · {}", kind.label()));
     }
-    if permissions::can(ix, Perm::ContactNotes).await?
-        && let Some(url) = crate::web::auth::public_url(&ix.ctx)
-    {
-        footer_text.push_str(&format!(" · notes : {url}/stats/{guild}/contacts"));
-    }
     let embed = EmbedBuilder::new()
         .title("📇 Répertoire des contacts")
         .color(COLOR)
         .description(description)
         .footer(footer(footer_text))
         .build();
-    ix.reply(Reply::embed(embed).hidden()).await
+    let link = site::row_for(&ix.ctx, guild_id, Page::Contacts { contact: None });
+    ix.reply(Reply::embed(embed).hidden().with_components(link)).await
 }
 
 async fn add(ix: &Ix, options: &Options, guild_id: Id<GuildMarker>) -> Result<()> {

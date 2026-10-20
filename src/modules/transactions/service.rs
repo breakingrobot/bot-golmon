@@ -5,7 +5,10 @@ use super::{
 use crate::{
     context::Ctx,
     db::is_foreign_key_violation,
-    discord::messages::{self, Mentions, Outgoing, parse_id},
+    discord::{
+        messages::{self, Mentions, Outgoing, parse_id},
+        site::{self, Page},
+    },
     modules::like_contains,
     util::{ids::new_id, time::DbTime},
 };
@@ -269,7 +272,9 @@ pub async fn sync_dashboard(ctx: &Ctx, guild_id: &str) -> Result<()> {
         .fetch_one(&ctx.db)
         .await?;
 
-    let message = Outgoing::components_v2(build_dashboard(&transactions, total));
+    let mut components = build_dashboard(&transactions, total);
+    site::attach_page(ctx, guild_id, Page::Transactions { groupe: None }, &mut components);
+    let message = Outgoing::components_v2(components);
     let known = config.dashboard_message_id.as_deref().and_then(parse_id);
     match messages::upsert(ctx, channel_id, known, &message).await {
         Ok(Some(new_id)) => set_dashboard_message(&ctx.db, guild_id, &new_id.to_string()).await,

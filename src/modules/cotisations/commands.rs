@@ -10,6 +10,7 @@ use crate::{
         members::{avatar_url, display_name},
         messages::{self, Outgoing, parse_id},
         options::Options,
+        site::{self, Page},
     },
     modules::{
         audit::{self, Action, Entry},
@@ -257,7 +258,8 @@ async fn objective_view(ix: &Ix, guild_id: Id<GuildMarker>) -> Result<()> {
         .description(truncate(&description, DESCRIPTION_LIMIT))
         .footer(footer(format!("Objectif : {} par membre", objective.describe())))
         .build();
-    ix.reply(Reply::embed(embed).hidden()).await
+    let link = site::row_for(&ix.ctx, guild_id, Page::Cotisations { membre: None });
+    ix.reply(Reply::embed(embed).hidden().with_components(link)).await
 }
 
 fn name(ix: &Ix, guild_id: Id<GuildMarker>, user_id: &str) -> String {
@@ -413,7 +415,8 @@ async fn history(ix: &Ix, options: &Options, guild_id: Id<GuildMarker>) -> Resul
     )
     .footer(footer(format!("{} cotisation(s) {}", totals.count, period_label(days))))
     .build();
-    ix.reply(Reply::embed(embed).hidden()).await
+    let link = site::row_for(&ix.ctx, guild_id, Page::Cotisations { membre: Some(target) });
+    ix.reply(Reply::embed(embed).hidden().with_components(link)).await
 }
 
 async fn stats(ix: &Ix, options: &Options, guild_id: Id<GuildMarker>) -> Result<()> {
@@ -452,15 +455,13 @@ async fn stats(ix: &Ix, options: &Options, guild_id: Id<GuildMarker>) -> Result<
             DESCRIPTION_LIMIT,
         )
     };
-    let mut footer_text = format!("{} cotisation(s) {}", totals.count, period_label(days));
-    if let Some(url) = crate::web::auth::public_url(&ix.ctx) {
-        footer_text.push_str(&format!(" · détail : {url}/stats/{guild}/cotisations"));
-    }
+    let footer_text = format!("{} cotisation(s) {}", totals.count, period_label(days));
     let embed =
         totals_fields(EmbedBuilder::new().title("📊 Cotisations du groupe").color(COLOR).description(ranking), &totals)
             .footer(footer(footer_text))
             .build();
-    ix.reply(Reply::embed(embed).hidden()).await
+    let link = site::row_for(&ix.ctx, guild_id, Page::Cotisations { membre: options.user("membre") });
+    ix.reply(Reply::embed(embed).hidden().with_components(link)).await
 }
 
 async fn remove(ix: &Ix, options: &Options, guild_id: Id<GuildMarker>) -> Result<()> {
