@@ -8,11 +8,16 @@ export const PERIODS = [
 
 export type Period = (typeof PERIODS)[number]['value']
 
+/** Filtre du type de mouvement (`adjust` : corrections d'inventaire). */
+export const MOVEMENT_TYPES = ['deposit', 'withdraw', 'adjust'] as const
+
+export type MovementType = (typeof MOVEMENT_TYPES)[number]
+
 export type CoffresSearch = {
   propriete?: string
   objet?: string
   joueur?: string
-  type?: 'deposit' | 'withdraw'
+  type?: MovementType
   jours?: Period
   page?: number
 }

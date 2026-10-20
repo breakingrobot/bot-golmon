@@ -4,6 +4,10 @@
 
 import type {
   CoffreAlerts,
+  CoffreCorrection,
+  CoffreInventory,
+  CoffreInventoryResult,
+  CoffreKind,
   CoffreMeta,
   CoffreMovement,
   CoffrePlayer,
@@ -38,6 +42,13 @@ import type {
   TransactionsResponse,
   WeeklyAmount,
 } from '@/api/types'
+import {
+  fallbackItemLabel,
+  isPropertyId,
+  MAX_INVENTORY,
+  MAX_INVENTORY_ITEMS,
+  normalizeItem,
+} from '@/lib/coffre-inventory'
 
 import {
   ACTIONS,
@@ -432,9 +443,27 @@ const withLinks = (movement: CoffreMovement): CoffreMovement => {
   return {
     ...movement,
     propertyName: property?.name ?? null,
-    player: { ...movement.player, member: linkedMember(movement.player.gameId) },
+    // Une correction garde son auteur ; un mouvement du jeu prend le membre relié au personnage.
+    player:
+      movement.kind === 'ADJUST'
+        ? movement.player
+        : { ...movement.player, member: linkedMember(movement.player.gameId) },
   }
 }
+
+const KIND_FILTERS: Record<string, CoffreKind | undefined> = {
+  deposit: 'DEPOSIT',
+  withdraw: 'WITHDRAW',
+  adjust: 'ADJUST',
+  correction: 'ADJUST',
+}
+
+/** Somme des mouvements d'un type ; dépôts − retraits + corrections pour `stock`. */
+const sumOf = (moves: readonly CoffreMovement[], kind: CoffreKind) =>
+  moves.filter((move) => move.kind === kind).reduce((sum, move) => sum + move.amount, 0)
+
+const stockOf = (moves: readonly CoffreMovement[]) =>
+  sumOf(moves, 'DEPOSIT') - sumOf(moves, 'WITHDRAW') + sumOf(moves, 'ADJUST')
 
 const filteredMovements = (params: URLSearchParams): CoffreMovement[] => {
   const property = params.get('propriete')
@@ -448,7 +477,7 @@ const filteredMovements = (params: URLSearchParams): CoffreMovement[] => {
       (!property || movement.propertyId === property) &&
       (!item || movement.item === item) &&
       (!player || movement.player.gameId === player) &&
-      (!type || (type === 'deposit' ? movement.kind === 'DEPOSIT' : movement.kind === 'WITHDRAW')) &&
+      (!type || movement.kind === KIND_FILTERS[type]) &&
       (since === null || new Date(movement.at).getTime() >= since),
   ).map((movement) => withLinks(movement))
 }
@@ -477,27 +506,30 @@ const coffreStock = (params: URLSearchParams): CoffreStock => {
       name: property.name,
       items: ITEMS.map((item) => {
         const moves = MOVEMENTS.filter((move) => move.propertyId === property.id && move.item === item.item)
-        const deposited = moves.filter((move) => move.kind === 'DEPOSIT').reduce((sum, move) => sum + move.amount, 0)
-        const withdrawn = moves.filter((move) => move.kind === 'WITHDRAW').reduce((sum, move) => sum + move.amount, 0)
-        const quantity = deposited - withdrawn
+        const quantity = stockOf(moves)
         const threshold = thresholds.find(
           (rule) => rule.item === item.item && (rule.propertyId === null || rule.propertyId === property.id),
         )
         return {
           ...item,
-          deposited,
-          withdrawn,
+          deposited: sumOf(moves, 'DEPOSIT'),
+          withdrawn: sumOf(moves, 'WITHDRAW'),
+          adjusted: sumOf(moves, 'ADJUST'),
           quantity,
           low: quantity < 0 || (threshold !== undefined && quantity < threshold.min),
+          seen: moves.length > 0,
         }
-      }).filter((item) => item.deposited + item.withdrawn > 0),
+      })
+        .filter((item) => item.seen)
+        .map(({ seen: _seen, ...item }) => item),
     })),
   }
 }
 
 const coffrePlayers = (params: URLSearchParams): CoffrePlayer[] => {
   const players = new Map<string, CoffrePlayer>()
-  for (const movement of filteredMovements(params)) {
+  // Les corrections d'inventaire ne sont pas l'activité d'un joueur.
+  for (const movement of filteredMovements(params).filter((move) => move.kind !== 'ADJUST')) {
     const key = movement.player.gameId ?? movement.player.name
     const row = players.get(key) ?? {
       gameId: movement.player.gameId,
@@ -524,17 +556,61 @@ const coffreSeries = (params: URLSearchParams): CoffreSeries => {
   const first = moves.at(-1)
   const start = days === null ? (first ? parisDay(first.at) : today()) : addDays(today(), -days + 1)
   const series: CoffreSeries = []
-  let stock = moves
-    .filter((move) => parisDay(move.at) < start)
-    .reduce((sum, move) => sum + (move.kind === 'DEPOSIT' ? move.amount : -move.amount), 0)
+  let stock = stockOf(moves.filter((move) => parisDay(move.at) < start))
   for (let day = start; day <= today(); day = addDays(day, 1)) {
     const inDay = moves.filter((move) => parisDay(move.at) === day)
-    const deposited = inDay.filter((move) => move.kind === 'DEPOSIT').reduce((sum, move) => sum + move.amount, 0)
-    const withdrawn = inDay.filter((move) => move.kind === 'WITHDRAW').reduce((sum, move) => sum + move.amount, 0)
-    stock += deposited - withdrawn
-    series.push({ day, deposited, withdrawn, stock })
+    stock += stockOf(inDay)
+    series.push({
+      day,
+      deposited: sumOf(inDay, 'DEPOSIT'),
+      withdrawn: sumOf(inDay, 'WITHDRAW'),
+      adjusted: sumOf(inDay, 'ADJUST'),
+      stock,
+    })
   }
   return series
+}
+
+const labelOfItem = (item: string) => ITEMS.find((entry) => entry.item === item)?.label ?? fallbackItemLabel(item)
+
+/** Inventaire : mêmes contrôles et même calcul que le bot (écarts → mouvements `ADJUST` signés). */
+const coffreInventory = (body: CoffreInventory): CoffreInventoryResult => {
+  const propertyId = String(body.propertyId ?? '').trim()
+  if (!isPropertyId(propertyId)) throw new HttpError(422, 'Propriété invalide : son numéro, ex : 8740.')
+  if (!Array.isArray(body.items) || body.items.length === 0 || body.items.length > MAX_INVENTORY_ITEMS) {
+    throw new HttpError(422, `Entre 1 et ${MAX_INVENTORY_ITEMS} objets par inventaire.`)
+  }
+  const counted = new Map<string, number>()
+  for (const line of body.items) {
+    const item = normalizeItem(String(line.item))
+    if (!item) throw new HttpError(422, `Objet invalide : « ${line.item} ».`)
+    if (!Number.isInteger(line.quantity) || line.quantity < 0 || line.quantity > MAX_INVENTORY) {
+      throw new HttpError(422, `${labelOfItem(item)} : quantité entre 0 et ${MAX_INVENTORY}.`)
+    }
+    counted.set(item, line.quantity)
+  }
+  const property = PROPERTIES.find((entry) => entry.id === propertyId)
+  const corrections: CoffreCorrection[] = []
+  for (const [item, after] of counted) {
+    const before = stockOf(MOVEMENTS.filter((move) => move.propertyId === propertyId && move.item === item))
+    if (after === before) continue
+    if (!ITEMS.some((entry) => entry.item === item)) ITEMS.push({ item, label: labelOfItem(item) })
+    MOVEMENTS.unshift({
+      id: nextId(),
+      at: new Date().toISOString(),
+      kind: 'ADJUST',
+      propertyId,
+      propertyName: property?.name ?? null,
+      item,
+      itemLabel: labelOfItem(item),
+      amount: after - before,
+      player: { gameId: null, name: ME.name, member: ME },
+    })
+    corrections.push({ item, label: labelOfItem(item), before, after })
+  }
+  // Une nouvelle propriété apparaît dès sa première correction.
+  if (!property && corrections.length > 0) PROPERTIES.push({ id: propertyId, name: null })
+  return { corrections }
 }
 
 // ---------------------------------------------------------------------------
@@ -836,6 +912,10 @@ route('PUT', `${G}/coffres/players/:id`, (m, _p, body) => {
 route('DELETE', `${G}/coffres/players/:id`, (m) => {
   requireGuild(at(m, 1), 'coffre.gerer')
   if (!LINKS.delete(at(m, 2))) throw new HttpError(404, 'Ce personnage n’est relié à aucun membre.')
+})
+route('PUT', `${G}/coffres/inventory`, (m, _p, body) => {
+  requireGuild(at(m, 1), 'coffre.gerer')
+  return coffreInventory(body as CoffreInventory)
 })
 route('GET', `${G}/coffres/alerts`, (m) => (requireGuild(at(m, 1), 'coffre.voir'), coffreAlerts.value))
 route('PUT', `${G}/coffres/alerts`, (m, _p, body) => {

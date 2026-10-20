@@ -107,6 +107,82 @@
         ],
         "type": "object"
       },
+      "CoffreCorrection": {
+        "properties": {
+          "after": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "before": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "item": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "item",
+          "label",
+          "before",
+          "after"
+        ],
+        "type": "object"
+      },
+      "CoffreInventory": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/CoffreInventoryLine"
+            },
+            "type": "array"
+          },
+          "propertyId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "propertyId",
+          "items"
+        ],
+        "type": "object"
+      },
+      "CoffreInventoryLine": {
+        "properties": {
+          "item": {
+            "description": "Identifiant de l'objet dans le jeu, ex : `repair_kit`.",
+            "type": "string"
+          },
+          "quantity": {
+            "description": "Quantité réellement présente dans le coffre.",
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "item",
+          "quantity"
+        ],
+        "type": "object"
+      },
+      "CoffreInventoryResult": {
+        "properties": {
+          "corrections": {
+            "description": "Seuls les objets dont la quantité a changé.",
+            "items": {
+              "$ref": "#/components/schemas/CoffreCorrection"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "corrections"
+        ],
+        "type": "object"
+      },
       "CoffreItem": {
         "properties": {
           "item": {
@@ -123,10 +199,11 @@
         "type": "object"
       },
       "CoffreKind": {
-        "description": "Dépôt ou retrait.",
+        "description": "Dépôt, retrait ou correction d'inventaire.",
         "enum": [
           "DEPOSIT",
-          "WITHDRAW"
+          "WITHDRAW",
+          "ADJUST"
         ],
         "type": "string"
       },
@@ -187,6 +264,7 @@
       "CoffreMovement": {
         "properties": {
           "amount": {
+            "description": "Quantité ; signée pour une correction (`ADJUST`).",
             "format": "int64",
             "type": "integer"
           },
@@ -206,7 +284,8 @@
             "$ref": "#/components/schemas/CoffreKind"
           },
           "player": {
-            "$ref": "#/components/schemas/CoffreMovementPlayer"
+            "$ref": "#/components/schemas/CoffreMovementPlayer",
+            "description": "Joueur du jeu ; pour une correction, le membre qui a saisi l'inventaire."
           },
           "propertyId": {
             "type": "string"
@@ -354,6 +433,11 @@
       },
       "CoffreSeriesPoint": {
         "properties": {
+          "adjusted": {
+            "description": "Corrections d'inventaire du jour (signées).",
+            "format": "int64",
+            "type": "integer"
+          },
           "day": {
             "type": "string"
           },
@@ -374,6 +458,7 @@
           "day",
           "deposited",
           "withdrawn",
+          "adjusted",
           "stock"
         ],
         "type": "object"
@@ -394,6 +479,11 @@
       },
       "CoffreStockItem": {
         "properties": {
+          "adjusted": {
+            "description": "Somme des corrections d'inventaire (signée).",
+            "format": "int64",
+            "type": "integer"
+          },
           "deposited": {
             "format": "int64",
             "type": "integer"
@@ -408,6 +498,7 @@
             "type": "boolean"
           },
           "quantity": {
+            "description": "Dépôts − retraits + corrections.",
             "format": "int64",
             "type": "integer"
           },
@@ -421,6 +512,7 @@
           "label",
           "deposited",
           "withdrawn",
+          "adjusted",
           "quantity",
           "low"
         ],
@@ -2881,6 +2973,88 @@
           }
         },
         "summary": "Export CSV, mêmes filtres que les mouvements.",
+        "tags": [
+          "coffres"
+        ]
+      }
+    },
+    "/api/guilds/{guild}/coffres/inventory": {
+      "put": {
+        "operationId": "setCoffreInventory",
+        "parameters": [
+          {
+            "description": "Identifiant du serveur",
+            "in": "path",
+            "name": "guild",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CoffreInventory"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoffreInventoryResult"
+                }
+              }
+            },
+            "description": "Corrections enregistrées"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Requête invalide"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Pas connecté"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Droit insuffisant"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            },
+            "description": "Saisie refusée"
+          }
+        },
+        "summary": "Inventaire d'une propriété, comme `/coffre inventaire` (`coffre.gerer`) : les\nécarts avec le stock connu deviennent des corrections signées, journalisées.",
         "tags": [
           "coffres"
         ]

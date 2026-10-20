@@ -1,8 +1,11 @@
+import { ClipboardList } from 'lucide-react'
+
 import type { CoffreMovement } from '@/api/types'
 import { Badge } from '@/atoms/Badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/atoms/Table'
 import { propertyLabel } from '@/lib/coffre'
-import { formatDateTime, formatNumber } from '@/lib/format'
+import { formatDateTime, formatSignedNumber } from '@/lib/format'
+import { cn } from '@/lib/utils'
 import { MemberName } from '@/molecules/MemberName'
 
 export type MovementsTableProps = { items: CoffreMovement[]; guildId: string }
@@ -26,18 +29,33 @@ export const MovementsTable = ({ items, guildId }: MovementsTableProps) => (
           <TableCell>
             {movement.kind === 'DEPOSIT' ? (
               <Badge variant="success">Dépôt</Badge>
-            ) : (
+            ) : movement.kind === 'WITHDRAW' ? (
               <Badge variant="danger">Retrait</Badge>
+            ) : (
+              <Badge variant="brand" title="Correction d’inventaire saisie par un gradé">
+                <ClipboardList aria-hidden /> Correction
+              </Badge>
             )}
           </TableCell>
           <TableCell className="font-medium">{movement.itemLabel}</TableCell>
-          <TableCell className="text-right tabular-nums">
-            {movement.kind === 'DEPOSIT' ? '+' : '−'}
-            {formatNumber(movement.amount)}
+          <TableCell className={cn('text-right tabular-nums', movement.kind === 'ADJUST' && 'font-medium text-brand')}>
+            {/* Une correction porte déjà son signe ; dépôts et retraits sont des quantités positives. */}
+            {formatSignedNumber(movement.kind === 'WITHDRAW' ? -movement.amount : movement.amount)}
           </TableCell>
           <TableCell>
-            <span className="text-ink">{movement.player.name}</span>
-            {movement.player.member && (
+            {movement.kind === 'ADJUST' ? (
+              <span className="inline-flex items-center gap-2">
+                {movement.player.member ? (
+                  <MemberName member={movement.player.member} guildId={guildId} avatar={false} />
+                ) : (
+                  <span className="text-ink">{movement.player.name}</span>
+                )}
+                <span className="text-xs text-ink-muted">inventaire</span>
+              </span>
+            ) : (
+              <span className="text-ink">{movement.player.name}</span>
+            )}
+            {movement.kind !== 'ADJUST' && movement.player.member && (
               <span className="ml-2 text-xs text-ink-muted">
                 (
                 <MemberName

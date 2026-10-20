@@ -24,6 +24,8 @@ export type ContractChecks = [
   Fits<G.GetCoffrePlayersResponse, T.CoffrePlayer[]>,
   Fits<G.GetCoffreSeriesResponse, T.CoffreSeries>,
   Fits<G.GetCoffreAlertsResponse, T.CoffreAlerts>,
+  Fits<G.SetCoffreInventoryResponse, T.CoffreInventoryResult>,
+  Fits<T.CoffreInventory, G.CoffreInventory>,
   Fits<G.GetContactsResponse, T.ContactsResponse>,
   Fits<G.GetContactResponse, T.ContactDetail>,
   Fits<G.CreateContactResponse, T.Contact>,

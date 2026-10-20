@@ -113,6 +113,19 @@ Stock de chaque propriété (objets **sous leur seuil** et stocks négatifs sign
 joueur et période (30 jours par défaut), **évolution du stock** de l'objet choisi, activité par personnage, liste
 des mouvements, export CSV. Avec `coffre.gerer` : nommer une propriété, relier ou délier un personnage.
 
+<img src="images/coffres-inventaire.png" alt="Inventaire d'une propriété avec l'aperçu des corrections" width="640">
+
+**Inventaire** (avec `coffre.gerer`, comme `/coffre inventaire`) : pour rattraper un stock antérieur au webhook ou
+des objets entrés sans message du jeu, on compte en jeu et on saisit la quantité réelle, depuis le bouton de la
+carte d'une propriété ou le bouton **Inventaire** de la page (propriété connue ou nouveau numéro). Chaque objet
+connu montre son stock actuel ; une ligne laissée vide ne change rien. **Ajouter un objet** propose les objets
+connus ou accepte un identifiant du jeu (`repair_kit`), et **Coller une liste** lit la même syntaxe que la commande
+(`repair_kit:42, acetone 2790; x=1`). L'**aperçu des corrections** affiche avant l'envoi chaque écart (stock connu →
+quantité comptée, +/−) ; seuls ces écarts partent et deviennent des mouvements **Correction** signés, avec leur
+auteur. Les corrections apparaissent dans les mouvements (filtre « Corrections »), dans le stock (icône « dont +34
+de corrections ») et dans l'évolution d'un objet (barres « Corrigé », courbe du stock comprise) ; elles ne comptent
+pas dans l'activité des joueurs.
+
 ### Contacts
 
 <img src="images/contacts.png" alt="Contacts" width="640"> <img src="images/contacts-sombre.png" alt="Contacts en thème sombre" width="300">

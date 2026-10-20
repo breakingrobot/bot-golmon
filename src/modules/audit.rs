@@ -53,6 +53,7 @@ pub enum Action {
     CoffreLink,
     CoffreUnlink,
     CoffreName,
+    CoffreInventory,
     ContactAdd,
     ContactUpdate,
     ContactDelete,
@@ -60,7 +61,7 @@ pub enum Action {
 }
 
 impl Action {
-    pub const ALL: [Self; 27] = [
+    pub const ALL: [Self; 28] = [
         Self::Config,
         Self::PresenceForceVote,
         Self::PresenceCancel,
@@ -84,6 +85,7 @@ impl Action {
         Self::CoffreLink,
         Self::CoffreUnlink,
         Self::CoffreName,
+        Self::CoffreInventory,
         Self::ContactAdd,
         Self::ContactUpdate,
         Self::ContactDelete,
@@ -115,6 +117,7 @@ impl Action {
             Self::CoffreLink => "coffre.link",
             Self::CoffreUnlink => "coffre.unlink",
             Self::CoffreName => "coffre.name",
+            Self::CoffreInventory => "coffre.inventory",
             Self::ContactAdd => "contact.add",
             Self::ContactUpdate => "contact.update",
             Self::ContactDelete => "contact.delete",
@@ -151,6 +154,7 @@ impl Action {
             Self::CoffreLink => "📦 Personnage relié à un membre",
             Self::CoffreUnlink => "📦 Personnage détaché d'un membre",
             Self::CoffreName => "📦 Propriété renommée",
+            Self::CoffreInventory => "📦 Inventaire d'un coffre",
             Self::ContactAdd => "📇 Contact ajouté",
             Self::ContactUpdate => "📇 Contact modifié",
             Self::ContactDelete => "📇 Contact supprimé",

@@ -69,6 +69,7 @@ pub fn router() -> Router<Context> {
         .route("/guilds/{guild}/coffres/export.csv", get(coffres::export))
         .route("/guilds/{guild}/coffres/alerts", get(reglages::alerts_get).put(reglages::alerts_put))
         .route("/guilds/{guild}/coffres/properties/{property}", put(coffres::name_property))
+        .route("/guilds/{guild}/coffres/inventory", put(coffres::inventory))
         .route("/guilds/{guild}/coffres/players/{game_id}", put(coffres::link_player).delete(coffres::unlink_player))
         .route("/guilds/{guild}/contacts", get(contacts::list).post(contacts::create))
         .route("/guilds/{guild}/contacts/{id}", get(contacts::detail).patch(contacts::update).delete(contacts::remove))

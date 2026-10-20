@@ -23,6 +23,12 @@ export const formatSignedMoney = (value: number): string => {
   return `${sign}${formatMoney(Math.abs(value))}`
 }
 
+/** Quantité signée (« +34 », « −3 », « 0 »), pour les corrections d'inventaire. */
+export const formatSignedNumber = (value: number): string => {
+  const sign = value > 0 ? '+' : value < 0 ? '−' : ''
+  return `${sign}${formatNumber(Math.abs(value))}`
+}
+
 /** Axe des graphiques : « 12,5 k $ ». */
 export const formatCompactMoney = (value: number): string => `${spaces(compact.format(value))} $`
 

@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { getRouteApi, useNavigate } from '@tanstack/react-router'
-import { X } from 'lucide-react'
+import { ClipboardList, X } from 'lucide-react'
 
 import { csvUrl } from '@/api/client'
 import { coffreMetaQuery } from '@/api/queries'
@@ -17,7 +17,8 @@ import { CsvButton } from '@/molecules/CsvButton'
 import { Field } from '@/molecules/Field'
 import { PageHeader } from '@/molecules/PageHeader'
 import { QueryError } from '@/molecules/QueryError'
-import { PERIODS } from '@/pages/coffres/coffres-search'
+import { CoffreInventoryDialog } from '@/organisms/CoffreInventoryDialog'
+import { MOVEMENT_TYPES, PERIODS } from '@/pages/coffres/coffres-search'
 import type { CoffresSearch, Period } from '@/pages/coffres/coffres-search'
 import { MovementsSection } from '@/pages/coffres/MovementsSection'
 import { PlayerSelect } from '@/pages/coffres/PlayerSelect'
@@ -34,6 +35,7 @@ export const CoffresView = () => {
   const { page = 1, ...rest } = search
   const filters: CoffreFilters = { ...rest, jours: rest.jours ?? '30' }
   const meta = useQuery(coffreMetaQuery(guild.id))
+  const canManage = hasPerm(guild, 'coffre.gerer')
   const setFilter = (patch: SearchPatch<CoffresSearch>) =>
     void navigate({ search: (prev) => compact({ ...prev, ...patch, page: undefined }) })
   const filtered = Boolean(search.propriete || search.objet || search.joueur || search.type)
@@ -44,7 +46,23 @@ export const CoffresView = () => {
       <PageHeader
         title="Coffres"
         description={`${guild.name} · stock, activité par personnage, mouvements`}
-        actions={<CsvButton href={csvUrl(`/guilds/${guild.id}/coffres/export.csv`, filters)} />}
+        actions={
+          <>
+            {canManage && meta.data && (
+              <CoffreInventoryDialog
+                guildId={guild.id}
+                properties={meta.data.properties}
+                items={meta.data.items}
+                trigger={
+                  <Button variant="outline">
+                    <ClipboardList aria-hidden /> Inventaire
+                  </Button>
+                }
+              />
+            )}
+            <CsvButton href={csvUrl(`/guilds/${guild.id}/coffres/export.csv`, filters)} />
+          </>
+        }
       />
 
       <div className="grid gap-3 rounded-xl border bg-card p-4 shadow-xs sm:grid-cols-2 lg:grid-cols-4">
@@ -89,17 +107,16 @@ export const CoffresView = () => {
           {(props) => (
             <Select
               value={search.type ?? ALL}
-              onValueChange={(value) =>
-                setFilter({ type: value === 'deposit' || value === 'withdraw' ? value : undefined })
-              }
+              onValueChange={(value) => setFilter({ type: MOVEMENT_TYPES.find((type) => type === value) })}
             >
               <SelectTrigger {...props}>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value={ALL}>Dépôts et retraits</SelectItem>
+                <SelectItem value={ALL}>Tous les mouvements</SelectItem>
                 <SelectItem value="deposit">Dépôts</SelectItem>
                 <SelectItem value="withdraw">Retraits</SelectItem>
+                <SelectItem value="adjust">Corrections</SelectItem>
               </SelectContent>
             </Select>
           )}
@@ -138,7 +155,7 @@ export const CoffresView = () => {
 
       {meta.isError && <QueryError error={meta.error} retry={() => void meta.refetch()} />}
 
-      <StockSection guildId={guild.id} propriete={search.propriete} canManage={hasPerm(guild, 'coffre.gerer')} />
+      <StockSection guildId={guild.id} propriete={search.propriete} canManage={canManage} items={meta.data?.items} />
 
       {search.objet && (
         <SeriesSection
@@ -150,12 +167,7 @@ export const CoffresView = () => {
         />
       )}
 
-      <PlayersSection
-        guildId={guild.id}
-        filters={filters}
-        meta={meta.data}
-        canManage={hasPerm(guild, 'coffre.gerer')}
-      />
+      <PlayersSection guildId={guild.id} filters={filters} meta={meta.data} canManage={canManage} />
 
       <MovementsSection
         guildId={guild.id}

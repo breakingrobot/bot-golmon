@@ -85,3 +85,6 @@ export const MOVE_SERIES: Series[] = [
   { key: 'deposited', label: 'Déposé', color: 'var(--series-1)' },
   { key: 'withdrawn', label: 'Retiré', color: 'var(--series-2)' },
 ]
+
+/** Corrections d'inventaire (signées), ajoutées aux mouvements quand la période en contient. */
+export const ADJUST_SERIES: Series[] = [{ key: 'adjusted', label: 'Corrigé', color: 'var(--series-3)' }]

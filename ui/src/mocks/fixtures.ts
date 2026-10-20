@@ -540,6 +540,61 @@ for (let index = 0; index < 340; index += 1) {
     player: { gameId: character.gameId, name: character.name, member: null },
   })
 }
+
+// Ajouts sans tirage aléatoire (le reste de la maquette garde ses valeurs).
+const fixedAt = (days: number, hour: number, minute: number): string => {
+  const date = new Date(NOW - days * DAY)
+  date.setUTCHours(hour - 2, minute, 0, 0)
+  if (date.getTime() > NOW) date.setTime(NOW - 30 * 60_000)
+  return date.toISOString()
+}
+const itemOf = (item: string) => ITEMS.find((entry) => entry.item === item) ?? { item, label: item }
+
+// Garage Vespucci : webhook installé il y a six jours, stock d'avant inconnu → quantités négatives à corriger
+// par un inventaire.
+const garage = { id: '3307', name: 'Garage Vespucci' }
+PROPERTIES.push(garage)
+const preWebhook: [string, 'DEPOSIT' | 'WITHDRAW', number, number, number][] = [
+  ['repair_kit', 'WITHDRAW', 6, 5, 21],
+  ['repair_kit', 'WITHDRAW', 8, 3, 19],
+  ['ammo_9mm', 'WITHDRAW', 60, 4, 22],
+  ['medikit', 'WITHDRAW', 3, 2, 20],
+  ['medikit', 'DEPOSIT', 1, 1, 18],
+  ['lockpick', 'WITHDRAW', 2, 1, 23],
+]
+for (const [index, [item, kind, amount, days, hour]] of preWebhook.entries()) {
+  const character = CHARACTERS[index % CHARACTERS.length] ?? { gameId: '340772', name: 'Kyle Ian Duggan' }
+  MOVEMENTS.push({
+    id: `garage-${index}`,
+    at: fixedAt(days, hour, 10 + index * 7),
+    kind,
+    propertyId: garage.id,
+    propertyName: garage.name,
+    item,
+    itemLabel: itemOf(item).label,
+    amount,
+    player: { gameId: character.gameId, name: character.name, member: null },
+  })
+}
+
+// Corrections d'inventaire déjà saisies sur la planque du port (quantité signée, auteur = membre).
+const corrections: [string, number, number, number][] = [
+  ['lockpick', 3, 9, 20],
+  ['medikit', -2, 4, 21],
+]
+for (const [index, [item, amount, days, hour]] of corrections.entries()) {
+  MOVEMENTS.push({
+    id: `inv-${index}`,
+    at: fixedAt(days, hour, 5),
+    kind: 'ADJUST',
+    propertyId: '8740',
+    propertyName: 'Planque du port',
+    item,
+    itemLabel: itemOf(item).label,
+    amount,
+    player: { gameId: null, name: ME.name, member: ME },
+  })
+}
 MOVEMENTS.sort((a, b) => b.at.localeCompare(a.at))
 
 export const coffreAlerts: { value: CoffreAlerts } = {

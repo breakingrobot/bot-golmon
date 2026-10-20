@@ -83,7 +83,7 @@ string_enum!(
     "Statut d'une transaction.",
     ["PREPARATION", "EN_ATTENTE_RDV", "AVANCE_ATTENTE_PAIEMENT", "LIVRE_PAYE", "ANNULEE", "CLOTUREE"]
 );
-string_enum!(CoffreKind, "Dépôt ou retrait.", ["DEPOSIT", "WITHDRAW"]);
+string_enum!(CoffreKind, "Dépôt, retrait ou correction d'inventaire.", ["DEPOSIT", "WITHDRAW", "ADJUST"]);
 string_enum!(ContactKind, "Nature d'un contact.", ["GROUPE", "ENTREPRISE", "PERSONNE"]);
 string_enum!(Relation, "Relation d'un contact avec le groupe.", ["ALLIE", "NEUTRE", "HOSTILE"]);
 string_enum!(TicketStatus, "Statut d'un ticket.", ["OPEN", "CLOSED", "SUSPENDED"]);
@@ -226,6 +226,7 @@ pub struct ConfigStatus {
         super::reglages::alerts_put,
         coffres::name_property,
         coffres::link_player,
+        coffres::inventory,
         coffres::unlink_player,
         contacts::list,
         contacts::detail,
