@@ -3,9 +3,13 @@
 import { keepPreviousData, queryOptions, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 
+import { formatNumber } from '@/lib/format'
+
 import { api, errorMessage } from './client'
 import type {
   CoffreAlerts,
+  CoffreInventory,
+  CoffreInventoryResult,
   CoffreMeta,
   CoffrePlayer,
   CoffreSeries,
@@ -258,6 +262,30 @@ export const useUnlinkPlayer = (guildId: string) =>
     'Personnage délié.',
     [['coffres'], ['member']],
   )
+
+/**
+ * Inventaire d'une propriété : les écarts deviennent des corrections. Les erreurs ne partent pas en toast :
+ * le dialogue les affiche (`mutation.error`) pour que la saisie puisse être corrigée sur place.
+ */
+export const useSetCoffreInventory = (guildId: string) => {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: (body: CoffreInventory) =>
+      api<CoffreInventoryResult>('PUT', `${g(guildId)}/coffres/inventory`, { body }),
+    onSuccess: async ({ corrections }) => {
+      if (corrections.length === 0) toast.success('Le stock connu était déjà juste : aucune correction.')
+      else {
+        toast.success(`${corrections.length} correction(s) enregistrée(s)`, {
+          description: corrections
+            .map(({ label, before, after }) => `${label} : ${formatNumber(before)} → ${formatNumber(after)}`)
+            .join(' · '),
+        })
+      }
+      // Stock, mouvements, évolution et propriétés connues (une nouvelle propriété apparaît).
+      await client.invalidateQueries({ queryKey: ['guild', guildId, 'coffres'] })
+    },
+  })
+}
 
 export const useSaveCoffreAlerts = (guildId: string) =>
   useGuildMutation(

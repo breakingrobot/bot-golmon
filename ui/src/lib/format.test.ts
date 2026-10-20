@@ -10,6 +10,7 @@ import {
   formatRelative,
   formatShortDay,
   formatSignedMoney,
+  formatSignedNumber,
   formatWeek,
   plural,
 } from '@/lib/format'
@@ -33,6 +34,12 @@ describe('montants et nombres', () => {
     expect(formatSignedMoney(1200)).toBe(`+1${NBSP}200${NBSP}$`)
     expect(formatSignedMoney(-300)).toBe(`−300${NBSP}$`)
     expect(formatSignedMoney(0)).toBe(`0${NBSP}$`)
+  })
+
+  it('signe les quantités avec le vrai signe moins', () => {
+    expect(formatSignedNumber(1234)).toBe(`+1${NBSP}234`)
+    expect(formatSignedNumber(-3)).toBe('−3')
+    expect(formatSignedNumber(0)).toBe('0')
   })
 
   it('abrège les montants des axes', () => {

@@ -235,6 +235,7 @@ export type ObjectiveProgress = {
 // GET /api/guilds/:g/coffres/players?mêmes filtres sans page
 // GET /api/guilds/:g/coffres/series?objet&propriete&jours  — évolution d'un objet
 // GET /api/guilds/:g/coffres/export.csv?mêmes filtres
+// PUT    /api/guilds/:g/coffres/inventory  CoffreInventory → CoffreInventoryResult  (422 : saisie refusée)
 // PUT    /api/guilds/:g/coffres/properties/:propertyId  { name }  (nom vide = retirer le nom)
 // PUT    /api/guilds/:g/coffres/players/:gameId          { memberId }
 // DELETE /api/guilds/:g/coffres/players/:gameId
@@ -252,19 +253,34 @@ export type CoffreStock = {
   properties: {
     id: string
     name: string | null
-    items: { item: string; label: string; deposited: number; withdrawn: number; quantity: number; low: boolean }[]
+    items: {
+      item: string
+      label: string
+      deposited: number
+      withdrawn: number
+      /** Somme signée des corrections d'inventaire. */
+      adjusted: number
+      /** Dépôts − retraits + corrections. */
+      quantity: number
+      low: boolean
+    }[]
   }[]
 }
+
+/** Dépôt, retrait (lus dans le jeu) ou correction d'inventaire (saisie par un gradé). */
+export type CoffreKind = 'DEPOSIT' | 'WITHDRAW' | 'ADJUST'
 
 export type CoffreMovement = {
   id: string
   at: string
-  kind: 'DEPOSIT' | 'WITHDRAW'
+  kind: CoffreKind
   propertyId: string
   propertyName: string | null
   item: string
   itemLabel: string
+  /** Quantité ; signée pour une correction (`ADJUST`). */
   amount: number
+  /** Joueur du jeu ; pour une correction, le membre qui a saisi l'inventaire (`gameId` nul). */
   player: { gameId: string | null; name: string; member: MemberRef | null }
 }
 
@@ -277,8 +293,19 @@ export type CoffrePlayer = {
   count: number
 }
 
-/** Un point par jour de la période, jours vides compris ; `stock` = solde cumulé depuis le début du suivi. */
-export type CoffreSeries = { day: string; deposited: number; withdrawn: number; stock: number }[]
+/**
+ * Un point par jour de la période, jours vides compris ; `adjusted` = corrections signées du jour,
+ * `stock` = solde cumulé depuis le début du suivi (corrections comprises).
+ */
+export type CoffreSeries = { day: string; deposited: number; withdrawn: number; adjusted: number; stock: number }[]
+
+/** Inventaire d'une propriété : quantités réellement comptées en jeu (1 à 300 objets, 0 à 1 000 000). */
+export type CoffreInventory = { propertyId: string; items: { item: string; quantity: number }[] }
+
+/** Écart enregistré comme correction (seuls les objets dont la quantité a changé). */
+export type CoffreCorrection = { item: string; label: string; before: number; after: number }
+
+export type CoffreInventoryResult = { corrections: CoffreCorrection[] }
 
 export type CoffreAlerts = {
   /** Salon où publier les alertes, `null` : désactivées. */

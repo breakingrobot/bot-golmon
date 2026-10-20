@@ -177,8 +177,11 @@ alias) : on teste le code tel qu'il est livré. Fichiers `*.test.ts(x)` à côt�
 - `api/client.ts` : en-têtes des écritures, message du serveur dans `ApiRequestError`, messages de repli, 401 suivi
   une seule fois vers `loginUrl` en revenant à la page affichée ;
 - `state/theme.ts` : valeur brute partagée avec `theme-init.js`, valeur inconnue ignorée ;
+- `lib/coffre-inventory.ts` : liste « objet:quantité » de la commande Discord, identifiants d'objets, écarts
+  prévisualisés de l'inventaire ;
 - molécules et organismes : `StatCard`, validation et envoi du formulaire de contact, niveaux de permission (seules
-  les lignes modifiées partent, retour au défaut = `null`) ;
+  les lignes modifiées partent, retour au défaut = `null`), inventaire des coffres (seules les lignes qui changent
+  partent, liste collée, erreur 422 affichée dans le dialogue) ;
 - une page complète (`JournalPage.test.tsx`) : routeur en mémoire, maquette de l'API (`vi.stubEnv('VITE_MOCK',
 '1')`), filtre écrit dans l'adresse.
 

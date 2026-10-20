@@ -6,6 +6,7 @@ import { Chart } from '@tanstack/react-charts/tooltip'
 
 import type { CoffreSeries } from '@/api/types'
 import {
+  ADJUST_SERIES,
   colorScale,
   GRID,
   MOVE_SERIES,
@@ -24,10 +25,13 @@ import { ChartTooltipBody } from '@/molecules/ChartTooltipBody'
 
 export type CoffreSeriesChartProps = { series: CoffreSeries; itemLabel: string }
 
-/** Évolution d'un objet : stock cumulé (courbe), puis dépôts et retraits par jour (barres). */
+/**
+ * Évolution d'un objet : stock cumulé (courbe, corrections comprises), puis dépôts, retraits et corrections
+ * d'inventaire signées par jour (barres ; la série des corrections n'apparaît que si la période en a).
+ */
 export const CoffreSeriesChart = ({ series: points, itemLabel }: CoffreSeriesChartProps) => {
   const stock = STOCK_SERIES
-  const moves = MOVE_SERIES
+  const moves = points.some((point) => point.adjusted !== 0) ? [...MOVE_SERIES, ...ADJUST_SERIES] : MOVE_SERIES
   const stockDefinition = defineChart({
     marks: [
       crosshair({ x: { stroke: 'var(--line-strong)' }, y: false }),
@@ -42,7 +46,7 @@ export const CoffreSeriesChart = ({ series: points, itemLabel }: CoffreSeriesCha
     maxFocusDistance: Number.POSITIVE_INFINITY,
     tooltip: TOOLTIP,
   })
-  const long = toLong(points, 'day', MOVE_SERIES)
+  const long = toLong(points, 'day', moves)
   const movesDefinition = defineChart({
     marks: [
       crosshair({ x: { band: { fill: 'var(--surface-sunken)', fillOpacity: 1 } }, y: false }),
@@ -60,7 +64,7 @@ export const CoffreSeriesChart = ({ series: points, itemLabel }: CoffreSeriesCha
       x: { scale: () => scaleBand<string>().padding(0.15), axis: periodAxis(formatShortDay) },
       y: { scale: scaleLinear, nice: true, grid: GRID, axis: valueAxis(formatNumber) },
     },
-    color: colorScale(MOVE_SERIES),
+    color: colorScale(moves),
     theme: THEME,
     focus: 'group-x',
     maxFocusDistance: Number.POSITIVE_INFINITY,
@@ -98,7 +102,7 @@ export const CoffreSeriesChart = ({ series: points, itemLabel }: CoffreSeriesCha
           definition={movesDefinition}
           height={194}
           className="chart"
-          ariaLabel={`Dépôts et retraits de ${itemLabel} par jour`}
+          ariaLabel={`Dépôts, retraits et corrections de ${itemLabel} par jour`}
           renderTooltipBody={({ points: focused }) => {
             const row = focused[0]?.datum.row
             if (!row) return null
